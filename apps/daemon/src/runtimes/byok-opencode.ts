@@ -7,6 +7,9 @@ export const BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE =
   'BYOK OpenCode requires a complete provider configuration for this run.';
 const DEFAULT_CONTEXT_TOKEN_LIMIT = 128_000;
 const DEFAULT_OUTPUT_TOKEN_LIMIT = 16_384;
+// V2's custom AI SDK providers require a non-empty credential to activate,
+// even when the target local endpoint does not authenticate requests.
+const KEYLESS_LOCAL_API_KEY = 'open-design-local-no-auth';
 
 const DEFAULT_BASE_URL_BY_PROTOCOL: Record<ByokChatProviderConfig['protocol'], string> = {
   anthropic: 'https://api.anthropic.com/v1',
@@ -72,10 +75,13 @@ export function buildOpenCodeByokProviderConfig(
     needsApiKey,
   );
   const config = {
-    provider: {
+    providers: {
       [BYOK_OPENCODE_PROVIDER_ID]: {
         name: 'OpenDesign BYOK',
-        ...providerEntry,
+        package: `aisdk:${providerEntry.npm}`,
+        settings: needsApiKey
+          ? providerEntry.options
+          : { ...providerEntry.options, apiKey: KEYLESS_LOCAL_API_KEY },
         models: {
           [rawModel]: {
             name: rawModel,
@@ -83,7 +89,7 @@ export function buildOpenCodeByokProviderConfig(
             // forward images (including later Read tool results) and let the
             // configured endpoint validate them. This run-scoped transport
             // policy is not a persisted claim about the model's capabilities.
-            modalities: { input: ['text', 'image'], output: ['text'] },
+            capabilities: { tools: true, input: ['text', 'image'], output: ['text'] },
             limit: {
               context: DEFAULT_CONTEXT_TOKEN_LIMIT,
               output: DEFAULT_OUTPUT_TOKEN_LIMIT,

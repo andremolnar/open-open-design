@@ -246,19 +246,19 @@ export function planAgentInstall(
         entry: jsonEntry(spec, { disabled: false, autoApprove: [] }),
       };
     case 'opencode':
-      // OpenCode nests under `mcp`, folds command+args into one array,
-      // and gates the server with `enabled`.
+      // V2 nests under `mcp.servers`, folds command+args into one array,
+      // and uses the inverse `disabled` switch.
       return {
         kind: 'json',
         slug,
         configPath: path.join(home, '.config', 'opencode', 'opencode.json'),
-        keyPath: ['mcp'],
+        keyPath: ['mcp', 'servers'],
         serverKey: serverName,
         entry: (() => {
           const e: Record<string, unknown> = {
             type: 'local',
             command: [spec.command, ...spec.args],
-            enabled: true,
+            disabled: false,
           };
           if (Object.keys(spec.env).length > 0) e.environment = spec.env;
           return e;

@@ -1,10 +1,9 @@
+import { appendFileSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { applyOpenCodeEventPlugin, OPEN_CODE_EVENT_PLUGIN_SOURCE, supportsOpenCodeEventPlugin } from '../../src/runtimes/opencode-event-plugin.js';
+import { applyOpenCodeEventPlugin, OPEN_CODE_EVENT_PLUGIN_SOURCE, supportsOpenCodeEventPlugin, watchOpenCodeToolPreviews } from '../../src/runtimes/opencode-event-plugin.js';
 import { createJsonEventStreamHandler } from '../../src/runtimes/json-event-stream.js';
 
 type Frame = Record<string, unknown>;
@@ -17,122 +16,60 @@ function parser() {
   return { events, handler, feed, preview };
 }
 
-test('stages a dependency-free plugin atomically and preserves both config plugin lists', async () => {
+test('stages a V2 plugin directory with a unique private preview stream while preserving config', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-plugin-'));
   try {
-    const env = { OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: { local: { enabled: true } }, plugin: ['overlay-plugin'] }) };
-    await Promise.all(Array.from({ length: 4 }, () => applyOpenCodeEventPlugin(env, root, '1.18.30', JSON.stringify({ plugin: ['user-plugin', 'overlay-plugin'] }))));
-    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
-    expect(config.mcp).toEqual({ local: { enabled: true } });
-    expect(config.plugin).toHaveLength(3);
-    expect(config.plugin.slice(0, 2)).toEqual(['user-plugin', 'overlay-plugin']);
-    const file = fileURLToPath(config.plugin[2]);
+    const env: NodeJS.ProcessEnv = { OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: { servers: {} }, plugins: ['overlay-plugin'] }) };
+    const first = applyOpenCodeEventPlugin(env, root, '2.0.18', JSON.stringify({ plugins: ['user-plugin', 'overlay-plugin'] }));
+    const second = applyOpenCodeEventPlugin(env, root, '2.0.18');
+    expect(first).not.toBe(second);
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
+    expect(config.mcp).toEqual({ servers: {} });
+    expect(config.plugins.slice(0, 2)).toEqual(['user-plugin', 'overlay-plugin']);
+    expect(config.plugins).toHaveLength(3);
+    const file = path.join(config.plugins[2], 'index.mjs');
     expect(file.startsWith(root + path.sep)).toBe(true);
     expect(await readFile(file, 'utf8')).toBe(OPEN_CODE_EVENT_PLUGIN_SOURCE);
-    expect(await readdir(path.dirname(file))).toEqual([path.basename(file)]);
+    expect(await readdir(path.dirname(file))).toEqual(['index.mjs']);
+    expect((await stat(first!)).mode & 0o777).toBe(0o600);
+    expect(env.OD_OPENCODE_PREVIEW_FILE).toBe(second);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test.each(['1.17.17', '1.16.0', '1.18.0-dev', '2.0.0', 'unknown', undefined])('unverified version %s leaves config and disk untouched', async version => {
-  const env = { OPENCODE_CONFIG_CONTENT: '{"plugin":["user"]}' };
-  expect(await applyOpenCodeEventPlugin(env, '/not-a-staging-directory', version)).toBe(false);
-  expect(env.OPENCODE_CONFIG_CONTENT).toBe('{"plugin":["user"]}');
+test.each(['1.18.30', '1.17.18', 'unknown', undefined])('unsupported version %s leaves config and disk untouched', version => {
+  const env = { OPENCODE_CONFIG_CONTENT: '{"plugins":["user"]}' };
+  expect(applyOpenCodeEventPlugin(env, '/not-a-staging-directory', version)).toBeNull();
+  expect(env.OPENCODE_CONFIG_CONTENT).toBe('{"plugins":["user"]}');
 });
 
-test('supported floor and pure mode are explicit', async () => {
-  expect(supportsOpenCodeEventPlugin('1.17.18')).toBe(true);
-  expect(supportsOpenCodeEventPlugin('1.18.30')).toBe(true);
-  expect(await applyOpenCodeEventPlugin({ OPENCODE_PURE: 'true' }, '/not-a-staging-directory', '1.18.30')).toBe(false);
-  expect(await applyOpenCodeEventPlugin({ OPENCODE_CONFIG_CONTENT: '{"plugin":42}' }, '/not-a-staging-directory', '1.18.30')).toBe(false);
+test('rejects malformed plugin lists without mutating the config', () => {
+  expect(supportsOpenCodeEventPlugin('2.0.18')).toBe(true);
+  expect(supportsOpenCodeEventPlugin('1.18.30')).toBe(false);
+  const env = { OPENCODE_CONFIG_CONTENT: '{"plugins":42}' };
+  expect(applyOpenCodeEventPlugin(env, '/not-a-staging-directory', '2.0.18')).toBeNull();
+  expect(env.OPENCODE_CONFIG_CONTENT).toBe('{"plugins":42}');
 });
 
-test('reuses an intact module and repairs corrupted content before the next launch', async () => {
+test('reuses intact generated code, repairs corruption, and drains on close', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-repair-'));
   const env: NodeJS.ProcessEnv = {};
   try {
-    await applyOpenCodeEventPlugin(env, root, '1.18.30');
-    expect(env.npm_config_fetch_retries).toBe('0');
-    expect(env.npm_config_fetch_timeout).toBe('10000');
-    const file = fileURLToPath(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).plugin[0]);
+    const first = applyOpenCodeEventPlugin(env, root, '2.0.18')!;
+    const file = path.join(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).plugins[0], 'index.mjs');
     const before = await stat(file);
-    await applyOpenCodeEventPlugin(env, root, '1.18.30');
+    const second = applyOpenCodeEventPlugin(env, root, '2.0.18')!;
     expect((await stat(file)).ino).toBe(before.ino);
-    expect((await stat(file)).mtimeMs).toBe(before.mtimeMs);
-    await writeFile(file, 'truncated module');
-    await applyOpenCodeEventPlugin(env, root, '1.18.30');
+    await writeFile(file, 'truncated');
+    applyOpenCodeEventPlugin(env, root, '2.0.18');
     expect(await readFile(file, 'utf8')).toBe(OPEN_CODE_EVENT_PLUGIN_SOURCE);
-    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).plugin).toHaveLength(1);
+    const lines: string[] = [];
+    const close = watchOpenCodeToolPreviews(second, line => lines.push(line));
+    appendFileSync(second, '{"type":"od_opencode_tool","version":1}\n');
+    close();
+    expect(lines).toEqual(['{"type":"od_opencode_tool","version":1}\n']);
+    await expect(stat(second)).rejects.toThrow();
+    await rm(first);
   } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('preserves explicit dependency fetch policy, including uppercase npm environment keys', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-npm-'));
-  const env: NodeJS.ProcessEnv = { NPM_CONFIG_FETCH_RETRIES: '2', npm_config_fetch_timeout: '45000' };
-  try {
-    await applyOpenCodeEventPlugin(env, root, '1.18.30');
-    expect(env.NPM_CONFIG_FETCH_RETRIES).toBe('2');
-    expect(env.npm_config_fetch_retries).toBeUndefined();
-    expect(env.npm_config_fetch_timeout).toBe('45000');
-  } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('staging and malformed configuration failures leave the original child overlay intact', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-unavailable-'));
-  try {
-    const blocked = path.join(root, 'file');
-    await writeFile(blocked, 'not a directory');
-    const env = { OPENCODE_CONFIG_CONTENT: '{"plugin":["user-plugin"]}' };
-    await expect(applyOpenCodeEventPlugin(env, blocked, '1.18.30')).rejects.toThrow();
-    expect(env.OPENCODE_CONFIG_CONTENT).toBe('{"plugin":["user-plugin"]}');
-    env.OPENCODE_CONFIG_CONTENT = '{invalid json';
-    await expect(applyOpenCodeEventPlugin(env, root, '1.18.30')).rejects.toThrow();
-    expect(env.OPENCODE_CONFIG_CONTENT).toBe('{invalid json');
-    expect(await readdir(root)).toEqual(['file']);
-  } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('observer failures stay local and a later update can retry a failed preview', async () => {
-  const lines: string[] = [];
-  let fail = true;
-  const factory = vm.runInNewContext(OPEN_CODE_EVENT_PLUGIN_SOURCE.replace('export default', '(') + ')', {
-    process: { stdout: { write: (line: string) => {
-      if (fail) throw new Error('preview unavailable');
-      lines.push(line);
-    } } },
-  });
-  const plugin = await factory();
-  await expect(plugin.event(null)).resolves.toBeUndefined();
-  // Historical upstream pending parts omit input entirely.
-  const frame = { event: { type: 'message.part.updated', properties: { part: {
-    type: 'tool', sessionID: 'root', callID: 'call', tool: 'write', state: { status: 'pending' },
-  } } } };
-  await expect(plugin.event(frame)).resolves.toBeUndefined();
-  fail = false;
-  await plugin.event(frame);
-  await plugin.event(frame);
-  expect(lines).toHaveLength(1);
-  expect(JSON.parse(lines[0]!)).toMatchObject({ callID: 'call', tool: 'write' });
-});
-
-test('the shipped module emits only changed tool previews, never long arguments or output', async () => {
-  const lines: string[] = [];
-  // Evaluate the exact shipped JS body with stdout captured; no host hooks/config.
-  const factory = vm.runInNewContext(OPEN_CODE_EVENT_PLUGIN_SOURCE.replace('export default', '(') + ')', {
-    process: { stdout: { write: (line: string) => lines.push(line) } },
-  });
-  const plugin = await factory();
-  const part = { type: 'tool', sessionID: 'root', callID: 'call', tool: 'write' };
-  const send = (state: Frame) => plugin.event({ event: { type: 'message.part.updated', properties: { part: { ...part, state } } } });
-  await plugin.event({ event: { type: 'session.idle' } });
-  await send({ status: 'pending', input: {} });
-  await send({ status: 'pending', input: {} });
-  await send({ status: 'running', input: { filePath: '/work/large.txt', content: 'x'.repeat(200_000) } });
-  await send({ status: 'running', input: { filePath: '/work/large.txt', content: 'y'.repeat(200_000) } });
-  await send({ status: 'completed', output: 'x'.repeat(200_000) });
-  expect(lines).toHaveLength(2);
-  expect(lines.every(line => line.endsWith('\n') && line.length < 250)).toBe(true);
-  expect(JSON.parse(lines[0]!)).toEqual({ type: 'od_opencode_tool', version: 1, sessionID: 'root', callID: 'call', tool: 'write' });
-  expect(JSON.parse(lines[1]!).path).toBe('/work/large.txt');
 });
 
 test.each(['completed', 'error'])('pending row merges into exactly one native %s pair with full arguments', status => {

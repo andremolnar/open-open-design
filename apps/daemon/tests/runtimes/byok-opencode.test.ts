@@ -14,10 +14,11 @@ describe('byok-opencode runtime config', () => {
     agentCapabilities.delete('byok-opencode');
     expect(byokOpenCodeAgentDef.helpArgs).toEqual(['run', '--help']);
     expect(byokOpenCodeAgentDef.capabilityFlags).toEqual({
-      '--dangerously-skip-permissions': 'skipPermissions',
+      '--auto': 'skipPermissions',
     });
     expect(byokOpenCodeAgentDef.buildArgs('', [], [], {})).toEqual([
       'run',
+      '--standalone',
       '--format',
       'json',
     ]);
@@ -26,9 +27,10 @@ describe('byok-opencode runtime config', () => {
     try {
       expect(byokOpenCodeAgentDef.buildArgs('', [], [], { model: 'gpt-5.5' })).toEqual([
         'run',
+      '--standalone',
         '--format',
         'json',
-        '--dangerously-skip-permissions',
+        '--auto',
         '-m',
         'open-design-byok/gpt-5.5',
       ]);
@@ -46,11 +48,11 @@ describe('byok-opencode runtime config', () => {
       );
 
       expect(out?.config).toMatchObject({
-        provider: {
+        providers: {
           [BYOK_OPENCODE_PROVIDER_ID]: {
             models: {
               'new-custom-model': {
-                modalities: { input: ['text', 'image'], output: ['text'] },
+                capabilities: { tools: true, input: ['text', 'image'], output: ['text'] },
               },
             },
           },
@@ -79,10 +81,10 @@ describe('byok-opencode runtime config', () => {
     expect(out?.env).toEqual({ [BYOK_OPENCODE_API_KEY_ENV]: 'sk-secret' });
     expect(JSON.stringify(out?.config)).not.toContain('sk-secret');
     expect(out?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai-compatible',
-          options: {
+          package: 'aisdk:@ai-sdk/openai-compatible',
+          settings: {
             baseURL: 'https://api.senseaudio.cn',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
           },
@@ -108,10 +110,10 @@ describe('byok-opencode runtime config', () => {
 
     expect(out?.modelId).toBe('open-design-byok/gpt-5.5');
     expect(out?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai',
-          options: {
+          package: 'aisdk:@ai-sdk/openai',
+          settings: {
             baseURL: 'https://api.openai.com/v1',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
           },
@@ -130,10 +132,10 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'openai', apiKey: 'sk-deepseek', baseUrl: 'https://api.deepseek.com' },
       'deepseek-v4-pro',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai-compatible',
-          options: {
+          package: 'aisdk:@ai-sdk/openai-compatible',
+          settings: {
             baseURL: 'https://api.deepseek.com',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
           },
@@ -144,7 +146,7 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'openai', apiKey: 'sk-openai', baseUrl: 'https://api.openai.com' },
       'deepseek-v4-pro',
     )?.config).toMatchObject({
-      provider: { [BYOK_OPENCODE_PROVIDER_ID]: { npm: '@ai-sdk/openai' } },
+      providers: { [BYOK_OPENCODE_PROVIDER_ID]: { package: 'aisdk:@ai-sdk/openai' } },
     });
   });
 
@@ -153,10 +155,10 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'anthropic', apiKey: 'sk-ant', baseUrl: 'https://api.anthropic.com' },
       'claude-sonnet-4-5',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/anthropic',
-          options: { baseURL: 'https://api.anthropic.com/v1' },
+          package: 'aisdk:@ai-sdk/anthropic',
+          settings: { baseURL: 'https://api.anthropic.com/v1' },
         },
       },
     });
@@ -164,10 +166,10 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'google', apiKey: 'AIza', baseUrl: 'https://generativelanguage.googleapis.com/' },
       'gemini-3.5-flash',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/google',
-          options: { baseURL: 'https://generativelanguage.googleapis.com/v1beta' },
+          package: 'aisdk:@ai-sdk/google',
+          settings: { baseURL: 'https://generativelanguage.googleapis.com/v1beta' },
         },
       },
     });
@@ -200,10 +202,10 @@ describe('byok-opencode runtime config', () => {
         },
         'anthropic-compatible-model',
       )?.config).toMatchObject({
-        provider: {
+        providers: {
           [BYOK_OPENCODE_PROVIDER_ID]: {
-            npm: '@ai-sdk/anthropic',
-            options: {
+            package: 'aisdk:@ai-sdk/anthropic',
+            settings: {
               baseURL: expectedBaseUrl,
             },
           },
@@ -221,10 +223,10 @@ describe('byok-opencode runtime config', () => {
       },
       'anthropic-compatible-model',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/anthropic',
-          options: {
+          package: 'aisdk:@ai-sdk/anthropic',
+          settings: {
             baseURL: 'https://gateway.example.com/anthropic/v2/proxy',
           },
         },
@@ -254,9 +256,9 @@ describe('byok-opencode runtime config', () => {
         },
         'anthropic-compatible-model',
       )?.config).toMatchObject({
-        provider: {
+        providers: {
           [BYOK_OPENCODE_PROVIDER_ID]: {
-            options: {
+            settings: {
               baseURL: expectedBaseUrl,
             },
           },
@@ -270,13 +272,13 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'anthropic', apiKey: 'sk-ant', baseUrl: 'https://api.anthropic.com' },
       'claude-sonnet-4-5',
     )?.config).toMatchObject({
-      provider: { [BYOK_OPENCODE_PROVIDER_ID]: { npm: '@ai-sdk/anthropic' } },
+      providers: { [BYOK_OPENCODE_PROVIDER_ID]: { package: 'aisdk:@ai-sdk/anthropic' } },
     });
     expect(buildOpenCodeByokProviderConfig(
       { protocol: 'google', apiKey: 'AIza', baseUrl: 'https://generativelanguage.googleapis.com' },
       'gemini-2.5-flash',
     )?.config).toMatchObject({
-      provider: { [BYOK_OPENCODE_PROVIDER_ID]: { npm: '@ai-sdk/google' } },
+      providers: { [BYOK_OPENCODE_PROVIDER_ID]: { package: 'aisdk:@ai-sdk/google' } },
     });
   });
 
@@ -285,10 +287,10 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'azure', apiKey: 'azure-key', baseUrl: 'https://example.openai.azure.com', apiVersion: '2024-10-21' },
       'gpt-4o',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/azure',
-          options: {
+          package: 'aisdk:@ai-sdk/azure',
+          settings: {
             baseURL: 'https://example.openai.azure.com',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
             apiVersion: '2024-10-21',
@@ -306,9 +308,9 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'azure', apiKey: 'azure-key', baseUrl: 'https://example.openai.azure.com' },
       'deployment-one',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          options: {
+          settings: {
             apiVersion: '2024-10-21',
             useDeploymentBasedUrls: true,
           },
@@ -334,10 +336,10 @@ describe('byok-opencode runtime config', () => {
       },
       'prod',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/azure',
-          options: {
+          package: 'aisdk:@ai-sdk/azure',
+          settings: {
             baseURL: 'https://resource.services.ai.azure.com/api/projects/project/openai/v1',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
           },
@@ -352,10 +354,10 @@ describe('byok-opencode runtime config', () => {
         apiVersion: '',
       },
       'prod',
-    )?.config.provider as Record<string, { options?: Record<string, unknown> }> | undefined)
+    )?.config.providers as Record<string, { settings?: Record<string, unknown> }> | undefined)
       ?.[BYOK_OPENCODE_PROVIDER_ID];
-    expect(provider?.options).not.toHaveProperty('useDeploymentBasedUrls');
-    expect(provider?.options).not.toHaveProperty('apiVersion');
+    expect(provider?.settings).not.toHaveProperty('useDeploymentBasedUrls');
+    expect(provider?.settings).not.toHaveProperty('apiVersion');
   });
 
   it('maps Ollama Cloud to OpenCode documented OpenAI-compatible v1 config', () => {
@@ -363,10 +365,10 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'ollama', apiKey: 'ollama-key', baseUrl: 'https://ollama.com' },
       'gpt-oss:20b',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai-compatible',
-          options: {
+          package: 'aisdk:@ai-sdk/openai-compatible',
+          settings: {
             baseURL: 'https://ollama.com/v1',
             apiKey: `{env:${BYOK_OPENCODE_API_KEY_ENV}}`,
           },
@@ -382,9 +384,9 @@ describe('byok-opencode runtime config', () => {
       { protocol: 'ollama', apiKey: 'ollama-key', baseUrl: 'https://ollama.example.com/api' },
       'llama3.1',
     )?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          options: {
+          settings: {
             baseURL: 'https://ollama.example.com/v1',
           },
         },
@@ -401,18 +403,18 @@ describe('byok-opencode runtime config', () => {
     expect(out?.modelId).toBe('open-design-byok/llama3.2');
     expect(out?.env).toEqual({});
     expect(out?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai-compatible',
-          options: {
+          package: 'aisdk:@ai-sdk/openai-compatible',
+          settings: {
             baseURL: 'http://localhost:11434/v1',
           },
         },
       },
     });
-    const provider = (out?.config.provider as Record<string, { options?: Record<string, unknown> }> | undefined)
+    const provider = (out?.config.providers as Record<string, { settings?: Record<string, unknown> }> | undefined)
       ?.[BYOK_OPENCODE_PROVIDER_ID];
-    expect(provider?.options).not.toHaveProperty('apiKey');
+    expect(provider?.settings?.apiKey).toBe('open-design-local-no-auth');
   });
 
   it('still requires an API key for non-local Ollama providers', () => {
@@ -436,17 +438,17 @@ describe('byok-opencode runtime config', () => {
     expect(out?.modelId).toBe('open-design-byok/model');
     expect(out?.env).toEqual({});
     expect(out?.config).toMatchObject({
-      provider: {
+      providers: {
         [BYOK_OPENCODE_PROVIDER_ID]: {
-          npm: '@ai-sdk/openai-compatible',
-          options: {
+          package: 'aisdk:@ai-sdk/openai-compatible',
+          settings: {
             baseURL: 'http://127.0.0.1:8000/v1',
           },
         },
       },
     });
-    const provider = (out?.config.provider as Record<string, { options?: Record<string, unknown> }> | undefined)
+    const provider = (out?.config.providers as Record<string, { settings?: Record<string, unknown> }> | undefined)
       ?.[BYOK_OPENCODE_PROVIDER_ID];
-    expect(provider?.options).not.toHaveProperty('apiKey');
+    expect(provider?.settings?.apiKey).toBe('open-design-local-no-auth');
   });
 });

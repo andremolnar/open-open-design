@@ -157,6 +157,7 @@ describe('syncConfigToDaemon', () => {
 
     await syncConfigToDaemon({
       ...DEFAULT_CONFIG,
+      onboardingCompleted: false,
       agentCliEnv: {
         claude: { CLAUDE_CONFIG_DIR: '~/.claude-2' },
         codex: { CODEX_HOME: '~/.codex-alt', CODEX_BIN: '~/bin/codex-next' },
@@ -987,6 +988,19 @@ afterEach(() => {
 });
 
 describe('loadConfig', () => {
+  it('opens a fresh installation on Home without a Cloud account', () => {
+    expect(loadConfig()).toMatchObject({
+      mode: 'daemon',
+      agentId: null,
+      onboardingCompleted: true,
+    });
+  });
+
+  it('preserves an explicit request to run setup again', () => {
+    store.set('open-design:config', JSON.stringify({ onboardingCompleted: false }));
+    expect(loadConfig().onboardingCompleted).toBe(false);
+  });
+
   it('enables completion sound and desktop notifications for a fresh config', () => {
     expect(loadConfig().notifications).toEqual({
       soundEnabled: true,

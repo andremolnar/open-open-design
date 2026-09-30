@@ -1,81 +1,134 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
+import type { FSWatcher } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { StringDecoder } from 'node:string_decoder';
 
-// Generated runtime module, carried in the daemon bundle so packaged users do
-// not need another CLI or an npm plugin install. No imports or provider hooks.
-export const OPEN_CODE_EVENT_PLUGIN_SOURCE = String.raw`export default async function () {
-  const seen = new Map();
-  return { event: async (payload) => {
-    try {
-      const event = payload?.event;
-      if (event?.type !== 'message.part.updated') return;
-      const p = event.properties?.part;
-      if (p?.type !== 'tool' || typeof p.sessionID !== 'string' || typeof p.callID !== 'string' || typeof p.tool !== 'string') return;
-      const key = p.sessionID + ':' + p.callID;
-      if (p.state?.status === 'completed' || p.state?.status === 'error') { seen.delete(key); return; }
-      if (p.state?.status !== 'pending' && p.state?.status !== 'running') return;
-      const input = p.state.input;
-      const target = ['write', 'edit', 'read'].includes(p.tool) && typeof input?.filePath === 'string' ? input.filePath : undefined;
-      const signature = p.tool + ':' + (target || '');
-      if (seen.get(key) === signature) return;
-      process.stdout.write(JSON.stringify({ type: 'od_opencode_tool', version: 1, sessionID: p.sessionID, callID: p.callID, tool: p.tool, path: target }) + '\n');
-      seen.set(key, signature);
-    } catch { /* Preview delivery cannot affect tool execution. */ }
-  }};
-}
+// Generated V2 plugin: no external dependencies in the packaged CLI's server.
+// V2's private server has a different stdout from `opencode run`. A run-local
+// JSONL file carries only tool previews back to the daemon; final CLI frames
+// remain authoritative for tool results.
+export const OPEN_CODE_EVENT_PLUGIN_SOURCE = String.raw`import { appendFileSync } from 'node:fs';
+
+export default {
+  id: 'open-design.tool-previews',
+  setup(ctx) {
+    const output = process.env.OD_OPENCODE_PREVIEW_FILE;
+    if (!output) return;
+    const controller = new AbortController();
+    const names = new Map();
+    const seen = new Set();
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          const data = event?.data;
+          if (!data || typeof data.sessionID !== 'string' || typeof data.id !== 'string') continue;
+          const key = data.sessionID + ':' + data.id;
+          if (event.type === 'session.tool.input.started' && typeof data.name === 'string') {
+            names.set(key, data.name);
+          } else if (event.type === 'session.tool.called') {
+            const name = names.get(key);
+            if (!name || seen.has(key)) continue;
+            seen.add(key);
+            names.delete(key);
+            const target = ['write', 'edit', 'read'].includes(name) && typeof data.input?.filePath === 'string'
+              ? data.input.filePath : undefined;
+            try {
+              appendFileSync(output, JSON.stringify({ type: 'od_opencode_tool', version: 1,
+                sessionID: data.sessionID, callID: data.id, tool: name, path: target }) + '\n');
+            } catch { /* Previews must never interrupt tool execution. */ }
+          } else if (event.type === 'session.tool.failure' || event.type === 'session.tool.success') {
+            names.delete(key);
+            seen.delete(key);
+          }
+        }
+      } catch { /* A disconnected subscription must not affect the run. */ }
+    })();
+    return () => controller.abort();
+  },
+};
 `;
 
 export function supportsOpenCodeEventPlugin(version: string | undefined): boolean {
-  const match = /^1\.(\d+)\.(\d+)$/u.exec(version ?? '');
-  return Boolean(match && (Number(match[1]) > 17 || (Number(match[1]) === 17 && Number(match[2]) >= 18)));
+  return /^2\.\d+\.\d+$/u.test(version ?? '');
 }
 
-/** OpenCode waits for its own npm setup even for an import-free file plugin. */
-function applyDependencyFetchDefaults(env: NodeJS.ProcessEnv): void {
-  const defaults = { npm_config_fetch_retries: '0', npm_config_fetch_timeout: '10000' };
-  for (const [key, value] of Object.entries(defaults)) {
-    // npm accepts uppercase names too. Preserve explicit per-agent/shell env.
-    if (!Object.keys(env).some(name => name.toLowerCase() === key && env[name] !== undefined)) env[key] = value;
-  }
-}
-
-/** Mutates only this child's config overlay; dataDir is the daemon's resolved root. */
-export async function applyOpenCodeEventPlugin(
+/** Stage the V2 plugin directory and create an isolated, run-local preview file. */
+export function applyOpenCodeEventPlugin(
   env: NodeJS.ProcessEnv,
   dataDir: string,
   version: string | undefined,
   inheritedConfigContent?: string,
-): Promise<boolean> {
-  if (!supportsOpenCodeEventPlugin(version) || /^(1|true)$/iu.test(env.OPENCODE_PURE ?? '')) return false;
-  const config: unknown = env.OPENCODE_CONFIG_CONTENT ? JSON.parse(env.OPENCODE_CONFIG_CONTENT) : {};
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return false;
-  const overlay = config as Record<string, unknown>;
-  if (overlay.plugin !== undefined && !Array.isArray(overlay.plugin)) return false;
-  const inherited: unknown = inheritedConfigContent ? JSON.parse(inheritedConfigContent) : {};
-  const inheritedPlugins = inherited && typeof inherited === 'object' && 'plugin' in inherited && Array.isArray(inherited.plugin)
-    ? inherited.plugin : [];
-  const plugins = Array.isArray(overlay.plugin) ? overlay.plugin : [];
+): string | null {
+  if (!supportsOpenCodeEventPlugin(version)) return null;
+  const overlay = env.OPENCODE_CONFIG_CONTENT ? JSON.parse(env.OPENCODE_CONFIG_CONTENT) as Record<string, unknown> : {};
+  if (!overlay || typeof overlay !== 'object' || Array.isArray(overlay) ||
+      (overlay.plugins !== undefined && !Array.isArray(overlay.plugins))) return null;
+  const inherited = inheritedConfigContent ? JSON.parse(inheritedConfigContent) as Record<string, unknown> : {};
+  const inheritedPlugins = Array.isArray(inherited.plugins) ? inherited.plugins : [];
+  const plugins = Array.isArray(overlay.plugins) ? overlay.plugins : [];
   const hash = createHash('sha256').update(OPEN_CODE_EVENT_PLUGIN_SOURCE).digest('hex').slice(0, 16);
-  const dir = path.join(dataDir, 'agent-runtime', 'opencode', 'plugins');
-  const file = path.join(dir, `tool-events-${hash}.mjs`);
-  // Reuse verified content on subsequent turns; repair a truncated/modified
-  // module before advertising it to the child.
-  if (await readFile(file, 'utf8').catch(() => null) !== OPEN_CODE_EVENT_PLUGIN_SOURCE) {
-    await mkdir(dir, { recursive: true });
-    // Atomic replacement keeps concurrent launches from loading partial JS.
+  const root = path.join(dataDir, 'agent-runtime', 'opencode');
+  const pluginDir = path.join(root, `tool-events-${hash}`);
+  const file = path.join(pluginDir, 'index.mjs');
+  mkdirSync(pluginDir, { recursive: true });
+  if (!existsSync(file) || readFileSync(file, 'utf8') !== OPEN_CODE_EVENT_PLUGIN_SOURCE) {
     const temporary = `${file}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, OPEN_CODE_EVENT_PLUGIN_SOURCE, { flag: 'wx', mode: 0o600 });
-      await rename(temporary, file);
+      writeFileSync(temporary, OPEN_CODE_EVENT_PLUGIN_SOURCE, { flag: 'wx', mode: 0o600 });
+      renameSync(temporary, file);
     } finally {
-      await rm(temporary, { force: true });
+      rmSync(temporary, { force: true });
     }
   }
+  const previewDir = path.join(root, 'previews');
+  mkdirSync(previewDir, { recursive: true });
+  const previewFile = path.join(previewDir, `${randomUUID()}.jsonl`);
+  writeFileSync(previewFile, '', { flag: 'wx', mode: 0o600 });
+  env.OD_OPENCODE_PREVIEW_FILE = previewFile;
   env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
-    ...overlay, plugin: [...new Set([...inheritedPlugins, ...plugins, pathToFileURL(file).href])],
+    ...overlay, plugins: [...new Set([...inheritedPlugins, ...plugins, pluginDir])],
   });
-  applyDependencyFetchDefaults(env);
-  return true;
+  return previewFile;
+}
+
+/** Drain complete JSONL frames, including a final write just before CLI exit. */
+export function watchOpenCodeToolPreviews(file: string, feed: (line: string) => void): () => void {
+  const fd = openSync(file, 'r');
+  let offset = 0;
+  let pending = '';
+  const decoder = new StringDecoder('utf8');
+  let closed = false;
+  let watcher: FSWatcher | null = null;
+  const drain = () => {
+    if (closed) return;
+    const size = statSync(file).size;
+    const buffer = Buffer.allocUnsafe(16_384);
+    // A corrupt or runaway producer must not make a close event unbounded.
+    while (offset < size && offset < 2_097_152) {
+      const bytes = readSync(fd, buffer, 0, Math.min(buffer.length, size - offset), offset);
+      if (!bytes) break;
+      offset += bytes;
+      pending += decoder.write(buffer.subarray(0, bytes));
+      if (pending.length > 65_536) { pending = ''; continue; }
+      let end: number;
+      while ((end = pending.indexOf('\n')) !== -1) {
+        const line = pending.slice(0, end);
+        pending = pending.slice(end + 1);
+        if (line) feed(`${line}\n`);
+      }
+    }
+  };
+  try {
+    watcher = watch(file, () => { try { drain(); } catch { /* Optional preview only. */ } });
+    watcher.on('error', () => { watcher?.close(); watcher = null; });
+  } catch { /* Final close-time drain still works without filesystem watches. */ }
+  return () => {
+    try { drain(); } finally {
+      closed = true;
+      watcher?.close();
+      closeSync(fd);
+      try { rmSync(file, { force: true }); } catch { /* Preview cleanup cannot fail the Run. */ }
+    }
+  };
 }

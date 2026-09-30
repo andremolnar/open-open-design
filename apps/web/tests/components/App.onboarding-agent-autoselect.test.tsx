@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../../src/App';
 import type { AppConfig } from '../../src/types';
-import { loadConfig, mergeDaemonConfig, fetchDaemonConfig } from '../../src/state/config';
+import { DEFAULT_CONFIG, loadConfig, mergeDaemonConfig, fetchDaemonConfig } from '../../src/state/config';
 import {
   daemonIsLive,
   fetchAgentsStream,
@@ -184,6 +184,22 @@ describe('App first-run agent auto-select', () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+
+  it('starts on Home with a local CLI, not the signed-out Cloud agent', async () => {
+    mockedLoadConfig.mockReturnValue({ ...DEFAULT_CONFIG });
+    mockedFetchDaemonConfig.mockResolvedValue({});
+    mockedFetchAgentsStream.mockResolvedValue([
+      { id: 'amr', name: 'OpenDesign Cloud', bin: 'vela', available: true, version: '1.0.0' },
+      ...claudeOnly,
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agent-id').textContent).toBe('claude');
+      expect(screen.getByTestId('onboarding-completed').textContent).toBe('true');
+    });
   });
 
   it('does not render the Home entry before first-run onboarding routing is known', async () => {

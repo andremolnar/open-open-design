@@ -1330,12 +1330,13 @@ export function resolveOpenAIConnectionTestRunProviderPackage(
     providerConfig,
     input.model,
   );
-  const providerEntries = byokConfig?.config.provider;
+  const providerEntries = byokConfig?.config.providers;
   if (!providerEntries || typeof providerEntries !== 'object') return null;
   const provider = (providerEntries as Record<string, unknown>)[BYOK_OPENCODE_PROVIDER_ID];
   if (!provider || typeof provider !== 'object') return null;
-  const npm = (provider as { npm?: unknown }).npm;
-  return typeof npm === 'string' ? npm : null;
+  const providerPackage = (provider as { package?: unknown }).package;
+  return typeof providerPackage === 'string' && providerPackage.startsWith('aisdk:')
+    ? providerPackage.slice('aisdk:'.length) : null;
 }
 
 function openAIChatCompletionsProviderCall(
@@ -2605,11 +2606,8 @@ async function testAgentConnectionInternal(
             : {}),
         },
       );
-      // Connection tests should validate the adapter's core CLI path, not
-      // fail on unrelated user-installed OpenCode plugins. `opencode run
-      // --pure` keeps the smoke test isolated while regular chat runs retain
-      // the user's full plugin environment.
-      if ((input.agentId === 'opencode' || input.agentId === 'mimo') && !args.includes('--pure')) {
+      // MiMo still owns its own CLI flags; OpenCode V2 has no --pure.
+      if (input.agentId === 'mimo' && !args.includes('--pure')) {
         args.push('--pure');
       }
       if ((input.agentId === 'opencode' || input.agentId === 'mimo') && !args.includes('--title')) {

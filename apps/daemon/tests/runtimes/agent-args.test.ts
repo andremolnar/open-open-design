@@ -83,16 +83,16 @@ test('opencode args pass model-supported variants without changing the default a
   const baseArgs = opencode.buildArgs(prompt, [], [], {});
   assert.equal(opencode.promptViaStdin, true);
   assert.equal(opencode.reasoningOptions, undefined);
-  assert.deepEqual(opencode.listModels?.args, ['models', '--verbose']);
+  assert.equal(typeof opencode.fetchModels, 'function');
   assert.equal(opencode.fallbackModels.find(
     (model) => model.id === 'openai/gpt-5.6-sol',
   )?.reasoningOptions, undefined);
   assert.deepEqual(opencode.helpArgs, ['run', '--help']);
-  assert.deepEqual(opencode.capabilityFlags?.['--dangerously-skip-permissions'], 'skipPermissions');
+  assert.equal(opencode.capabilityFlags?.['--auto'], 'skipPermissions');
   assert.equal(baseArgs.includes('-'), false);
   assert.equal(baseArgs.includes(prompt), false);
   assert.deepEqual(baseArgs, [
-    'run',
+    'run', '--standalone',
     '--format',
     'json',
   ]);
@@ -104,7 +104,7 @@ test('opencode args pass model-supported variants without changing the default a
     { model: 'anthropic/claude-sonnet-4-5' },
   );
   assert.deepEqual(withModel, [
-    'run',
+    'run', '--standalone',
     '--format',
     'json',
     '-m',
@@ -118,7 +118,7 @@ test('opencode args pass model-supported variants without changing the default a
     model: 'openai/gpt-5.6-sol',
     reasoning: 'default',
   }), [
-    'run',
+    'run', '--standalone',
     '--format',
     'json',
     '-m',
@@ -128,29 +128,15 @@ test('opencode args pass model-supported variants without changing the default a
   assert.equal(withModel.includes('--model'), false);
 });
 
-test('opencode parses live verbose variant metadata and only forwards variants advertised for that model', () => {
+test('opencode parses V2 catalog variants and only forwards variants advertised for that model', () => {
   const previous = getRememberedLiveModels('opencode');
   const parsed = parseOpenCodeModels([
-    'openai/gpt-5.6-sol',
-    '{ "variants": { "high": {} } }',
-    'openai/gpt-5.6-terra',
-    '{ "variants": { "high": {} } }',
-    'openai/gpt-5.6-luna',
-    '{ "variants": { "max": {} } }',
-    'custom/reasoner',
-    '{',
-    '  "id": "reasoner",',
-    '  "variants": {',
-    '    "low": { "reasoningEffort": "low" },',
-    '    "ultra": { "reasoningEffort": "ultra" }',
-    '  }',
-    '}',
-    'custom/plain',
-    '{',
-    '  "id": "plain",',
-    '  "variants": {}',
-    '}',
-  ].join('\n'));
+    { providerID: 'openai', id: 'openai/gpt-5.6-sol', variants: [{ id: 'high' }] },
+    { providerID: 'openai', id: 'openai/gpt-5.6-terra', variants: [{ id: 'high' }] },
+    { providerID: 'openai', id: 'openai/gpt-5.6-luna', variants: [{ id: 'max' }] },
+    { providerID: 'custom', id: 'custom/reasoner', variants: [{ id: 'low' }, { id: 'ultra' }] },
+    { providerID: 'custom', id: 'custom/plain', variants: [] },
+  ]);
   assert.deepEqual(parsed?.find((model) => model.id === 'custom/reasoner')?.reasoningOptions, [
     { id: 'default', label: 'Default' },
     { id: 'low', label: 'low' },
@@ -164,55 +150,47 @@ test('opencode parses live verbose variant metadata and only forwards variants a
       model: 'openai/gpt-5.6-sol',
       reasoning: 'high',
     }), [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
       '-m',
-      'openai/gpt-5.6-sol',
-      '--variant',
-      'high',
+      'openai/gpt-5.6-sol#high',
     ]);
     assert.deepEqual(opencode.buildArgs('', [], [], {
       model: 'openai/gpt-5.6-terra',
       reasoning: 'high',
     }), [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
       '-m',
-      'openai/gpt-5.6-terra',
-      '--variant',
-      'high',
+      'openai/gpt-5.6-terra#high',
     ]);
     assert.deepEqual(opencode.buildArgs('', [], [], {
       model: 'openai/gpt-5.6-luna',
       reasoning: 'max',
     }), [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
       '-m',
-      'openai/gpt-5.6-luna',
-      '--variant',
-      'max',
+      'openai/gpt-5.6-luna#max',
     ]);
     assert.deepEqual(opencode.buildArgs('', [], [], {
       model: 'custom/reasoner',
       reasoning: 'ultra',
     }), [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
       '-m',
-      'custom/reasoner',
-      '--variant',
-      'ultra',
+      'custom/reasoner#ultra',
     ]);
     assert.deepEqual(opencode.buildArgs('', [], [], {
       model: 'custom/plain',
       reasoning: 'ultra',
     }), [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
       '-m',
@@ -223,30 +201,26 @@ test('opencode parses live verbose variant metadata and only forwards variants a
   }
 });
 
-test('opencode passes --dangerously-skip-permissions when the help probe finds it', () => {
+test('opencode auto-approves only permissions that are not explicitly denied', () => {
   agentCapabilities.set('opencode', { skipPermissions: true });
   try {
     const args = opencode.buildArgs('design a dashboard', [], [], {});
     assert.deepEqual(args, [
-      'run',
+      'run', '--standalone',
       '--format',
       'json',
-      '--dangerously-skip-permissions',
+      '--auto',
     ]);
   } finally {
     agentCapabilities.delete('opencode');
   }
 });
 
-test('opencode pins its workspace to the project cwd', () => {
-  // OpenCode resolves its project by walking up to the nearest enclosing git
-  // root, not by using its process cwd. A managed project directory is not a
-  // repository, so a development install (daemon data dir under the checkout)
-  // made OpenCode adopt the whole Open Design repository as the workspace: it
-  // wrote the deliverable at the repository root, the project stayed empty, and
-  // the Run reported `no_artifact`.
+test('opencode v2 selects its Location from the spawned process cwd, not a removed --dir flag', () => {
+  // V2's Location retains the process cwd even when the detected Git project
+  // root is an ancestor. The removed V1 --dir flag must not be passed.
   const args = opencode.buildArgs('design a dashboard', [], [], {}, { cwd: '/projects/p1' });
-  assert.deepEqual(args, ['run', '--format', 'json', '--dir', '/projects/p1']);
+  assert.deepEqual(args, ['run', '--standalone', '--format', 'json']);
 });
 
 test('opencode omits --dir for a run with no project directory', () => {

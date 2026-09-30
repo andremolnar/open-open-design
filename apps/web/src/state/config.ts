@@ -90,7 +90,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   agentId: null,
   skillId: null,
   designSystemId: null,
-  onboardingCompleted: false,
+  // New local installs land on Home directly. The model switcher can configure
+  // Cloud later; first launch should not require a Cloud identity.
+  onboardingCompleted: true,
   theme: FORCED_APP_THEME,
   accentColor: DEFAULT_ACCENT_COLOR,
   mediaProviders: {},

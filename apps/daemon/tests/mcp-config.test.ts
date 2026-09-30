@@ -423,21 +423,15 @@ describe('buildOpenCodeMcpConfigContent', () => {
 
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as {
-      permission?: {
-        external_directory?: Record<string, string>;
-      };
-      mcp?: Record<string, unknown>;
+      permissions?: Array<{ action: string; resource: string; effect: string }>;
+      mcp?: { servers: Record<string, unknown> };
     };
 
     expect(parsed.mcp).toBeUndefined();
-    expect(parsed.permission?.external_directory).toEqual({
-      '/tmp/od-project': 'allow',
-      '/tmp/od-project/*': 'allow',
-      '/tmp/od-project/**': 'allow',
-      '/tmp/od-skills': 'allow',
-      '/tmp/od-skills/*': 'allow',
-      '/tmp/od-skills/**': 'allow',
-    });
+    expect(parsed.permissions).toEqual([
+      { action: 'external_directory', resource: '/tmp/od-project/*', effect: 'allow' },
+      { action: 'external_directory', resource: '/tmp/od-skills/*', effect: 'allow' },
+    ]);
   });
 
   it('merges MCP servers and granted external_directory rules into one payload', () => {
@@ -457,22 +451,16 @@ describe('buildOpenCodeMcpConfigContent', () => {
 
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as {
-      permission?: {
-        external_directory?: Record<string, string>;
-      };
-      mcp: Record<string, Record<string, unknown>>;
+      permissions?: Array<{ action: string; resource: string; effect: string }>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
 
-    expect(parsed.mcp['basic-memory']).toEqual({
+    expect(parsed.mcp.servers['basic-memory']).toEqual({
       type: 'local',
       command: ['/opt/homebrew/bin/uvx', 'basic-memory', 'mcp'],
-      enabled: true,
+      disabled: false,
     });
-    expect(parsed.permission?.external_directory).toMatchObject({
-      '/tmp/od-project': 'allow',
-      '/tmp/od-project/*': 'allow',
-      '/tmp/od-project/**': 'allow',
-    });
+    expect(parsed.permissions).toContainEqual({ action: 'external_directory', resource: '/tmp/od-project/*', effect: 'allow' });
   });
 
   it('merges run-scoped OpenCode provider config with MCP and permissions', () => {
@@ -490,11 +478,11 @@ describe('buildOpenCodeMcpConfigContent', () => {
       {
         allowedDirectories: ['/tmp/od-project'],
         extraConfig: {
-          provider: {
+          providers: {
             'open-design-byok': {
               name: 'OpenDesign BYOK',
-              npm: '@ai-sdk/openai-compatible',
-              options: { apiKey: '{env:OPEN_DESIGN_BYOK_API_KEY}' },
+              package: 'aisdk:@ai-sdk/openai-compatible',
+              settings: { apiKey: '{env:OPEN_DESIGN_BYOK_API_KEY}' },
               models: { 'gpt-4o-mini': { name: 'gpt-4o-mini' } },
             },
           },
@@ -504,17 +492,17 @@ describe('buildOpenCodeMcpConfigContent', () => {
 
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as {
-      provider?: Record<string, unknown>;
-      mcp?: Record<string, unknown>;
-      permission?: { external_directory?: Record<string, string> };
+      providers?: Record<string, unknown>;
+      mcp?: { servers: Record<string, unknown> };
+      permissions?: Array<{ action: string; resource: string; effect: string }>;
     };
 
-    expect(parsed.provider?.['open-design-byok']).toMatchObject({
+    expect(parsed.providers?.['open-design-byok']).toMatchObject({
       name: 'OpenDesign BYOK',
-      npm: '@ai-sdk/openai-compatible',
+      package: 'aisdk:@ai-sdk/openai-compatible',
     });
-    expect(parsed.mcp?.['basic-memory']).toBeTruthy();
-    expect(parsed.permission?.external_directory?.['/tmp/od-project']).toBe('allow');
+    expect(parsed.mcp?.servers?.['basic-memory']).toBeTruthy();
+    expect(parsed.permissions).toContainEqual({ action: 'external_directory', resource: '/tmp/od-project/*', effect: 'allow' });
   });
 
   it('serialises a stdio server to OpenCode local schema (type=local, command=[cmd,...args])', () => {
@@ -530,12 +518,12 @@ describe('buildOpenCodeMcpConfigContent', () => {
     expect(raw).not.toBeNull();
     expect(typeof raw).toBe('string');
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, Record<string, unknown>>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
-    expect(parsed.mcp['basic-memory']).toEqual({
+    expect(parsed.mcp.servers['basic-memory']).toEqual({
       type: 'local',
       command: ['/opt/homebrew/bin/uvx', 'basic-memory', 'mcp'],
-      enabled: true,
+      disabled: false,
     });
   });
 
@@ -551,13 +539,13 @@ describe('buildOpenCodeMcpConfigContent', () => {
       },
     ]);
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, Record<string, unknown>>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
-    expect(parsed.mcp.github).toEqual({
+    expect(parsed.mcp.servers.github).toEqual({
       type: 'local',
       command: ['npx', '-y', '@modelcontextprotocol/server-github'],
       environment: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_xxx' },
-      enabled: true,
+      disabled: false,
     });
   });
 
@@ -572,13 +560,13 @@ describe('buildOpenCodeMcpConfigContent', () => {
       },
     ]);
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, Record<string, unknown>>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
-    expect(parsed.mcp.higgsfield).toEqual({
+    expect(parsed.mcp.servers.higgsfield).toEqual({
       type: 'remote',
       url: 'https://mcp.higgsfield.ai',
       headers: { Authorization: 'Bearer abc' },
-      enabled: true,
+      disabled: false,
     });
   });
 
@@ -598,9 +586,9 @@ describe('buildOpenCodeMcpConfigContent', () => {
       },
     ]);
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, unknown>;
+      mcp: { servers: Record<string, unknown> };
     };
-    expect(Object.keys(parsed.mcp)).toEqual(['a']);
+    expect(Object.keys(parsed.mcp.servers)).toEqual(['a']);
   });
 
   it('skips stdio servers missing a command (sanitize lets them through; we must guard at build)', () => {
@@ -619,9 +607,9 @@ describe('buildOpenCodeMcpConfigContent', () => {
       },
     ]);
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, unknown>;
+      mcp: { servers: Record<string, unknown> };
     };
-    expect(Object.keys(parsed.mcp)).toEqual(['good']);
+    expect(Object.keys(parsed.mcp.servers)).toEqual(['good']);
   });
 
   it('skips remote servers missing a url', () => {
@@ -650,9 +638,9 @@ describe('buildOpenCodeMcpConfigContent', () => {
       { higgsfield: 'access-tok-xyz' },
     );
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, Record<string, unknown>>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
-    expect(parsed.mcp.higgsfield?.headers).toEqual({
+    expect(parsed.mcp.servers.higgsfield?.headers).toEqual({
       Authorization: 'Bearer access-tok-xyz',
     });
   });
@@ -672,9 +660,9 @@ describe('buildOpenCodeMcpConfigContent', () => {
       { higgsfield: 'access-tok-xyz' },
     );
     const parsed = JSON.parse(raw as string) as {
-      mcp: Record<string, Record<string, unknown>>;
+      mcp: { servers: Record<string, Record<string, unknown>> };
     };
-    expect(parsed.mcp.higgsfield?.headers).toEqual({
+    expect(parsed.mcp.servers.higgsfield?.headers).toEqual({
       authorization: 'Bearer manual-token',
     });
   });

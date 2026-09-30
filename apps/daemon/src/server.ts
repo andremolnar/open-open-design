@@ -531,7 +531,7 @@ import {
   normalizeDeepSeekHarnessFailure,
 } from './runtimes/auth.js';
 import { readOpenCodeServiceFailure } from './runtimes/opencode-log.js';
-import { applyOpenCodeEventPlugin } from './runtimes/opencode-event-plugin.js';
+import { applyOpenCodeEventPlugin, watchOpenCodeToolPreviews } from './runtimes/opencode-event-plugin.js';
 import { createAgentStderrVisibilityFilter } from './amr-stderr-filter.js';
 import { createQoderStreamHandler } from './runtimes/qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
@@ -14323,6 +14323,7 @@ export async function startServer({
     // post-run child export runs in the shared close handler below — after the
     // stream that produced the candidates is gone.
     let jsonEventStreamHandler: ReturnType<typeof createJsonEventStreamHandler> | null = null;
+    let openCodePreviewFile: string | null = null;
     let agentStdoutTail = '';
     let agentStderrTail = '';
     const agentStderrFilter = createAgentStderrVisibilityFilter(agentId);
@@ -14434,7 +14435,7 @@ export async function startServer({
           if (!versions?.agentCliVersion) {
             console.info('[opencode] optional tool previews disabled: CLI version unavailable; later launches retry detection after the short cache expires');
           }
-          await applyOpenCodeEventPlugin(env, RUNTIME_DATA_DIR, versions?.agentCliVersion, agentSpawnEnv.OPENCODE_CONFIG_CONTENT);
+          openCodePreviewFile = applyOpenCodeEventPlugin(env, RUNTIME_DATA_DIR, versions?.agentCliVersion, agentSpawnEnv.OPENCODE_CONFIG_CONTENT);
         } catch (error) {
           console.warn('[opencode] optional tool previews unavailable:', error instanceof Error ? error.message : String(error));
         }
@@ -14442,6 +14443,7 @@ export async function startServer({
       // Version detection and plugin staging above can yield while a cancel
       // request arrives. Never spawn a child after that cancellation.
       if (run.cancelRequested || design.runs.isTerminal(run.status)) {
+        if (openCodePreviewFile) fs.rmSync(openCodePreviewFile, { force: true });
         cleanupPromptFile();
         revokeToolToken('child_exit');
         unregisterChatAgentEventSink();
@@ -16014,8 +16016,12 @@ export async function startServer({
           : {},
       );
       jsonEventStreamHandler = handler;
+      const closePreviewBridge = openCodePreviewFile
+        ? watchOpenCodeToolPreviews(openCodePreviewFile, (line) => handler.feed(line))
+        : null;
       child.stdout.on('data', (chunk) => handler.feed(chunk));
       child.on('close', (code, signal) => {
+        closePreviewBridge?.();
         handler.flush();
         publishRuntimeChildEvidenceCoverage(handler.childEvidenceCoverage(
           code === 0 && signal === null && !run.cancelRequested && !agentStreamError,
