@@ -20,6 +20,24 @@ Public release bundles keep channel-distinct identities: `Open Design.app`, `Ope
 `Open Design Prerelease.app`, or `Open Design Preview.app`. Local `tools-pack install` adds the developer
 namespace so installs can coexist without affecting runtime data/log/cache paths.
 
+### Signed local macOS smoke without installation
+
+On a Mac with an Apple Development signing identity in the keychain, build and
+launch the unpacked app directly. This uses the local identity; it does not need
+GitHub Actions secrets, an Apple ID notarization login, or a DMG install:
+
+```bash
+pnpm tools-pack mac build --namespace local-smoke --to app --signed
+pnpm tools-pack mac start --namespace local-smoke
+pnpm tools-pack mac inspect --namespace local-smoke --expr "document.title"
+pnpm tools-pack mac stop --namespace local-smoke
+```
+
+The built app is under `.tmp/tools-pack/out/mac/namespaces/local-smoke/builder/`.
+Verify its signature with `codesign --verify --deep --strict <path-to-built-app>`.
+This is a local development build, not a notarized release; public release
+workflows still require their own Apple distribution credentials.
+
 Packaged runtime state is namespace-scoped under `.tmp/tools-pack/runtime/mac/namespaces/<namespace>/`:
 
 - Packaged daemon storage is governed only by the root `AGENTS.md` section

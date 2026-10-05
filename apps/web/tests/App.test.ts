@@ -14,6 +14,7 @@ import {
   shouldSyncMediaProvidersOnSave,
 } from '../src/App';
 import type { AppConfig, Project } from '../src/types';
+import { DEFAULT_CONFIG } from '../src/state/config';
 import type {
   WorkspaceCollabContext,
   WorkspaceProjectSummary,
@@ -74,6 +75,11 @@ const baseConfig: AppConfig = {
 };
 
 describe('shouldRouteToFirstRunOnboarding', () => {
+  it('opens Home directly for a new local installation', () => {
+    expect(DEFAULT_CONFIG.onboardingCompleted).toBe(true);
+    expect(shouldRouteToFirstRunOnboarding(DEFAULT_CONFIG, '/')).toBe(false);
+  });
+
   it('never hijacks an explicit project deep link while daemon config is hydrating', () => {
     const unfinished = { ...baseConfig, onboardingCompleted: false };
 

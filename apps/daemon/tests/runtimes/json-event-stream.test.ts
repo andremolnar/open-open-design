@@ -77,6 +77,26 @@ test('opencode json stream emits tool events', () => {
   ]);
 });
 
+test('OpenCode V2 native frames capture a session without step_start and pair tool id with result', () => {
+  // Shape recorded from `opencode v2.0.18 run --standalone --format json`.
+  const { events, handler } = collectEvents('opencode');
+  handler.feed(JSON.stringify({
+    type: 'tool_use', sessionID: 'ses_v2_root', part: {
+      type: 'tool', id: 'call_function_1', tool: 'shell',
+      state: { status: 'completed', input: { command: 'pwd' }, output: '/project\n' },
+    },
+  }) + '\n');
+  handler.feed(JSON.stringify({
+    type: 'text', sessionID: 'ses_v2_root', part: { type: 'text', text: 'OK' },
+  }) + '\n');
+  assert.deepEqual(events, [
+    { type: 'status', label: 'running', sessionId: 'ses_v2_root' },
+    { type: 'tool_use', id: 'call_function_1', name: 'shell', input: { command: 'pwd' } },
+    { type: 'tool_result', toolUseId: 'call_function_1', content: '/project\n', isError: false },
+    { type: 'text_delta', delta: 'OK' },
+  ]);
+});
+
 test('opencode json stream marks structured tool failures as errors', () => {
   const cases = [
     {
@@ -197,6 +217,7 @@ test('opencode json stream emits a terminal tool result only once per call', () 
   handler.feed(`${terminal}\n${terminal}\n`);
 
   assert.deepEqual(events, [
+    { type: 'status', label: 'running', sessionId: 'session-1' },
     { type: 'tool_use', id: 'call-1', name: 'bash', input: null },
     { type: 'tool_result', toolUseId: 'call-1', content: 'failed', isError: true },
   ]);

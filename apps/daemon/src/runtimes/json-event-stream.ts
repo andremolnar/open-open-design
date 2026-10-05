@@ -12,6 +12,7 @@ type ParserKind = string;
 
 type ParserState = {
   openCodeToolEvents: OpenCodeToolEvents;
+  openCodeSessionId: string | null;
   cursorTextSoFar: string;
   cursorTurnStart: number;
   openCodeToolUses: Set<string>;
@@ -218,6 +219,17 @@ function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: P
   if (state.openCodeToolEvents.handle(obj, onEvent)) return true;
   const part = isRecord(obj.part) ? obj.part : {};
 
+  // V2 may emit text without step_start (observed with a piped stdin prompt).
+  // The session ID is present on every native frame; capture it before any
+  // early return so the next OpenDesign turn can resume this exact session.
+  const sessionId = typeof obj.sessionID === 'string' && obj.sessionID.length > 0
+    ? obj.sessionID : null;
+  if (sessionId && state.openCodeSessionId !== sessionId) {
+    state.openCodeSessionId = sessionId;
+    state.openCodeToolEvents.startSession(sessionId, onEvent);
+    onEvent({ type: 'status', label: 'running', sessionId });
+  }
+
   if (obj.type === 'step_start') {
     // `sessionID` is OpenCode's own session handle (capture-style resume).
     // Surface it on the step-start status so the daemon can persist it to
@@ -228,8 +240,7 @@ function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: P
       typeof obj.sessionID === 'string' && obj.sessionID.length > 0
         ? obj.sessionID
         : null;
-    state.openCodeToolEvents.startSession(sessionId, onEvent);
-    onEvent({ type: 'status', label: 'running', sessionId });
+    if (!sessionId) onEvent({ type: 'status', label: 'running', sessionId: null });
     return true;
   }
 
@@ -238,15 +249,16 @@ function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: P
     return true;
   }
 
-  if (obj.type === 'tool_use' && typeof part.tool === 'string' && typeof part.callID === 'string') {
-    state.openCodeToolEvents.complete(part.callID);
+  const toolCallId = typeof part.id === 'string' ? part.id : part.callID;
+  if (obj.type === 'tool_use' && typeof part.tool === 'string' && typeof toolCallId === 'string') {
+    state.openCodeToolEvents.complete(toolCallId);
     const statePart = isRecord(part.state) ? part.state : null;
-    const key = `${obj.sessionID || 'session'}:${part.callID}`;
+    const key = `${obj.sessionID || 'session'}:${toolCallId}`;
     if (!state.openCodeToolUses.has(key)) {
       state.openCodeToolUses.add(key);
       onEvent({
         type: 'tool_use',
-        id: part.callID,
+        id: toolCallId,
         name: part.tool,
         input: safeParseJson(statePart?.input) ?? statePart?.input ?? null,
       });
@@ -256,7 +268,7 @@ function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: P
       state.openCodeToolResults.add(key);
       onEvent({
         type: 'tool_result',
-        toolUseId: part.callID,
+        toolUseId: toolCallId,
         content: result.content,
         isError: result.isError,
       });
@@ -1337,6 +1349,7 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
 function createParserState(): ParserState {
   return {
     openCodeToolEvents: new OpenCodeToolEvents(),
+    openCodeSessionId: null,
     cursorTextSoFar: '',
     cursorTurnStart: 0,
     openCodeToolUses: new Set<string>(),

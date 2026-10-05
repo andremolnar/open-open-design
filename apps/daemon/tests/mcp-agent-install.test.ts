@@ -88,14 +88,14 @@ describe('JSON-config agents', () => {
     });
   });
 
-  it('opencode folds command+args into one array under `mcp` and uses `environment`', () => {
+  it('opencode folds command+args into one array under `mcp.servers` and uses `environment`', () => {
     const plan = planAgentInstall('opencode', SPEC, ctx());
     if (plan.kind !== 'json') throw new Error('expected json');
-    expect(plan.keyPath).toEqual(['mcp']);
+    expect(plan.keyPath).toEqual(['mcp', 'servers']);
     expect(plan.entry).toEqual({
       type: 'local',
       command: [SPEC.command, ...SPEC.args],
-      enabled: true,
+      disabled: false,
       environment: SPEC.env,
     });
   });

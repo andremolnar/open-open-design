@@ -341,10 +341,10 @@ const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
 const AGENT_FOCUS_REFRESH_THROTTLE_MS = 10_000;
 
 /**
- * Whether this launch should hand the user to the first-run onboarding flow.
+ * Whether this launch should hand the user to the setup flow.
  *
  * Two conditions, both about the *user*, neither about where they happen to be
- * in the app: they have never completed onboarding (on either the local or the
+ * in the app: setup is still explicitly incomplete (on either the local or the
  * daemon copy — `mergeDaemonConfig` ratchets the two before this runs), and
  * they did not arrive through an explicit deep link that onboarding must not
  * hijack (the collab demo and the community gallery are shareable URLs).
@@ -2305,7 +2305,8 @@ function AppInner() {
         latestPersistedConfigRef.current = next;
         setConfig(next);
 
-        // Route first-run users through the global onboarding panel.
+        // Only route installations with explicitly incomplete setup through
+        // onboarding; a fresh local install starts at Home.
         // The onboarding panel and the privacy banner have independent
         // lifecycles: onboarding keys off `onboardingCompleted`, the
         // banner keys off `privacyDecisionAt`. They may coexist on the
@@ -2360,7 +2361,7 @@ function AppInner() {
     workspaceContext,
   ]);
 
-  // Auto-pick the first available agent once both the daemon-stored config
+  // Auto-pick the first available local agent once both the daemon-stored config
   // and the agents listing have landed. Splitting this out of bootstrap
   // avoids racing the local-config initial value against a slow agents
   // probe — by the time this runs, daemonConfig has already overlaid the
@@ -2373,12 +2374,13 @@ function AppInner() {
   // snaps the slot to the registry-first *detected* agent (Claude) and
   // persists it to the daemon, which then races and clobbers the user's AMR
   // selection on the next launch. Gate on onboardingCompleted so this only
-  // backfills an empty slot for returning users.
+  // backfills an empty slot. Cloud requires a separate account sign-in, so it
+  // must never be selected implicitly for a new Home-first installation.
   useEffect(() => {
     if (!daemonConfigLoaded || agentsLoading) return;
     if (config.onboardingCompleted !== true) return;
     if (config.agentId) return;
-    const firstAvailable = agents.find((a) => a.available);
+    const firstAvailable = agents.find((a) => a.available && a.id !== AMR_AGENT_ID);
     if (!firstAvailable) return;
     setConfig((prev) => {
       if (prev.agentId) return prev;

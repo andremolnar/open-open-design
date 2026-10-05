@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent.
+- [Fixed] Updated the OpenCode integration for V2 sessions, models, permissions, MCP servers, tool previews, and BYOK configuration.
+- [Added] A signed macOS build can be launched directly without installing it; contributors can use `/shipit` to document, validate, and propose changes through a PR.
 - [Fixed] Long speaker notes are now scrollable inside the presenter view instead of being clipped when notes push the layout past the viewport. (#6271)
 - [Changed] Retired the official Nix flake, Home Manager/NixOS modules, and lockfile-coupled Nix CI maintenance. OpenDesign still discovers agent CLIs installed through Nix profiles on NixOS and nix-darwin hosts.
 

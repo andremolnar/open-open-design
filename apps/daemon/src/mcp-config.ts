@@ -416,25 +416,25 @@ export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
  * access to daemon-selected absolute paths (project cwd, staged skill dirs,
  * etc.) so headless OpenCode runs do not auto-reject them.
  *
- * Schema (verified against the dev branch of `sst/opencode`'s
- * `packages/opencode/src/config/config.ts` and the public docs at
- * <https://opencode.ai/docs/mcp-servers>):
+ * V2 schema: <https://opencode.ai/v2/docs/mcp-servers> and
+ * <https://opencode.ai/v2/docs/permissions>.
  *
  *   {
- *     "mcp": {
+ *     "mcp": { "servers": {
  *       "<id>": {
  *         "type": "local",
  *         "command": ["<cmd>", "<arg1>", ...],
  *         "environment"?: { ... },
- *         "enabled": true
+ *         "disabled": false
  *       },
  *       "<id>": {
  *         "type": "remote",
  *         "url": "...",
  *         "headers"?: { ... },
- *         "enabled": true
+ *         "disabled": false
  *       }
- *     }
+ *     } },
+ *     "permissions": [{ "action": "external_directory", "resource": "/path/*", "effect": "allow" }]
  *   }
  *
  * Returns `null` when nothing would be emitted — the caller must NOT set
@@ -471,7 +471,7 @@ export function buildOpenCodeMcpConfigContent(
       if (s.env && Object.keys(s.env).length > 0) {
         entry.environment = { ...s.env };
       }
-      entry.enabled = true;
+      entry.disabled = false;
       mcp[s.id] = entry;
     } else {
       const url = typeof s.url === 'string' ? s.url.trim() : '';
@@ -485,7 +485,7 @@ export function buildOpenCodeMcpConfigContent(
         effectiveMcpAuthMode(s) === 'oauth' ? tokens[s.id] : undefined,
       );
       if (headers && Object.keys(headers).length > 0) entry.headers = headers;
-      entry.enabled = true;
+      entry.disabled = false;
       mcp[s.id] = entry;
     }
   }
@@ -500,23 +500,23 @@ export function buildOpenCodeMcpConfigContent(
   ) return null;
 
   const config: Record<string, unknown> = { ...extraConfig };
-  if (Object.keys(mcp).length > 0) config.mcp = mcp;
+  if (Object.keys(mcp).length > 0) {
+    const previous = config.mcp && typeof config.mcp === 'object' && !Array.isArray(config.mcp)
+      ? config.mcp as Record<string, unknown> : {};
+    const previousServers = previous.servers && typeof previous.servers === 'object' && !Array.isArray(previous.servers)
+      ? previous.servers as Record<string, unknown> : {};
+    config.mcp = { ...previous, servers: { ...previousServers, ...mcp } };
+  }
   if (externalDirectory) {
-    const priorPermission =
-      config.permission && typeof config.permission === 'object' && !Array.isArray(config.permission)
-        ? config.permission as Record<string, unknown>
-        : {};
-    config.permission = {
-      ...priorPermission,
-      external_directory: externalDirectory,
-    };
+    const priorRules = Array.isArray(config.permissions) ? config.permissions : [];
+    config.permissions = [...priorRules, ...externalDirectory];
   }
   return JSON.stringify(config);
 }
 
 function buildOpenCodeExternalDirectoryAllowlist(
   directories: string[] | undefined,
-): Record<string, 'allow'> | null {
+): Array<{ action: 'external_directory'; resource: string; effect: 'allow' }> | null {
   const normalized = Array.from(
     new Set(
       (directories ?? [])
@@ -527,11 +527,15 @@ function buildOpenCodeExternalDirectoryAllowlist(
   );
   if (normalized.length === 0) return null;
 
-  const allowlist: Record<string, 'allow'> = {};
+  const allowlist: Array<{ action: 'external_directory'; resource: string; effect: 'allow' }> = [];
   for (const dir of normalized) {
-    allowlist[dir] = 'allow';
-    allowlist[joinPermissionGlob(dir, '*')] = 'allow';
-    allowlist[joinPermissionGlob(dir, '**')] = 'allow';
+    // V2 checks the canonical external boundary (directory/*), not the
+    // target file. `*` matches nested components too.
+    allowlist.push({
+      action: 'external_directory',
+      resource: dir.endsWith(path.sep) ? `${dir}*` : `${dir}${path.sep}*`,
+      effect: 'allow',
+    });
   }
   return allowlist;
 }
@@ -552,10 +556,6 @@ function normalizeAllowedDirectoryVariants(dir: string): string[] {
     real = null;
   }
   return real && real !== normalized ? [normalized, real] : [normalized];
-}
-
-function joinPermissionGlob(dir: string, suffix: '*' | '**'): string {
-  return dir.endsWith(path.sep) ? `${dir}${suffix}` : `${dir}${path.sep}${suffix}`;
 }
 
 // ───────────────────────────────────────────────────────────────────────

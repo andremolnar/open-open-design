@@ -146,7 +146,7 @@ export function createOpenCodeRootTaskEvidenceCollector(input: {
   function observe(value: unknown): void {
     if (!isRecord(value)) return;
     if (
-      value.type === 'step_start' &&
+      (value.type === 'step_start' || value.type === 'text' || value.type === 'tool_use') &&
       !rootSessionId &&
       typeof value.sessionID === 'string' &&
       value.sessionID.trim()
@@ -158,7 +158,7 @@ export function createOpenCodeRootTaskEvidenceCollector(input: {
     if (value.sessionID !== rootSessionId || !isRecord(value.part)) return;
     const part = value.part;
     if (part.type !== 'tool' || part.tool !== 'task') return;
-    const toolCallId = nonEmptyString(part.callID);
+    const toolCallId = nonEmptyString(part.id) ?? nonEmptyString(part.callID);
     const state = isRecord(part.state) ? part.state : undefined;
     if (!toolCallId || !state) return;
     const metadata = isRecord(state.metadata) ? state.metadata : undefined;
@@ -279,9 +279,13 @@ function childUsageFromSanitizedExport(
   if (!Array.isArray(value.messages)) return undefined;
   const usage: NonNullable<OpenCodeChildRuntimeFact['usage']> = {};
   for (const message of value.messages) {
-    if (!isRecord(message) || !isRecord(message.info) || message.info.role !== 'assistant') continue;
-    if (message.info.sessionID !== candidate.childSessionId) continue;
-    const time = isRecord(message.info.time) ? message.info.time : undefined;
+    if (!isRecord(message)) continue;
+    // V2 sanitized exports flatten the message fields; the export belongs to
+    // the exact child id already checked against info.id above.
+    const assistant = isRecord(message.info) ? message.info : message;
+    if (assistant.role !== 'assistant' && assistant.type !== 'assistant') continue;
+    if (assistant.sessionID !== undefined && assistant.sessionID !== candidate.childSessionId) continue;
+    const time = isRecord(assistant.time) ? assistant.time : undefined;
     const createdAtMs = nonNegativeNumber(time?.created);
     if (
       createdAtMs === undefined ||
@@ -290,7 +294,7 @@ function childUsageFromSanitizedExport(
     ) {
       continue;
     }
-    const tokens = isRecord(message.info.tokens) ? message.info.tokens : undefined;
+    const tokens = isRecord(assistant.tokens) ? assistant.tokens : undefined;
     if (!tokens) continue;
     addUsageValue(usage, 'inputTokens', tokens.input);
     addUsageValue(usage, 'outputTokens', tokens.output);
@@ -369,13 +373,13 @@ export async function collectOpenCodeChildRuntimeFacts(input: {
 }
 
 /**
- * Read one child session through `opencode export <id> --sanitize`, the only
+ * Read one child session through `opencode session export <id> --sanitize`, the
  * OpenCode surface that emits a child transcript together with the `parentID`
  * the two-sided verification needs, and with transcript and file bytes already
  * redacted by the CLI itself.
  *
- * `--pure` keeps a user-installed OpenCode plugin from executing inside the
- * evidence path, and `execAgentFile` supplies a neutral working directory so
+  * `--standalone` keeps the lookup in the Run's own environment instead of an
+  * already-running global server, and `execAgentFile` supplies a neutral working directory so
  * the bun-based CLI cannot drop a lockfile into the user's project (see
  * `invocation.ts`). The env must be the one the Run was spawned with: it
  * carries the `XDG_DATA_HOME` / `HOME` that decide which session store the
@@ -393,14 +397,14 @@ export function createOpenCodeSanitizedExportLoader(input: {
     }
     const { stdout } = await execAgentFile(
       input.launchPath,
-      ['export', childSessionId, '--sanitize', '--pure'],
+      ['session', 'export', childSessionId, '--sanitize', '--standalone'],
       {
         env: input.env,
         timeout: input.timeoutMs ?? OPENCODE_CHILD_EXPORT_TIMEOUT_MS,
         maxBuffer: input.maxBytes ?? OPENCODE_CHILD_EXPORT_MAX_BYTES,
       },
     );
-    // `opencode export` writes its progress line to stderr, so stdout is the
+    // OpenCode writes its progress line to stderr, so stdout is the
     // session document alone.
     return JSON.parse(typeof stdout === 'string' ? stdout : String(stdout));
   };

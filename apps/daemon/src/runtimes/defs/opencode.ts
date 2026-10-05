@@ -1,8 +1,9 @@
+import { OpenCode } from '@opencode/client';
+import { Service } from '@opencode/client/service';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import {
   OPENCODE_PERMISSION_CAPABILITY,
   appendOpenCodePermissionBypass,
-  appendOpenCodeWorkspaceDir,
 } from '../opencode-permissions.js';
 import { getRememberedLiveModels } from '../models.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
@@ -39,51 +40,22 @@ const OPENCODE_FALLBACK_MODELS: RuntimeModelOption[] = [
   { id: 'google/gemini-2.5-pro', label: 'google/gemini-2.5-pro' },
 ];
 
-function parseVerboseModelMetadata(
-  lines: string[],
-  start: number,
-): { value: Record<string, unknown> | null; end: number } {
-  let buffer = '';
-  for (let index = start; index < lines.length; index += 1) {
-    buffer += `${lines[index]}\n`;
-    if (!lines[index]!.trimEnd().endsWith('}')) continue;
-    try {
-      const parsed = JSON.parse(buffer) as unknown;
-      return {
-        value: parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-          ? parsed as Record<string, unknown>
-          : null,
-        end: index,
-      };
-    } catch {
-      // Nested objects close before the outer metadata object. Keep reading
-      // until the complete JSON value parses.
-    }
-  }
-  return { value: null, end: start - 1 };
-}
-
 /**
- * Parse `opencode models --verbose`, retaining each model's exact variant
- * names. Plain one-id-per-line output remains accepted as a compatibility
- * fallback, but only verbose metadata can advertise reasoning choices.
+ * Normalize the V2 model catalog. The CLI's `models` command only prints IDs;
+ * the client returns variant metadata needed for the reasoning picker.
  */
-export function parseOpenCodeModels(stdout: string): RuntimeModelOption[] | null {
-  const lines = String(stdout || '').split('\n');
+export function parseOpenCodeModels(catalog: readonly { id: string; providerID: string; variants?: readonly { id: string }[]; enabled?: boolean }[]): RuntimeModelOption[] | null {
   const models: RuntimeModelOption[] = [DEFAULT_MODEL_OPTION];
   const seen = new Set<string>();
-  for (let index = 0; index < lines.length; index += 1) {
-    const id = lines[index]!.trim();
+  for (const model of catalog) {
+    // V2 Model.Info.id is the CLI model reference, including the provider
+    // namespace (which can differ from providerID, e.g. OpenRouter routes).
+    const id = model.id;
+    if (model.enabled === false) continue;
     if (!OPENCODE_MODEL_ID.test(id) || seen.has(id)) continue;
     seen.add(id);
-    const next = lines[index + 1]?.trimStart();
-    const metadata = next?.startsWith('{')
-      ? parseVerboseModelMetadata(lines, index + 1)
-      : { value: null, end: index };
-    const variants = metadata.value?.['variants'];
-    const variantIds = variants && typeof variants === 'object' && !Array.isArray(variants)
-      ? Object.keys(variants).filter((variant) => OPENCODE_VARIANT_ID.test(variant))
-      : [];
+    const variantIds = (model.variants ?? []).map((variant) => variant.id)
+      .filter((variant) => OPENCODE_VARIANT_ID.test(variant));
     models.push({
       id,
       label: id,
@@ -91,7 +63,6 @@ export function parseOpenCodeModels(stdout: string): RuntimeModelOption[] | null
         ? { reasoningOptions: reasoningOptions(variantIds) }
         : {}),
     });
-    index = Math.max(index, metadata.end);
   }
   return models.length > 1 ? models : null;
 }
@@ -112,37 +83,40 @@ export const opencodeAgentDef = {
     fallbackBins: ['opencode'],
     versionArgs: ['--version'],
     ...OPENCODE_PERMISSION_CAPABILITY,
-    // `opencode models` prints `provider/model` per line. Real-world
-    // `opencode models` calls can take >8s (network round-trip to the
-    // provider registry), so the previous 8s budget timed out and fell back
-    // to the hardcoded `fallbackModels`, hiding the user's actual catalog.
-    // 15s matches the listModels budget the rest of the agent defs use
-    // (devin, hermes, kiro, kilo, kimi, trae-cli, vibe, reasonix).
-    listModels: {
-      args: ['models', '--verbose'],
-      parse: parseOpenCodeModels,
-      timeoutMs: 15_000,
+    fetchModels: async (resolvedBin, env) => {
+      const endpoint = await Service.ensure({
+        version: (version) => version.startsWith('2.'),
+        command: [resolvedBin, 'serve', '--service'],
+        env: Object.fromEntries(
+          Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+        ),
+      });
+      const client = OpenCode.make({ baseUrl: endpoint.url, headers: Service.headers(endpoint) });
+      const catalog = await client.model.list({ location: { directory: process.cwd() } }, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      return parseOpenCodeModels(catalog.data);
     },
     fallbackModels: OPENCODE_FALLBACK_MODELS,
-    // OpenCode 1.18.x exposes provider/model-specific variants. Detection
-    // reads the exact live variant keys from `models --verbose`. The fallback
+    // V2 exposes provider/model-specific variants through model.list. The fallback
     // keeps Sol/Terra/Luna model ids usable during a catalog outage but does
-    // not guess their variants. Unknown model/variant pairs omit `--variant`
+    // not guess their variants. Unknown model/variant pairs omit `#variant`
     // rather than inventing a provider capability or preventing the base
     // model from running.
     //
     // Prompt delivered via stdin (`opencode run` with no message argv) to
-    // avoid Windows `spawn ENAMETOOLONG` while preserving OpenCode's
-    // structured stream. A literal `-` is parsed as a positional message by
-    // OpenCode 1.14.x and can surface as "Session not found".
+    // avoid Windows `spawn ENAMETOOLONG` while preserving structured output.
+    // A literal `-` is parsed as a positional message, not stdin.
     buildArgs: (_prompt, _imagePaths, _extra, options = {}, runtimeContext = {}) => {
       const args = [
         'run',
+        '--standalone',
         '--format',
         'json',
       ];
       appendOpenCodePermissionBypass(args, 'opencode');
-      appendOpenCodeWorkspaceDir(args, runtimeContext.cwd);
+      // The daemon spawns with cwd set to the managed project. V2 uses cwd
+      // as the active Location even when its Project is an enclosing Git root.
       // Capture-style resume: OpenCode mints its own session id (reported on
       // the stream as `sessionID`, e.g. `ses_...`). On a follow-up turn the
       // daemon continues that session with `-s <id>` instead of re-sending the
@@ -158,10 +132,9 @@ export const opencodeAgentDef = {
         args.push('-s', resumeSessionId);
       }
       if (options.model && options.model !== 'default') {
-        args.push('-m', options.model);
-      }
-      if (supportsOpenCodeVariant(options.model, options.reasoning)) {
-        args.push('--variant', options.reasoning);
+        const variant = supportsOpenCodeVariant(options.model, options.reasoning)
+          ? `#${options.reasoning}` : '';
+        args.push('-m', `${options.model}${variant}`);
       }
       return args;
     },
@@ -179,6 +152,6 @@ export const opencodeAgentDef = {
     // + OPENCODE_CONFIG_CONTENT). The env-var form lets the daemon hand
     // user-configured external MCP servers to a single `opencode run`
     // invocation without polluting the user's saved config files. See
-    // <https://opencode.ai/docs/config> and issue #2142.
+    // <https://opencode.ai/v2/docs/config> and issue #2142.
     externalMcpInjection: 'opencode-env-content',
 } satisfies RuntimeAgentDef;
