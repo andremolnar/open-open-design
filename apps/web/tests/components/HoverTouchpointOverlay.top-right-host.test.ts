@@ -12,24 +12,17 @@ const overlayStyles = readFileSync(
   'utf8',
 );
 
-describe('HoverTouchpointOverlay top-right host', () => {
-  it('mounts the authorized hover entry in the top-right campaign slot, not the shell root', () => {
+describe('detached production touchpoint host', () => {
+  it('does not mount the hover or badge production offer in either shell', () => {
     const topRightSlot = entryShellSource.indexOf('topRightSlot=');
-    const hoverHost = entryShellSource.indexOf('<ProductionCampaignHover');
     expect(topRightSlot).toBeGreaterThanOrEqual(0);
-    expect(hoverHost).toBeGreaterThan(topRightSlot);
-    expect(entryShellSource.slice(hoverHost, hoverHost + 200)).toContain(
-      'authenticated={amrLoggedIn === true}',
-    );
-    expect(entryShellSource.slice(hoverHost, hoverHost + 200)).toContain(
-      'sessionSubject={amrAccountId}',
-    );
+    expect(entryShellSource).not.toContain('<ProductionCampaignHover');
+    expect(entryShellSource).not.toContain('<ProductionCampaignBadge');
     expect(appSource).not.toContain('<ProductionCampaignHover');
+    expect(appSource).not.toContain('<ProductionCampaignModal');
   });
 
-  it('keeps the hover entry distinct from the account badge and removes its bottom-right positioning', () => {
-    expect(entryShellSource).toContain('<ProductionCampaignBadge');
-    expect(entryShellSource).toContain('not renamed from—the account badge');
+  it('keeps the dormant hover control scoped rather than floating over the app', () => {
     const entryRuleStart = overlayStyles.indexOf('.entry {');
     const entryRuleEnd = overlayStyles.indexOf('}', entryRuleStart);
     const entryRule = overlayStyles.slice(entryRuleStart, entryRuleEnd);

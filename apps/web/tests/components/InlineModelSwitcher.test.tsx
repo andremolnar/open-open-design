@@ -211,12 +211,8 @@ function expectVelaLoginWithAttribution(
       occurredAt?: string;
     };
   };
-  expect(body.attribution).toEqual(expect.objectContaining({
-    entryId: expect.stringMatching(/^od-amr-/u),
-    sourceProduct: 'open_design',
-    sourceDetail,
-  }));
-  expect(Number.isFinite(Date.parse(body.attribution?.occurredAt ?? ''))).toBe(true);
+  expect(body.attribution).toBeUndefined();
+  void sourceDetail;
 }
 
 describe('InlineModelSwitcher AMR row', () => {
@@ -667,8 +663,8 @@ describe('InlineModelSwitcher AMR row', () => {
     expect(parsed.origin).toBe('https://open-design.powerformer.net');
     expect(parsed.pathname).toBe('/cloud/dashboard');
     expect(parsed.searchParams.get('billing')).toBe('plan');
-    expect(parsed.searchParams.get('od_entry_source')).toBe('inline_amr_upgrade');
-    expect(parsed.searchParams.get('od_device_id')).toBe('od-install-abc');
+    expect(parsed.searchParams.get('od_entry_source')).toBeNull();
+    expect(parsed.searchParams.get('od_device_id')).toBeNull();
     expect(target).toBe('_blank');
     expect(features).toBe('noopener,noreferrer');
   });

@@ -150,19 +150,7 @@ const AMR_ENTRY_SOURCE_PAGE_BY_SOURCE: Record<
   home_artifact_upgrade: 'home',
 };
 
-const AMR_ANALYTICS_EVENTS_URL =
-  'https://amr-api.open-design.ai/api/v1/analytics/events';
-const AMR_ANALYTICS_TIMEOUT_MS = 1500;
 const OD_DEVICE_ID_MAX_LENGTH = 128;
-
-type AmrAnalyticsEnv = 'local' | 'test' | 'staging' | 'production';
-
-const AMR_ANALYTICS_ENVS: ReadonlySet<AmrAnalyticsEnv> = new Set([
-  'local',
-  'test',
-  'staging',
-  'production',
-]);
 
 export interface AmrEntryAnalyticsPayload {
   pageName: 'open_design';
@@ -174,13 +162,8 @@ export interface AmrEntryAnalyticsPayload {
   sourceProduct: 'open_design';
   sourceDetail: TrackingAmrEntrySource;
   entryOccurredAt: string;
-  // Campaign dimensions mirrored from the web consent-gated channel so the
-  // AMR ingest body matches the local PostHog + redirect URL envelope.
   campaignId?: TrackingCampaignId;
   conversionSource?: TrackingCampaignConversionSource;
-  // Optional self-reported onboarding profile, forwarded to AMR for paid-
-  // conversion segmentation. Open strings (not a union) so a new onboarding
-  // option never forces a contract bump on either side. useCase is multi-select.
   odRole?: string;
   odOrgSize?: string;
   odUseCase?: string[];
@@ -203,40 +186,6 @@ export interface AmrOnboardingProfileAnalyticsPayload {
   odOrgSize?: string;
   odUseCase?: string[];
   odSource?: string;
-}
-
-export interface AmrEntryAnalyticsContext {
-  deviceId?: string | null;
-  sessionId?: string | null;
-  locale?: string | null;
-}
-
-interface FetchResponseLike {
-  ok: boolean;
-  status: number;
-}
-
-type FetchLike = (
-  input: string,
-  init: {
-    method: 'POST';
-    headers: Record<string, string>;
-    body: string;
-    signal?: AbortSignal;
-  },
-) => Promise<FetchResponseLike>;
-
-export interface MirrorAmrEntryAnalyticsDeps {
-  analyticsContext?: AmrEntryAnalyticsContext | null;
-  appVersion?: string | null;
-  env?: NodeJS.ProcessEnv;
-  fetchImpl?: FetchLike;
-}
-
-export interface MirrorAmrEntryAnalyticsResult {
-  mirrored: boolean;
-  status?: number;
-  error?: string;
 }
 
 export interface VelaUser {
@@ -1299,8 +1248,6 @@ async function spawnVelaLoginAttempt(
   }
   const env: NodeJS.ProcessEnv = {
     ...spawnEnvForAgent('amr', baseEnv, configuredEnv),
-    ...velaLoginAttributionEnv(deps.attribution),
-    ...(deps.correlationEnv ?? {}),
     // The UUID is daemon-owned and written after configured/base env so a
     // child cannot replace the correlation key selected for this attempt.
     OPEN_DESIGN_AMR_AUTH_ATTEMPT_ID: deps.attempt.authAttemptId,
@@ -1752,155 +1699,6 @@ function sanitizeOpenDesignDeviceId(value: unknown): string | null {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > OD_DEVICE_ID_MAX_LENGTH) return null;
   return trimmed;
-}
-
-export async function mirrorAmrEntryAnalytics(
-  payload: AmrEntryAnalyticsPayload,
-  deps: MirrorAmrEntryAnalyticsDeps = {},
-): Promise<MirrorAmrEntryAnalyticsResult> {
-  return mirrorAmrAnalyticsEvent(buildAmrEntryAnalyticsCommon(payload, deps), payload, deps);
-}
-
-export async function mirrorAmrOnboardingProfileAnalytics(
-  payload: AmrOnboardingProfileAnalyticsPayload,
-  deps: MirrorAmrEntryAnalyticsDeps = {},
-): Promise<MirrorAmrEntryAnalyticsResult> {
-  return mirrorAmrAnalyticsEvent(
-    buildAmrOnboardingProfileAnalyticsCommon(payload, deps),
-    payload,
-    deps,
-  );
-}
-
-async function mirrorAmrAnalyticsEvent(
-  common: Record<string, unknown>,
-  payload: AmrEntryAnalyticsPayload | AmrOnboardingProfileAnalyticsPayload,
-  deps: MirrorAmrEntryAnalyticsDeps,
-): Promise<MirrorAmrEntryAnalyticsResult> {
-  const fetchImpl = deps.fetchImpl ?? (globalThis.fetch as unknown as FetchLike | undefined);
-  if (!fetchImpl) return { mirrored: false };
-  const env = deps.env ?? process.env;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), AMR_ANALYTICS_TIMEOUT_MS);
-  timeout.unref?.();
-  try {
-    const response = await fetchImpl(resolveAmrAnalyticsEventsUrl(env), {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        events: [
-          {
-            common,
-            payload,
-          },
-        ],
-      }),
-    });
-    return { mirrored: response.ok, status: response.status };
-  } catch (err) {
-    return {
-      mirrored: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function velaLoginAttributionEnv(
-  attribution: AmrEntryAttribution | null | undefined,
-): Record<string, string> {
-  if (!attribution) return {};
-  return {
-    OPEN_DESIGN_AMR_ENTRY_ID: attribution.entryId,
-    OPEN_DESIGN_AMR_ENTRY_SOURCE: attribution.sourceDetail,
-    OPEN_DESIGN_AMR_ENTRY_AT: attribution.occurredAt,
-    OPEN_DESIGN_AMR_ORIGIN: attribution.sourceProduct,
-    ...(attribution.odDeviceId
-      ? { OPEN_DESIGN_AMR_DEVICE_ID: attribution.odDeviceId }
-      : {}),
-  };
-}
-
-function buildAmrEntryAnalyticsCommon(
-  payload: AmrEntryAnalyticsPayload,
-  deps: MirrorAmrEntryAnalyticsDeps,
-) {
-  const context = deps.analyticsContext ?? null;
-  const anonymousId = context?.deviceId?.trim() || payload.entryId;
-  const sessionId = context?.sessionId?.trim() || payload.entryId;
-  return {
-    eventId: `od-amr-entry-${payload.entryId}`,
-    eventTime: payload.entryOccurredAt,
-    registryKey: 'open_design_amr_entry',
-    eventName: 'amr_entry',
-    eventType: 'click',
-    platform: 'web',
-    env: resolveAmrAnalyticsEnv(deps.env ?? process.env),
-    userId: null,
-    anonymousId,
-    sessionId,
-    appVersion: deps.appVersion ?? null,
-    locale: context?.locale?.trim() || null,
-    timezone: null,
-    deviceType: null,
-    browser: null,
-    os: null,
-    arch: null,
-    cliVersion: null,
-    traceId: payload.entryId,
-    walletBalance: null,
-  };
-}
-
-function buildAmrOnboardingProfileAnalyticsCommon(
-  payload: AmrOnboardingProfileAnalyticsPayload,
-  deps: MirrorAmrEntryAnalyticsDeps,
-) {
-  const context = deps.analyticsContext ?? null;
-  const anonymousId =
-    context?.deviceId?.trim() || payload.odDeviceId || payload.entryId;
-  const sessionId = context?.sessionId?.trim() || payload.entryId;
-  return {
-    eventId: `od-onboarding-profile-${payload.entryId}`,
-    eventTime: payload.profileOccurredAt,
-    registryKey: 'open_design_onboarding_profile',
-    eventName: 'onboarding_profile',
-    eventType: 'result',
-    platform: 'web',
-    env: resolveAmrAnalyticsEnv(deps.env ?? process.env),
-    userId: null,
-    anonymousId,
-    sessionId,
-    appVersion: deps.appVersion ?? null,
-    locale: context?.locale?.trim() || null,
-    timezone: null,
-    deviceType: null,
-    browser: null,
-    os: null,
-    arch: null,
-    cliVersion: null,
-    traceId: payload.entryId,
-    walletBalance: null,
-  };
-}
-
-function resolveAmrAnalyticsEventsUrl(env: NodeJS.ProcessEnv): string {
-  return env.OPEN_DESIGN_AMR_ANALYTICS_URL?.trim() || AMR_ANALYTICS_EVENTS_URL;
-}
-
-function resolveAmrAnalyticsEnv(env: NodeJS.ProcessEnv): AmrAnalyticsEnv {
-  const raw = env.OPEN_DESIGN_AMR_ANALYTICS_ENV?.trim();
-  if (raw && AMR_ANALYTICS_ENVS.has(raw as AmrAnalyticsEnv)) {
-    return raw as AmrAnalyticsEnv;
-  }
-  if (env.NODE_ENV === 'production') return 'production';
-  if (env.NODE_ENV === 'test') return 'test';
-  return 'local';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

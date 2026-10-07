@@ -18,7 +18,6 @@ import {
 } from './error-tracking';
 import { pinFirstSessionForCapture } from './identity';
 import { registerChatReplaySessionSource } from '../observability/chat-context';
-import { coalescedGet } from '../lib/coalesced-get';
 
 interface AnalyticsContext {
   anonymousId: string;
@@ -190,18 +189,10 @@ function flushPersonProperties(): void {
 // issuing two identical GETs (Batch A §4.3). `null` mirrors the endpoint's
 // non-ok answer; network failures propagate to each caller's own handler.
 function fetchAnalyticsConfigShared(): Promise<AnalyticsConfigResponse | null> {
-  // ttl 0: share only genuinely concurrent readers. A later sequential call
-  // (e.g. re-init right after the user grants consent) must observe the
-  // just-flipped daemon answer, not a sub-second-old disabled snapshot.
-  return coalescedGet(
-    'analytics-config',
-    async () => {
-      const res = await fetch('/api/analytics/config');
-      if (!res.ok) return null;
-      return (await res.json()) as AnalyticsConfigResponse;
-    },
-    0,
-  );
+  // Do not bootstrap a browser analytics client or exception transport.
+  // In particular, an old daemon with a PostHog key must not re-enable
+  // telemetry when this detached renderer connects to it.
+  return Promise.resolve(null);
 }
 
 let exceptionBootstrapPromise: Promise<void> | null = null;

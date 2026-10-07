@@ -27,38 +27,15 @@ async function fixture() {
   }));
   return { flow, capture, options, stage };
 }
-it('accepts legacy summaries without stages, then observes late desktop readiness separately', async () => {
-  const { options, capture, stage } = await fixture();
+it('keeps legacy and late lifecycle stages local despite inherited analytics credentials', async () => {
+  const { options, capture, stage, flow } = await fixture();
   expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 0 });
   await stage('desktop_ready');
-  expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 1 });
-  expect(capture.mock.calls[0]?.[0]).toMatchObject({ eventName: 'update_lifecycle_observed', insertId: 'update_lifecycle_observed:flow:desktop_ready' });
-  await observeUpdateLifecycleStages(options);
-  expect(capture).toHaveBeenCalledTimes(1);
-});
-it('replays renderer quiescence as its own idempotent handoff stage', async () => {
-  const { options, capture, stage } = await fixture();
-  await stage('renderer_quiesced');
-  expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 1 });
-  expect(capture.mock.calls[0]?.[0]).toMatchObject({
-    eventName: 'update_lifecycle_observed',
-    insertId: 'update_lifecycle_observed:flow:renderer_quiesced',
-    properties: expect.objectContaining({
-      stage: 'renderer_quiesced',
-      outcome: 'completed',
-    }),
-  });
-  await observeUpdateLifecycleStages(options);
-  expect(capture).toHaveBeenCalledTimes(1);
-});
-it('retries a rejected enqueue with the same insert ID and does not conflate queue acknowledgement with ingestion', async () => {
-  const { options, capture, stage, flow } = await fixture();
-  await stage('shutdown_completed', { duration_ms: 32000, repeated_quit_count: 2 });
-  capture.mockRejectedValueOnce(new Error('offline'));
   expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 0 });
-  expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 1 });
-  expect(capture.mock.calls[0]?.[0]).toEqual(capture.mock.calls[1]?.[0]);
-  expect(JSON.parse(await readFile(join(flow, 'lifecycle/shutdown_completed.json.receipt'), 'utf8')).status).toBe('queued');
+  expect(JSON.parse(await readFile(join(flow, 'lifecycle/desktop_ready.json.receipt'), 'utf8')).status)
+    .toBe('skipped_analytics_disabled');
+  await observeUpdateLifecycleStages(options);
+  expect(capture).not.toHaveBeenCalled();
 });
 it('does not emit opted-out observations later when consent changes', async () => {
   const { options, capture, stage } = await fixture();
@@ -74,9 +51,6 @@ it('projects only finite metrics and rejects mismatched flow, stage, identity an
   await stage('shutdown_completed', { repeated_quit_count: -1 });
   await observeUpdateLifecycleStages({ ...options, namespace: 'other' });
   expect(capture).not.toHaveBeenCalled();
-  expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 1 });
-  const serialized = JSON.stringify(capture.mock.calls);
-  expect(serialized).not.toContain('/private');
-  expect(serialized).not.toContain('"pid"');
-  expect(serialized).toContain('"forced_process_count":3');
+  expect(await observeUpdateLifecycleStages(options)).toEqual({ queued: 0 });
+  expect(capture).not.toHaveBeenCalled();
 });

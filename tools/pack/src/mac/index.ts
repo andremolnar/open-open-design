@@ -1,4 +1,5 @@
 export { packMac } from "./build.js";
+export { deployLocalMacApp } from "./deploy.js";
 export { PACKAGED_CONFIG_PATH_ENV, resolveSeededAppConfigPaths, seedPackagedAppConfig, writeLaunchPackagedConfig } from "./app-config.js";
 export { resolveMacInstallIdentity } from "./identity.js";
 export {

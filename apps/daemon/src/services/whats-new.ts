@@ -30,12 +30,10 @@ export interface WhatsNewService {
 export const DEFAULT_WHATS_NEW_URL = 'https://whatsnew.open-design.ai/whats-new.json';
 
 /**
- * The post-update card is a release feature. Only real release channels fetch
- * the hosted document; development/CI builds resolve to no card so the card
- * never intrudes on tests or unreleased builds. `OD_WHATS_NEW_URL` opts any
- * channel in (used by e2e fixtures that exercise the card on purpose).
+ * The hosted highlights document is not queried automatically. An explicit
+ * `OD_WHATS_NEW_URL` may opt in a locally configured document (for example,
+ * an e2e fixture); otherwise Home never makes an outbound highlights request.
  */
-const WHATS_NEW_RELEASE_CHANNELS = new Set(['beta', 'prerelease', 'preview', 'stable']);
 
 // Short enough that an operator's edit reaches users on their next Home visit
 // without a long stale window, long enough that Home activations do not hammer
@@ -45,14 +43,10 @@ const WHATS_NEW_TIMEOUT_MS = 4_000;
 
 /**
  * The document URL, or null when this build must not show the card.
- * `OD_WHATS_NEW_URL` overrides it for local fixtures and tests (e.g. a
- * tools-serve endpoint) regardless of channel; otherwise the dedicated R2
- * object is used only on release channels.
+ * Only explicitly configured documents are read, regardless of channel.
  */
-export function whatsNewSourceUrl(env: NodeJS.ProcessEnv, channel: string): string | null {
-  const override = env.OD_WHATS_NEW_URL?.trim();
-  if (override) return override;
-  return WHATS_NEW_RELEASE_CHANNELS.has(channel) ? DEFAULT_WHATS_NEW_URL : null;
+export function whatsNewSourceUrl(env: NodeJS.ProcessEnv, _channel: string): string | null {
+  return env.OD_WHATS_NEW_URL?.trim() || null;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

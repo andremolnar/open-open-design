@@ -1532,13 +1532,11 @@ describe('POST /api/integrations/vela/login', () => {
 
       await waitForFile(dumpPath);
       const env = JSON.parse(readFileSync(dumpPath, 'utf8'));
-      expect(env.OPEN_DESIGN_AMR_ORIGIN).toBe('open_design');
-      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBe('od-amr-entry-onboarding');
-      expect(env.OPEN_DESIGN_AMR_ENTRY_SOURCE).toBe(
-        'onboarding_amr_sign_in_continue',
-      );
-      expect(env.OPEN_DESIGN_AMR_ENTRY_AT).toBe('2026-06-16T08:00:00.000Z');
-      expect(env.OPEN_DESIGN_AMR_DEVICE_ID).toBe('od-install-abc');
+      expect(env.OPEN_DESIGN_AMR_ORIGIN).toBeUndefined();
+      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBeUndefined();
+      expect(env.OPEN_DESIGN_AMR_ENTRY_SOURCE).toBeUndefined();
+      expect(env.OPEN_DESIGN_AMR_ENTRY_AT).toBeUndefined();
+      expect(env.OPEN_DESIGN_AMR_DEVICE_ID).toBeUndefined();
     } finally {
       await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
     }
@@ -1611,14 +1609,12 @@ describe('POST /api/integrations/vela/login', () => {
 
       await waitForFile(dumpPath);
       const env = JSON.parse(readFileSync(dumpPath, 'utf8'));
-      expect(env.OD_INSTALLATION_ID).toBe('od-install-plugin');
-      expect(env.OPEN_DESIGN_PLUGIN_WORKFLOW_ID).toBe(
-        '019f9414-85e8-7f20-8d8f-7f868b2d4b5f',
-      );
-      expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_ID).toBe('open-design');
-      expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_VERSION).toBe('0.4.0');
-      expect(env.OPEN_DESIGN_DISTRIBUTION_MECHANISM).toBe('git_marketplace');
-      expect(env.OPEN_DESIGN_PUBLISHER_CLASS).toBe('open_design_first_party');
+      expect(env.OD_INSTALLATION_ID).toBeUndefined();
+      expect(env.OPEN_DESIGN_PLUGIN_WORKFLOW_ID).toBeUndefined();
+      expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_ID).toBeUndefined();
+      expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_VERSION).toBeUndefined();
+      expect(env.OPEN_DESIGN_DISTRIBUTION_MECHANISM).toBeUndefined();
+      expect(env.OPEN_DESIGN_PUBLISHER_CLASS).toBeUndefined();
     } finally {
       await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
     }
@@ -1686,7 +1682,7 @@ describe('POST /api/integrations/vela/login', () => {
 
       await waitForFile(dumpPath);
       const env = JSON.parse(readFileSync(dumpPath, 'utf8'));
-      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBe('od-amr-entry-onboarding');
+      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBeUndefined();
       expect(env.OPEN_DESIGN_AMR_DEVICE_ID).toBeUndefined();
     } finally {
       await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
@@ -1717,7 +1713,7 @@ describe('POST /api/integrations/vela/login', () => {
 
       await waitForFile(dumpPath);
       const env = JSON.parse(readFileSync(dumpPath, 'utf8'));
-      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBe('od-amr-entry-onboarding');
+      expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBeUndefined();
       expect(env.OPEN_DESIGN_AMR_DEVICE_ID).toBeUndefined();
     } finally {
       await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
@@ -2514,509 +2510,14 @@ describe('ALL /api/integrations/vela/message-center/*', () => {
   });
 });
 
-describe('POST /api/integrations/vela/analytics-entry', () => {
-  it('mirrors OpenDesign AMR entry clicks to the AMR analytics ingest shape', async () => {
-    const requests: unknown[] = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
+describe('obsolete AMR analytics endpoints', () => {
+  it('rejects legacy entry and profile mirrors without calling a provider', async () => {
+    for (const route of ['analytics-entry', 'analytics-profile']) {
+      const response = await fetch(`${baseUrl}/api/integrations/vela/${route}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
       });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'chat_panel',
-      area: 'amr_entry',
-      element: 'chat_error_recharge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-123',
-      sourceProduct: 'open_design',
-      sourceDetail: 'chat_error_recharge',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-    };
-
-    try {
-      const { status, body } = await postJson<{ mirrored: boolean; status: number }>(
-        `${baseUrl}/api/integrations/vela/analytics-entry`,
-        { payload },
-        {
-          'x-od-analytics-device-id': 'od-device-1',
-          'x-od-analytics-session-id': 'od-session-1',
-          'x-od-analytics-locale': 'zh-CN',
-        },
-      );
-
-      expect(status).toBe(202);
-      expect(body).toEqual({ mirrored: true, status: 202 });
-      expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({
-        events: [
-          {
-            common: {
-              eventId: 'od-amr-entry-od-amr-entry-123',
-              eventTime: '2026-06-03T12:00:00.000Z',
-              registryKey: 'open_design_amr_entry',
-              eventName: 'amr_entry',
-              eventType: 'click',
-              platform: 'web',
-              env: 'test',
-              userId: null,
-              anonymousId: 'od-device-1',
-              sessionId: 'od-session-1',
-              appVersion: null,
-              locale: 'zh-CN',
-              traceId: 'od-amr-entry-123',
-            },
-            payload,
-          },
-        ],
-      });
-    } finally {
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
-    }
-  });
-
-  it('forwards campaignId and conversionSource on the outbound AMR analytics body', async () => {
-    const requests: Array<{ events: Array<{ payload: Record<string, unknown> }> }> = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
-      });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'home',
-      area: 'amr_entry',
-      element: 'deepseek_workbench_badge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-campaign',
-      sourceProduct: 'open_design',
-      sourceDetail: 'deepseek_workbench_badge',
-      entryOccurredAt: '2026-08-06T12:00:00.000Z',
-      campaignId: 'deepseek_v4_flash',
-      conversionSource: 'deepseek_workbench_badge',
-    };
-
-    try {
-      const { status, body } = await postJson<{ mirrored: boolean; status: number }>(
-        `${baseUrl}/api/integrations/vela/analytics-entry`,
-        { payload },
-        {
-          'x-od-analytics-device-id': 'od-device-campaign',
-          'x-od-analytics-session-id': 'od-session-campaign',
-        },
-      );
-
-      expect(status).toBe(202);
-      expect(body).toEqual({ mirrored: true, status: 202 });
-      expect(requests).toHaveLength(1);
-      expect(requests[0]?.events?.[0]?.payload).toMatchObject({
-        campaignId: 'deepseek_v4_flash',
-        conversionSource: 'deepseek_workbench_badge',
-      });
-    } finally {
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
-    }
-  });
-
-  it('forwards optional onboarding profile (role/orgSize/useCase/source) to the AMR ingest body', async () => {
-    const requests: Array<{ events: Array<{ payload: Record<string, unknown> }> }> = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
-      });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'chat_panel',
-      area: 'amr_entry',
-      element: 'chat_error_recharge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-456',
-      sourceProduct: 'open_design',
-      sourceDetail: 'chat_error_recharge',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-      odRole: 'pm',
-      odOrgSize: 'startup',
-      odUseCase: ['product', 'design-system'],
-      odSource: 'github',
-    };
-
-    try {
-      const { status } = await postJson<{ mirrored: boolean }>(
-        `${baseUrl}/api/integrations/vela/analytics-entry`,
-        { payload },
-        { 'x-od-analytics-device-id': 'od-device-2' },
-      );
-
-      expect(status).toBe(202);
-      expect(requests).toHaveLength(1);
-      expect(requests[0]?.events[0]?.payload).toMatchObject({
-        odRole: 'pm',
-        odOrgSize: 'startup',
-        odUseCase: ['product', 'design-system'],
-        odSource: 'github',
-      });
-    } finally {
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
-    }
-  });
-
-  it('mirrors OpenDesign onboarding profile snapshots with the header-derived device id', async () => {
-    const requests: unknown[] = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
-      });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'onboarding',
-      area: 'onboarding',
-      element: 'about_you_submit',
-      action: 'submit_profile',
-      entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
-      sourceDetail: 'onboarding_amr_sign_in_continue',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-      profileOccurredAt: '2026-06-03T12:03:00.000Z',
-      odDeviceId: 'body-device-should-not-win',
-      odRole: 'pm',
-      odOrgSize: 'startup',
-      odUseCase: ['product', 'design-system'],
-      odSource: 'github',
-    };
-
-    try {
-      const { status, body } = await postJson<{ mirrored: boolean; status: number }>(
-        `${baseUrl}/api/integrations/vela/analytics-profile`,
-        { payload },
-        {
-          'x-od-analytics-device-id': 'od-device-1',
-          'x-od-analytics-session-id': 'od-session-1',
-          'x-od-analytics-locale': 'zh-CN',
-        },
-      );
-
-      expect(status).toBe(202);
-      expect(body).toEqual({ mirrored: true, status: 202 });
-      expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({
-        events: [
-          {
-            common: {
-              eventId: 'od-onboarding-profile-od-amr-entry-profile',
-              eventTime: '2026-06-03T12:03:00.000Z',
-              registryKey: 'open_design_onboarding_profile',
-              eventName: 'onboarding_profile',
-              eventType: 'result',
-              platform: 'web',
-              env: 'test',
-              anonymousId: 'od-device-1',
-              sessionId: 'od-session-1',
-              locale: 'zh-CN',
-              traceId: 'od-amr-entry-profile',
-            },
-            payload: { ...payload, odDeviceId: 'od-device-1' },
-          },
-        ],
-      });
-    } finally {
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
-    }
-  });
-
-  it('drops an over-long profile value rather than mirroring it', () => {
-    const base = {
-      pageName: 'open_design',
-      sourcePageName: 'chat_panel',
-      area: 'amr_entry',
-      element: 'chat_error_recharge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-789',
-      sourceProduct: 'open_design',
-      sourceDetail: 'chat_error_recharge',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-    };
-    // Valid optional values pass through; an over-long value rejects the event.
-    expect(parseAmrEntryAnalyticsPayload({ payload: { ...base, odRole: 'student' } }))
-      .toMatchObject({ odRole: 'student' });
-    expect(
-      parseAmrEntryAnalyticsPayload({
-        payload: { ...base, odRole: 'x'.repeat(65) },
-      }),
-    ).toBeNull();
-    // useCase is an array; valid lists pass through, a bad element rejects.
-    expect(
-      parseAmrEntryAnalyticsPayload({
-        payload: { ...base, odUseCase: ['product', 'landing'], odSource: 'github' },
-      }),
-    ).toMatchObject({ odUseCase: ['product', 'landing'], odSource: 'github' });
-    expect(
-      parseAmrEntryAnalyticsPayload({
-        payload: { ...base, odUseCase: ['product', 'x'.repeat(65)] },
-      }),
-    ).toBeNull();
-    expect(
-      parseAmrEntryAnalyticsPayload({
-        payload: { ...base, odUseCase: 'not-an-array' },
-      }),
-    ).toBeNull();
-  });
-
-  it('rejects malformed AMR onboarding profile analytics payloads', async () => {
-    const base = {
-      pageName: 'open_design',
-      sourcePageName: 'onboarding',
-      area: 'onboarding',
-      element: 'about_you_submit',
-      action: 'submit_profile',
-      entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
-      sourceDetail: 'onboarding_amr_sign_in_continue',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-      profileOccurredAt: '2026-06-03T12:03:00.000Z',
-    };
-
-    expect(
-      parseAmrOnboardingProfileAnalyticsPayload({
-        payload: { ...base, odRole: 'pm', odDeviceId: 'od-install-abc' },
-      }),
-    ).toMatchObject({ odRole: 'pm', odDeviceId: 'od-install-abc' });
-    expect(parseAmrOnboardingProfileAnalyticsPayload({ payload: base }))
-      .toBeNull();
-    expect(
-      parseAmrOnboardingProfileAnalyticsPayload({
-        payload: { ...base, odRole: 'x'.repeat(65) },
-      }),
-    ).toBeNull();
-
-    const { status, body } = await postJson<{ error: string }>(
-      `${baseUrl}/api/integrations/vela/analytics-profile`,
-      { payload: { pageName: 'open_design' } },
-    );
-
-    expect(status).toBe(400);
-    expect(body).toEqual({ error: 'invalid_amr_profile_analytics' });
-  });
-
-  it('rejects non-onboarding sources for AMR onboarding profile analytics', async () => {
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'onboarding',
-      area: 'onboarding',
-      element: 'about_you_submit',
-      action: 'submit_profile',
-      entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
-      sourceDetail: 'settings_amr_console',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-      profileOccurredAt: '2026-06-03T12:03:00.000Z',
-      odRole: 'pm',
-    };
-
-    expect(parseAmrOnboardingProfileAnalyticsPayload({ payload })).toBeNull();
-
-    const { status, body } = await postJson<{ error: string }>(
-      `${baseUrl}/api/integrations/vela/analytics-profile`,
-      { payload },
-    );
-
-    expect(status).toBe(400);
-    expect(body).toEqual({ error: 'invalid_amr_profile_analytics' });
-  });
-
-  it('rejects malformed AMR entry analytics payloads', async () => {
-    const { status, body } = await postJson<{ error: string }>(
-      `${baseUrl}/api/integrations/vela/analytics-entry`,
-      { payload: { pageName: 'open_design' } },
-    );
-
-    expect(status).toBe(400);
-    expect(body).toEqual({ error: 'invalid_amr_entry_analytics' });
-  });
-
-  it('does not mirror to AMR when the request carries no analytics-consent headers', async () => {
-    const requests: unknown[] = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
-      });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'chat_panel',
-      area: 'amr_entry',
-      element: 'chat_error_recharge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-no-consent',
-      sourceProduct: 'open_design',
-      sourceDetail: 'chat_error_recharge',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-    };
-
-    try {
-      // No x-od-analytics-* headers => readAnalyticsContext returns null =>
-      // opted out. The route must short-circuit before any external fetch.
-      const { status, body } = await postJson<{ mirrored: boolean }>(
-        `${baseUrl}/api/integrations/vela/analytics-entry`,
-        { payload },
-      );
-
-      expect(status).toBe(202);
-      expect(body).toEqual({ mirrored: false });
-      expect(requests).toHaveLength(0);
-    } finally {
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
-    }
-  });
-
-  it('does not mirror to AMR when telemetry.metrics consent is off', async () => {
-    const dataDir = process.env.OD_DATA_DIR as string;
-    const previous = await readAppConfig(dataDir);
-    await writeAppConfig(dataDir, {
-      ...previous,
-      telemetry: { ...(previous.telemetry ?? {}), metrics: false },
-    });
-
-    const requests: unknown[] = [];
-    const captureServer = createServer((req, res) => {
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk) => {
-        raw += chunk;
-      });
-      req.on('end', () => {
-        requests.push(JSON.parse(raw));
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accepted: 1 }));
-      });
-    });
-    await new Promise<void>((resolve) => {
-      captureServer.listen(0, '127.0.0.1', () => resolve());
-    });
-    const address = captureServer.address() as AddressInfo;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_URL =
-      `http://127.0.0.1:${address.port}/api/v1/analytics/events`;
-    process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
-
-    const payload = {
-      pageName: 'open_design',
-      sourcePageName: 'chat_panel',
-      area: 'amr_entry',
-      element: 'chat_error_recharge',
-      action: 'click_amr_entry',
-      entryId: 'od-amr-entry-metrics-off',
-      sourceProduct: 'open_design',
-      sourceDetail: 'chat_error_recharge',
-      entryOccurredAt: '2026-06-03T12:00:00.000Z',
-    };
-
-    try {
-      // Consent headers are present, but app-config opt-out must still win as
-      // defense in depth against a stale header leak after the user opts out.
-      const { status, body } = await postJson<{ mirrored: boolean }>(
-        `${baseUrl}/api/integrations/vela/analytics-entry`,
-        { payload },
-        {
-          'x-od-analytics-device-id': 'od-device-1',
-          'x-od-analytics-session-id': 'od-session-1',
-          'x-od-analytics-locale': 'zh-CN',
-        },
-      );
-
-      expect(status).toBe(202);
-      expect(body).toEqual({ mirrored: false });
-      expect(requests).toHaveLength(0);
-    } finally {
-      await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
-      await new Promise<void>((resolve) => {
-        captureServer.close(() => resolve());
-      });
+      expect(response.status).toBe(410);
+      expect(await response.json()).toEqual({ mirrored: false });
     }
   });
 });
@@ -3179,71 +2680,20 @@ describe('Test touchpoint runtime proxy', () => {
   });
 });
 
-describe('Production touchpoint runtime proxy', () => {
-  it('routes a local publish reader separately without changing the stored login or trusting remote overrides', async () => {
+describe('production offer proxy', () => {
+  it('refuses production offer checks even with a signed-in account and a reachable upstream', async () => {
     const requests: string[] = [];
     const upstream = createServer((req, res) => {
       requests.push(req.url ?? '');
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ activityId: 'published-local' }));
-    });
-    await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
-    const address = upstream.address() as AddressInfo;
-    seedLogin('local', { apiUrl: 'http://127.0.0.1:1' });
-    try {
-      process.env.OPEN_DESIGN_CMS_PRODUCTION_API_URL = `http://127.0.0.1:${address.port}`;
-      const response = await getJson(
-        `${baseUrl}/api/touchpoints/production-runtime?placementKey=opend.home.account-badge&locale=zh-CN`,
-      );
-      expect(response.status).toBe(200);
-      expect(requests).toHaveLength(1);
-      process.env.OPEN_DESIGN_CMS_PRODUCTION_API_URL = 'https://example.com';
-      const rejected = await getJson(
-        `${baseUrl}/api/touchpoints/production-runtime?placementKey=opend.home.account-badge&locale=zh-CN`,
-      );
-      expect(rejected.status).toBe(400);
-      expect(requests).toHaveLength(1);
-    } finally {
-      delete process.env.OPEN_DESIGN_CMS_PRODUCTION_API_URL;
-      await new Promise<void>((resolve) => upstream.close(() => resolve()));
-    }
-  });
-  it('forwards only the exact production decision path with daemon-held credentials', async () => {
-    const requests: Array<{
-      url: string;
-      method: string;
-      authorization: string | undefined;
-    }> = [];
-    const upstream = createServer((req, res) => {
-      requests.push({
-        url: req.url ?? '',
-        method: req.method ?? '',
-        authorization: req.headers.authorization,
-      });
-      res.setHeader('content-type', 'application/json');
-      res.statusCode = 200;
-      res.end(JSON.stringify({ activityId: 'activity-1' }));
+      res.end('{}');
     });
     await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
     const address = upstream.address() as AddressInfo;
     seedLogin('local', { apiUrl: `http://127.0.0.1:${address.port}` });
     try {
-      const accepted = await getJson(
-        `${baseUrl}/api/touchpoints/production-runtime?placementKey=opend.home.campaign-modal&locale=en-US`,
-      );
-      expect(accepted.status).toBe(200);
-      expect(requests).toEqual([
-        {
-          url: '/api/v1/touchpoints/runtime/production?placementKey=opend.home.campaign-modal&locale=en-US',
-          method: 'GET',
-          authorization: 'Bearer ck-seeded-key',
-        },
-      ]);
-      const rejected = await getJson(
-        `${baseUrl}/api/touchpoints/production-runtime/deployments`,
-      );
-      expect(rejected.status).toBe(404);
-      expect(requests).toHaveLength(1);
+      const result = await getJson(`${baseUrl}/api/touchpoints/production-runtime?placementKey=opend.home.account-badge&locale=en-US`);
+      expect(result.status).toBe(410);
+      expect(requests).toEqual([]);
     } finally {
       await new Promise<void>((resolve) => upstream.close(() => resolve()));
     }

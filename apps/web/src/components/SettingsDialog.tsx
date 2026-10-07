@@ -315,7 +315,7 @@ export function deriveAboutUpdateControl(
     return {
       primaryAction: null,
       primaryLabelKey: null,
-      showReleaseLink: true,
+      showReleaseLink: false,
       statusKey: 'settings.updateStatusDevelopment',
       statusTone: 'neutral',
     };
@@ -325,7 +325,7 @@ export function deriveAboutUpdateControl(
     return {
       primaryAction: null,
       primaryLabelKey: null,
-      showReleaseLink: true,
+      showReleaseLink: false,
       statusKey: 'settings.updateStatusUnsupported',
       statusTone: 'warning',
     };
@@ -4438,17 +4438,6 @@ export function SettingsDialog({
             </button>
             <button
               type="button"
-              className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
-              onClick={() => setActiveSection('privacy')}
-            >
-              <Icon name="eye" size={18} />
-              <span>
-                <strong>{t('settings.privacy')}</strong>
-                <small>{t('settings.privacyHint')}</small>
-              </span>
-            </button>
-            <button
-              type="button"
               className={`settings-nav-item${activeSection === 'about' ? ' active' : ''}`}
               onClick={() => setActiveSection('about')}
             >
@@ -6055,9 +6044,6 @@ export function SettingsDialog({
             />
           ) : null}
 
-          {activeSection === 'privacy' ? (
-            <PrivacySection cfg={cfg} setCfg={setCfg} />
-          ) : null}
 
           {activeSection === 'about' ? (
             <section className="settings-section">
@@ -6134,7 +6120,7 @@ export function SettingsDialog({
               ) : (
                 <div className="empty-card">{t('settings.versionUnavailable')}</div>
               )}
-              <div className="settings-about-diagnostics settings-about-silent-updates">
+              {aboutUpdaterModel.enabled ? <div className="settings-about-diagnostics settings-about-silent-updates">
                 <label className="settings-about-toggle">
                   <input
                     checked={cfg.allowSilentUpdates === true}
@@ -6202,8 +6188,8 @@ export function SettingsDialog({
                     <span className="hint">{t('settings.allowSilentUpdatesDesc')}</span>
                   </span>
                 </label>
-              </div>
-              {aboutUpdaterModel.environment === 'desktop'
+              </div> : null}
+              {aboutUpdaterModel.enabled && aboutUpdaterModel.environment === 'desktop'
                 && aboutUpdaterModel.supported
                 && appVersionInfo?.packaged !== false ? (
                 <div className="settings-about-diagnostics">

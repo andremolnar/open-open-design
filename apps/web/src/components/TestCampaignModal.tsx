@@ -460,18 +460,21 @@ function validIso(value: unknown): value is string {
 export function TestCampaignModal({
 	authenticated,
 	sessionSubject,
+	allowAutomatic = false,
 }: {
 	authenticated: boolean;
 	sessionSubject?: string | null;
+	/** The shipped shell requires an explicit preview request; direct harnesses may opt into automatic tests. */
+	allowAutomatic?: boolean;
 }) {
 	const { locale } = useI18n();
-	const compatible = supportsHost(authenticated);
 	const owner = sessionSubject ?? null;
 	const [showControls] = useState(
 		() =>
 			typeof window !== "undefined" &&
 			new URLSearchParams(window.location.search).get("cmsTestControls") === "1",
 	);
+	const compatible = supportsHost(authenticated) && (allowAutomatic || showControls);
 	const {
 		deployments,
 		selected: deployment,

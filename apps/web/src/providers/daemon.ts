@@ -1498,8 +1498,10 @@ export async function startVelaLogin(
   authAttemptId?: string,
 ): Promise<StartVelaLoginResult> {
   try {
-    const loginAttribution =
-      attribution && odDeviceId ? { ...attribution, odDeviceId } : attribution;
+    // Authentication does not need the local marketing attribution record or
+    // the installation identifier; neither is sent to the remote service.
+    void attribution;
+    void odDeviceId;
     const canonicalAuthAttemptId = authAttemptId
       && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(authAttemptId)
       ? authAttemptId
@@ -1509,7 +1511,6 @@ export async function startVelaLogin(
       ? authAttemptId
       : null;
     const payload = {
-      ...(loginAttribution ? { attribution: loginAttribution } : {}),
       ...(canonicalAuthAttemptId ? { authAttemptId: canonicalAuthAttemptId } : {}),
       ...(authRequestId ? { authRequestId } : {}),
     };

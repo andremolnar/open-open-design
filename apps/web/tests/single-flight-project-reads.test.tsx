@@ -185,7 +185,7 @@ describe('project-open single-flight reads (Batch A §4.3)', () => {
     expect(callsMatching('/projects/sf-status-poll/collab/status')).toHaveLength(2);
   });
 
-  it('shares one /analytics/config request between error tracking and analytics init', async () => {
+  it('does not fetch analytics config for error tracking or client init', async () => {
     const context = {
       anonymousId: 'anon-1',
       sessionId: 'session-1',
@@ -197,7 +197,7 @@ describe('project-open single-flight reads (Batch A §4.3)', () => {
       bootstrapExceptionTracking(context),
       getAnalyticsClient(context),
     ]);
-    expect(callsMatching('/analytics/config')).toHaveLength(1);
+    expect(callsMatching('/analytics/config')).toHaveLength(0);
   });
 
   it('shares one /workspace-scope request between two mounted scope consumers', async () => {

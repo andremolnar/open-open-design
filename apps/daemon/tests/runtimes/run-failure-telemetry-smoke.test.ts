@@ -115,7 +115,7 @@ describe('run failure telemetry smoke', () => {
     return await serverModule.startServer({ port: 0, returnServer: true });
   }
 
-  it('drives representative failed runs through analytics and Langfuse diagnostics', async () => {
+  it('keeps representative failed-run diagnostics local despite configured Langfuse credentials', async () => {
     binDir = await mkdtemp(path.join(os.tmpdir(), 'od-run-failure-smoke-bin-'));
     await writeFakeClaude(binDir, 'claude-auth', [
       'HTTP 401 Unauthorized: invalid API key.',
@@ -276,68 +276,7 @@ describe('run failure telemetry smoke', () => {
       expect(diagnostics.stderr_present, item.id).toBe(item.expectStderr);
 
       await finalizeAssistantMessage(started.url, run);
-      if (item.representation === 'task_hierarchy') {
-        const observed = await ingestion.waitForTaskRunObservation(run.id);
-        // Task hierarchy identity: one trace per task execution, one child
-        // span per Run inside it.
-        expect(observed.trace.body.id, item.id)
-          .toBe(`strategy-task:${observed.taskExecutionId}`);
-        expect(observed.trace.body.name, item.id).toBe('open-design-strategy-task');
-        expect(observed.span.body.traceId, item.id).toBe(observed.trace.body.id);
-        expect(observed.span.body.id, item.id)
-          .toBe(`task-run:${observed.taskExecutionId}:${run.id}`);
-        expect(observed.span.body.name, item.id).toBe('strategy-stage:request');
-
-        const metadata = observed.span.body.metadata;
-        expect('expectedCodes' in item ? item.expectedCodes : [item.expectedCode])
-          .toContain(metadata.errorCode);
-        expect(metadata.failureCategory, item.id).toBe(item.expectedCategory);
-        expect(metadata.failureDetail, item.id).toBe(item.expectedDetail);
-
-        // Diagnostics coverage the single-Run trace used to carry. Failure
-        // classification alone cannot say what the process printed or how it
-        // died, so the hierarchy must keep reporting the stderr tail, the host
-        // close diagnostics, and the terminal exit code / signal.
-        if (item.expectStderr) {
-          expect(metadata.stderr.lineCount, item.id).toBeGreaterThan(0);
-          expect(metadata.stderr.tail.redacted, item.id).toBe(true);
-          expect(metadata.stderr.tail.text.length, item.id).toBeGreaterThan(0);
-        } else {
-          expect(metadata.stderr, item.id).toBeUndefined();
-        }
-        if ('expectRedactedStderrPath' in item && item.expectRedactedStderrPath) {
-          expect(metadata.stderr.tail.text, item.id).not.toContain('/Users/od-smoke-user');
-          expect(metadata.stderr.tail.text, item.id).not.toContain('/opt/od-smoke-user');
-          expect(metadata.stderr.tail.text, item.id).toContain('[REDACTED:');
-        }
-        expect(metadata.diagnostics.diagnostic_source, item.id)
-          .toBe(item.expectedDiagnosticSource);
-        expect(metadata.diagnostics.stderr_present, item.id).toBe(item.expectStderr);
-        expect(run.exitCode !== null || run.signal !== null, item.id).toBe(true);
-        expect(metadata.exitCode ?? null, item.id).toBe(run.exitCode);
-        expect(metadata.signal ?? null, item.id).toBe(run.signal);
-        continue;
-      }
-
-      const caseId: string = item.id;
-      // Widened so the literal `expectStderr` of a single-case branch does not
-      // narrow `item` itself away inside the conditional.
-      const expectStderr: boolean = item.expectStderr;
-      const trace = await ingestion.waitForSingleRunTrace(run.id);
-      expect(trace.body.name, caseId).toBe('open-design-turn');
-      expect('expectedCodes' in item ? item.expectedCodes : [item.expectedCode])
-        .toContain(trace.body.metadata.error_code);
-      expect(trace.body.metadata.failure_category, caseId).toBe(item.expectedCategory);
-      expect(trace.body.metadata.failure_detail, caseId).toBe(item.expectedDetail);
-      if (expectStderr) {
-        expect(trace.body.metadata.stderr.lineCount, caseId).toBeGreaterThan(0);
-      } else {
-        expect(trace.body.metadata.stderr, caseId).toBeUndefined();
-      }
-      expect(trace.body.metadata.diagnostics.diagnostic_source, caseId)
-        .toBe(item.expectedDiagnosticSource);
-      expect(trace.body.metadata.diagnostics.stderr_present, caseId)
-        .toBe(expectStderr);
+      expect(ingestion.batches, item.id).toEqual([]);
     }
   }, 120_000);
 
@@ -482,84 +421,6 @@ describe('run failure telemetry smoke', () => {
     });
   }, 60_000);
 
-  it('reports the terminal Langfuse fallback for headerless run requests', async () => {
-    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-run-failure-fallback-bin-'));
-    await writeFakeClaude(binDir, 'claude-terminal-failure', 'terminal fallback smoke failure');
-
-    ingestion = await startLangfuseIngestion();
-    process.env.LANGFUSE_PUBLIC_KEY = 'pk-test';
-    process.env.LANGFUSE_SECRET_KEY = 'sk-test';
-    process.env.LANGFUSE_BASE_URL = ingestion.url;
-    delete process.env.OPEN_DESIGN_TELEMETRY_RELAY_URL;
-    delete process.env.POSTHOG_KEY;
-
-    started = await startIsolatedServer();
-    await putConfig(started.url, {
-      agentId: 'claude',
-      agentCliEnv: { claude: { CLAUDE_BIN: path.join(binDir, 'claude-terminal-failure') } },
-      telemetry: { metrics: true, content: true, artifactManifest: false },
-      privacyDecisionAt: Date.now(),
-      // Task-hierarchy reporting only exists for an admitted Run.
-      odNextStrategyMode: 'active',
-    });
-
-    // Create the project before accelerating 15s timers: POST /api/projects
-    // races its own 15s preparation deadline, and the blunt setTimeout stub
-    // would fire that deadline immediately and answer 504 instead of 200.
-    const project = await createSmokeProject(started.url, 'headerless_terminal_fallback');
-    restoreSetTimeout = accelerateLangfuseTerminalFallbackDelay();
-    const run = await startAndWaitForRun(started.url, project, {
-      caseId: 'headerless_terminal_fallback',
-      agentId: 'claude',
-      message: 'od-failure-smoke-headerless-terminal-fallback',
-    });
-
-    const observed = await ingestion.waitForTaskRunObservation(run.id);
-    expect(observed.trace.body.id).toBe(`strategy-task:${observed.taskExecutionId}`);
-    expect(observed.trace.body.name).toBe('open-design-strategy-task');
-    expect(observed.span.body.id).toBe(`task-run:${observed.taskExecutionId}:${run.id}`);
-    expect(observed.span.body.metadata.errorCode).toBe(deriveRunErrorCode(run));
-  }, 60_000);
-
-  it('reports terminal fallback with buffered content when final telemetry never arrives', async () => {
-    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-run-failure-buffered-fallback-bin-'));
-    await writeFakeClaude(binDir, 'claude-buffered-fallback', 'buffered fallback smoke failure');
-
-    ingestion = await startLangfuseIngestion();
-    process.env.LANGFUSE_PUBLIC_KEY = 'pk-test';
-    process.env.LANGFUSE_SECRET_KEY = 'sk-test';
-    process.env.LANGFUSE_BASE_URL = ingestion.url;
-    delete process.env.OPEN_DESIGN_TELEMETRY_RELAY_URL;
-    delete process.env.POSTHOG_KEY;
-
-    started = await startIsolatedServer();
-    await putConfig(started.url, {
-      agentId: 'claude',
-      agentCliEnv: { claude: { CLAUDE_BIN: path.join(binDir, 'claude-buffered-fallback') } },
-      telemetry: { metrics: true, content: true, artifactManifest: false },
-      privacyDecisionAt: Date.now(),
-      // Task-hierarchy reporting only exists for an admitted Run.
-      odNextStrategyMode: 'active',
-    });
-
-    // Same ordering as above: keep the create's own 15s deadline out of the
-    // accelerated window so a cold catalogue read cannot answer 504.
-    const project = await createSmokeProject(started.url, 'buffered_unfinalized_failed_message');
-    restoreSetTimeout = accelerateLangfuseTerminalFallbackDelay(1000);
-    const run = await startAndWaitForRun(started.url, project, {
-      caseId: 'buffered_unfinalized_failed_message',
-      agentId: 'claude',
-      message: 'od-failure-smoke-buffered-unfinalized-message',
-    });
-    const bufferedContent = 'buffered unfinalized failed assistant content';
-
-    await saveAssistantMessage(started.url, run, {
-      content: bufferedContent,
-      producedFiles: [{ name: 'buffered-fallback.html', kind: 'html', size: 42 }],
-    });
-    const observed = await ingestion.waitForTaskRunObservation(run.id);
-    expect(observed.span.body.output).toBe(bufferedContent);
-  }, 60_000);
 });
 
 /**

@@ -164,153 +164,20 @@ describe('readLangfuseConfig', () => {
   });
 });
 
-describe('readTelemetrySinkConfig', () => {
-  it('prefers the OpenDesign telemetry relay when configured', () => {
-    const cfg = readTelemetrySinkConfig({
-      OPEN_DESIGN_TELEMETRY_RELAY_URL: 'https://telemetry.open-design.ai/api/langfuse//',
-      LANGFUSE_PUBLIC_KEY: 'pk',
-      LANGFUSE_SECRET_KEY: 'sk',
-    });
-    expect(cfg).toEqual({
-      kind: 'relay',
-      relayUrl: 'https://telemetry.open-design.ai/api/langfuse',
-      timeoutMs: 20_000,
-      retries: 1,
-    });
-  });
-
-  it('uses relay-specific timeout and retry tuning when present', () => {
-    const cfg = readTelemetrySinkConfig({
+describe('telemetry sink selection', () => {
+  it('does not select a destination despite inherited relay and direct credentials', () => {
+    const env = {
       OPEN_DESIGN_TELEMETRY_RELAY_URL: 'https://telemetry.open-design.ai/api/langfuse',
-      OPEN_DESIGN_TELEMETRY_TIMEOUT_MS: '30000',
-      OPEN_DESIGN_TELEMETRY_RETRIES: '3',
-      LANGFUSE_TIMEOUT_MS: '1',
-      LANGFUSE_RETRIES: '0',
-    });
-    expect(cfg).toMatchObject({
-      kind: 'relay',
-      timeoutMs: 30_000,
-      retries: 3,
-    });
-  });
-
-  it('migrates the legacy self-host test relay hostname', () => {
-    const cfg = readTelemetrySinkConfig({
-      OPEN_DESIGN_TELEMETRY_RELAY_URL:
-        'https://telemetry-selfhost.open-design.ai/api/langfuse',
-    });
-    expect(cfg).toMatchObject({
-      kind: 'relay',
-      relayUrl: 'https://telemetry-test.open-design.ai/api/langfuse',
-    });
-  });
-
-  it('falls back to direct Langfuse config for local smoke tests', () => {
-    const cfg = readTelemetrySinkConfig({
       LANGFUSE_PUBLIC_KEY: 'pk',
       LANGFUSE_SECRET_KEY: 'sk',
-    });
-    expect(cfg).toMatchObject({
-      kind: 'langfuse',
-      baseUrl: 'https://us.cloud.langfuse.com',
-    });
-  });
-});
-
-describe('readRunTelemetrySinkConfig', () => {
-  it('uses Vela only for completed-run telemetry when a Control Key exists', () => {
-    const cfg = readRunTelemetrySinkConfig(
-      {
-        OPEN_DESIGN_TELEMETRY_RELAY_URL:
-          'https://telemetry.open-design.ai/api/langfuse',
-      },
-      {
-        VELA_CONTROL_KEY: 'ck_test',
-        VELA_API_URL: 'https://vela.example.test/',
-      },
-    );
-
-    expect(cfg).toEqual({
-      kind: 'vela',
-      apiUrl: 'https://vela.example.test',
-      controlKey: 'ck_test',
-      timeoutMs: 20_000,
-      retries: 1,
-    });
-  });
-
-  it('falls back to the anonymous resolver when Vela telemetry is disabled', () => {
-    const cfg = readRunTelemetrySinkConfig(
-      {
-        OPEN_DESIGN_VELA_TELEMETRY: 'off',
-        OPEN_DESIGN_TELEMETRY_RELAY_URL:
-          'https://telemetry.open-design.ai/api/langfuse',
-      },
-      { VELA_CONTROL_KEY: 'ck_test' },
-    );
-
-    expect(cfg).toMatchObject({
-      kind: 'relay',
-      relayUrl: 'https://telemetry.open-design.ai/api/langfuse',
-    });
-  });
-
-  it('describes the effective priority winner without paths, queries, or credentials', () => {
-    const vela = readRunTelemetrySinkConfig(
-      {
-        OPEN_DESIGN_TELEMETRY_RELAY_URL:
-          'https://relay-user:relay-password@relay.example.test/private?token=relay-secret',
-        LANGFUSE_PUBLIC_KEY: 'pk-secret',
-        LANGFUSE_SECRET_KEY: 'sk-secret',
-      },
-      {
-        VELA_CONTROL_KEY: 'control-secret',
-        VELA_API_URL:
-          'https://vela-user:vela-password@vela.example.test/private?token=vela-secret',
-      },
-    );
-    const diagnostic = describeRunTelemetrySink(vela);
-
-    expect(diagnostic).toEqual({
-      kind: 'vela',
-      host: 'vela.example.test',
-      protocol: 'https',
-    });
-    const serialized = JSON.stringify(diagnostic);
-    expect(serialized).not.toContain('private');
-    expect(serialized).not.toContain('secret');
-    expect(serialized).not.toContain('user');
-    expect(serialized).not.toContain('password');
-  });
-
-  it('describes relay, direct, and disabled sinks through the same allowlist', () => {
-    expect(describeRunTelemetrySink(readRunTelemetrySinkConfig({
-      OPEN_DESIGN_VELA_TELEMETRY: 'off',
-      OPEN_DESIGN_TELEMETRY_RELAY_URL:
-        'http://relay.example.test:8080/path?key=secret',
-    }))).toEqual({
-      kind: 'relay',
-      host: 'relay.example.test',
-      protocol: 'http',
-    });
-    expect(describeRunTelemetrySink(readRunTelemetrySinkConfig({
-      // Same opt-out the relay case above passes. Without it the vela branch is
-      // enabled by default and `readVelaControlApiContext` falls through to the
-      // developer's real `~/.amr/config.json`, so this asserted 'vela' on any
-      // machine with an AMR login and only passed on a CI runner without one.
-      OPEN_DESIGN_VELA_TELEMETRY: 'off',
-      LANGFUSE_PUBLIC_KEY: 'pk',
-      LANGFUSE_SECRET_KEY: 'sk',
-      LANGFUSE_BASE_URL: 'https://langfuse.example.test/private?key=secret',
-    }))).toEqual({
-      kind: 'langfuse',
-      host: 'langfuse.example.test',
-      protocol: 'https',
-    });
-    expect(describeRunTelemetrySink(null)).toEqual({
-      kind: 'none',
-      host: null,
-      protocol: null,
+    };
+    expect(readTelemetrySinkConfig(env)).toBeNull();
+    expect(readRunTelemetrySinkConfig(env, {
+      VELA_CONTROL_KEY: 'ck_test',
+      VELA_API_URL: 'https://vela.example.test',
+    })).toBeNull();
+    expect(describeRunTelemetrySink(readRunTelemetrySinkConfig(env, {}))).toEqual({
+      kind: 'none', host: null, protocol: null,
     });
   });
 });
@@ -2287,7 +2154,7 @@ describe('reportRunCompleted', () => {
     );
   });
 
-  it('falls back anonymously on an explicit Vela auth rejection', async () => {
+  it('does not fall back to the upstream anonymous relay on Vela auth rejection', async () => {
     vi.stubEnv(
       'OPEN_DESIGN_TELEMETRY_RELAY_URL',
       'https://telemetry.open-design.ai/api/langfuse',
@@ -2315,9 +2182,8 @@ describe('reportRunCompleted', () => {
 
     expect(fetchSpy.mock.calls.map((call) => call[0])).toEqual([
       'https://vela.example.test/api/v1/open-design/telemetry',
-      'https://telemetry.open-design.ai/api/langfuse',
     ]);
-    expect(result.langfuse_delivery_status).toBe('accepted');
+    expect(result.langfuse_delivery_status).toBe('failed');
   });
 
   it.each([401, 403])(
@@ -3025,60 +2891,7 @@ describe('reportRunFeedback', () => {
     vi.unstubAllEnvs();
   });
 
-  it('posts feedback scores to Vela when completed-run telemetry uses Vela', async () => {
-    // tests/setup.ts defaults OPEN_DESIGN_VELA_TELEMETRY to 'off' so unit
-    // tests never route through a developer's real Vela profile; this test
-    // exercises exactly that sink, so opt back in explicitly.
-    vi.stubEnv('OPEN_DESIGN_VELA_TELEMETRY', 'on');
-    vi.stubEnv('VELA_CONTROL_KEY', 'ck_secret');
-    vi.stubEnv('VELA_API_URL', 'https://vela.example.test');
-    vi.stubEnv(
-      'OPEN_DESIGN_TELEMETRY_RELAY_URL',
-      'https://telemetry.open-design.ai/api/langfuse',
-    );
-    const fetchSpy = vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({
-        ok: true,
-        idempotencyKey: 'feedback-key',
-        receipt: {
-          clientTraceId: 'run-feedback-1',
-          scopedTraceId: 'scoped-run-feedback-1',
-        },
-      }),
-      { status: 202 },
-    ));
-
-    await reportRunFeedback(
-      makeFeedbackCtx({ reasonCodes: ['matched_request'] }),
-      { fetchImpl: fetchSpy as any },
-    );
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSpy.mock.calls[0]!;
-    expect(url).toBe('https://vela.example.test/api/v1/open-design/telemetry');
-    expect(init.headers.Authorization).toBe('Bearer ck_secret');
-    const envelope = JSON.parse(init.body);
-    expect(envelope.installationId).toBe('install-uuid-1');
-    expect(envelope.events.map((event: { kind: string }) => event.kind)).toEqual([
-      'score',
-      'score',
-    ]);
-    expect(envelope.events[0].data).toMatchObject({
-      id: 'run-feedback-1-rating',
-      traceId: 'run-feedback-1',
-      name: 'user_rating',
-      value: 1,
-    });
-    expect(envelope.events[1].data).toMatchObject({
-      id: 'run-feedback-1-reason-matched_request',
-      traceId: 'run-feedback-1',
-      name: 'user_rating_reason',
-      value: 'matched_request',
-    });
-  });
-
-  it('does not fall back anonymously when Vela rejects feedback auth', async () => {
-    // Same opt-in as above: the setup default keeps the Vela sink off.
+  it('does not forward feedback with Vela or relay credentials', async () => {
     vi.stubEnv('OPEN_DESIGN_VELA_TELEMETRY', 'on');
     vi.stubEnv('VELA_CONTROL_KEY', 'ck_expired');
     vi.stubEnv('VELA_API_URL', 'https://vela.example.test');
@@ -3086,17 +2899,14 @@ describe('reportRunFeedback', () => {
       'OPEN_DESIGN_TELEMETRY_RELAY_URL',
       'https://telemetry.open-design.ai/api/langfuse',
     );
-    const fetchSpy = vi.fn().mockResolvedValue(new Response('', { status: 401 }));
+    const fetchSpy = vi.fn();
 
     await reportRunFeedback(
       makeFeedbackCtx({ reasonCodes: ['matched_request'] }),
       { fetchImpl: fetchSpy as any },
     );
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]![0]).toBe(
-      'https://vela.example.test/api/v1/open-design/telemetry',
-    );
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('skips when metrics consent is off', async () => {

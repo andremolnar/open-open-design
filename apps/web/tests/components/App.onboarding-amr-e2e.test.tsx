@@ -11,7 +11,6 @@
 // the first agent probe — the exact window in which the bug surfaces.
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { installMockOpenDesignHost } from '@open-design/host/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../../src/App';
@@ -263,96 +262,17 @@ afterEach(() => {
   analyticsMocks.track.mockReset();
 });
 
-describe('CMS campaigns during onboarding', () => {
-  it('suppresses both hosts on the login page even after the account is restored', async () => {
+describe('detached offer surface', () => {
+  it('never mounts production offer hosts during sign-in or on Home', async () => {
     window.history.replaceState(null, '', '/onboarding');
     render(<App />);
     await screen.findByRole('button', { name: /Continue \(signed in\)/i });
     expect(screen.queryByRole('dialog', { name: 'Production campaign witness' })).toBeNull();
-    expect(screen.queryByRole('dialog', { name: 'Test campaign witness' })).toBeNull();
-  });
-
-  it('allows hosts after leaving onboarding and removes them on returning to login', async () => {
-    window.history.replaceState(null, '', '/onboarding');
-    render(<App />);
-    await screen.findByRole('button', { name: /Continue \(signed in\)/i });
-    // Keep onboarding incomplete so the real passive-reauth flow does not
-    // immediately redirect a restored, fully configured account back home.
     await act(async () => navigate({ kind: 'home', view: 'home' }));
-    await screen.findByRole('dialog', { name: 'Production campaign witness' });
     await screen.findByRole('dialog', { name: 'Test campaign witness' });
-
-    await act(async () => navigate({ kind: 'home', view: 'onboarding' }));
     expect(screen.queryByRole('dialog', { name: 'Production campaign witness' })).toBeNull();
-    expect(screen.queryByRole('dialog', { name: 'Test campaign witness' })).toBeNull();
-
-    await act(async () => navigate({ kind: 'home', view: 'home' }));
-    await screen.findByRole('dialog', { name: 'Production campaign witness' });
-    await screen.findByRole('dialog', { name: 'Test campaign witness' });
-  });
-});
-
-describe('CMS campaigns outside the home view', () => {
-  // The top-right hosts are desktop-only, so the route assertions need a host
-  // bridge in place before they can say anything about gating.
-  let restoreHost: (() => void) | undefined;
-  beforeEach(() => {
-    restoreHost = installMockOpenDesignHost();
-  });
-  afterEach(() => {
-    restoreHost?.();
-    restoreHost = undefined;
-  });
-  // Every campaign placement this app authorizes is a HOME placement
-  // (`opend.home.*`). The hosts follow: the modal and the top-right entries
-  // belong to the home view, not to a project workbench or another entry tab.
-  const witnesses = () => ({
-    modals: [
-      screen.queryByRole('dialog', { name: 'Production campaign witness' }),
-      screen.queryByRole('dialog', { name: 'Test campaign witness' }),
-    ],
-    topRight: [
-      screen.queryByTestId('production-campaign-badge-witness'),
-      screen.queryByTestId('production-campaign-hover-witness'),
-    ],
-  });
-  async function arriveOnHome() {
-    window.history.replaceState(null, '', '/onboarding');
-    render(<App />);
-    await screen.findByRole('button', { name: /Continue \(signed in\)/i });
-    await act(async () => navigate({ kind: 'home', view: 'home' }));
-    await screen.findByRole('dialog', { name: 'Production campaign witness' });
-    await screen.findByTestId('production-campaign-badge-witness');
-    await screen.findByTestId('production-campaign-hover-witness');
-  }
-
-  it('withdraws every host on another entry view and restores them on home', async () => {
-    await arriveOnHome();
-
-    await act(async () => navigate({ kind: 'home', view: 'projects' }));
-    const away = witnesses();
-    expect(away.modals).toEqual([null, null]);
-    expect(away.topRight).toEqual([null, null]);
-
-    await act(async () => navigate({ kind: 'home', view: 'home' }));
-    await screen.findByRole('dialog', { name: 'Production campaign witness' });
-    await screen.findByTestId('production-campaign-badge-witness');
-  });
-
-  it('withdraws every host on an open project', async () => {
-    await arriveOnHome();
-
-    await act(async () =>
-      navigate({
-        kind: 'project',
-        projectId: 'project-1',
-        conversationId: null,
-        fileName: null,
-      }),
-    );
-    const inProject = witnesses();
-    expect(inProject.modals).toEqual([null, null]);
-    expect(inProject.topRight).toEqual([null, null]);
+    expect(screen.queryByTestId('production-campaign-badge-witness')).toBeNull();
+    expect(screen.queryByTestId('production-campaign-hover-witness')).toBeNull();
   });
 });
 

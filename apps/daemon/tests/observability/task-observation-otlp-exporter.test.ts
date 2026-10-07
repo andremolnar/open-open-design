@@ -23,7 +23,7 @@ import {
   type OtlpSpanV1,
   type TaskObservationExporterConfig,
 } from '../../src/observability/task-observation-otlp-exporter.js';
-import { readTaskTelemetrySinkConfig } from '../../src/langfuse-trace.js';
+import { readLangfuseConfig, readTaskTelemetrySinkConfig } from '../../src/langfuse-trace.js';
 import { buildStructuredMainRunObservationV1 } from '../../src/observability/main-run-observation.js';
 import { createEmptyFrozenSkillPackage } from '../../src/strategies/od-next/frozen-skill-package.js';
 import type { StrategyTaskExecutionRecord } from '../../src/strategies/task-store.js';
@@ -1091,7 +1091,7 @@ describe('task observation OTLP exporter', () => {
     }
   });
 
-  it('reads an explicit mode while reusing existing Langfuse auth and transport defaults', () => {
+  it('parses explicit fixture-fed Langfuse export while production sink selection stays disabled', () => {
     const env = {
       LANGFUSE_PUBLIC_KEY: 'pk-fixture',
       LANGFUSE_SECRET_KEY: 'sk-fixture',
@@ -1100,9 +1100,9 @@ describe('task observation OTLP exporter', () => {
       LANGFUSE_TIMEOUT_MS: '4321',
       LANGFUSE_RETRIES: '3',
     };
+    expect(readTaskTelemetrySinkConfig(env)).toBeNull();
     const parsed = readTaskObservationExporterConfig(
-      readTaskTelemetrySinkConfig(env),
-      env,
+      { kind: 'langfuse', ...readLangfuseConfig(env)! }, env,
     );
     expect(parsed).toMatchObject({
       mode: 'otlp',
@@ -1132,7 +1132,7 @@ describe('task observation OTLP exporter', () => {
     });
   });
 
-  it('selects a Task-capable sink independently from Vela and exposes a versioned schema capability', () => {
+  it('disables automatic Task telemetry independently of Vela while retaining schema capability', () => {
     const env = {
       LANGFUSE_PUBLIC_KEY: 'pk-fixture',
       LANGFUSE_SECRET_KEY: 'sk-fixture',
@@ -1146,10 +1146,10 @@ describe('task observation OTLP exporter', () => {
     expect(readTaskTelemetrySinkConfig({
       ...env,
       OPEN_DESIGN_TELEMETRY_RELAY_URL: 'https://relay.example.test',
-    })).toMatchObject({ kind: 'relay', relayUrl: 'https://relay.example.test' });
+    })).toBeNull();
     const direct = readTaskTelemetrySinkConfig(env);
-    expect(direct).toMatchObject({ kind: 'langfuse', baseUrl: 'https://self-host.example.test' });
-    expect(readTaskObservationExporterConfig(direct, {
+    expect(direct).toBeNull();
+    expect(readTaskObservationExporterConfig({ kind: 'langfuse', ...readLangfuseConfig(env)! }, {
       ...env,
       ...configuredVela,
       LANGFUSE_EXPORTER_MODE: 'otlp',

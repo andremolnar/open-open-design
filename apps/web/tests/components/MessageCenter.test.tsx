@@ -47,8 +47,8 @@ function LocaleSwitcher() {
 }
 
 async function openCenter(unreadCount = 1) {
-  await waitFor(() => expect(screen.getByLabelText(new RegExp(`Open message center \\(${unreadCount} unread\\)`))).toBeTruthy());
   fireEvent.click(screen.getByTestId('message-center-trigger'));
+  await waitFor(() => expect(screen.getByLabelText(new RegExp(`Open message center \\(${unreadCount} unread\\)`))).toBeTruthy());
   return screen.getByTestId('message-center-dialog');
 }
 
@@ -89,6 +89,7 @@ describe('MessageCenter', () => {
       </I18nProvider>,
     );
 
+    fireEvent.click(screen.getByTestId('message-center-trigger'));
     expect(await screen.findByRole('alertdialog')).toBeTruthy();
     expect(screen.getByText('关于停售 Go 订阅的公告')).toBeTruthy();
     await waitFor(() => expect(onPendingChange).toHaveBeenCalledWith(true));
@@ -114,6 +115,7 @@ describe('MessageCenter', () => {
       </I18nProvider>,
     );
 
+    fireEvent.click(screen.getByTestId('message-center-trigger'));
     expect(await screen.findByRole('alertdialog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '我知道了' }));
 
@@ -133,6 +135,8 @@ describe('MessageCenter', () => {
       </I18nProvider>,
     );
 
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('message-center-trigger'));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => (
       String(url).includes('/message-center-public/messages?')
     ))).toBe(true));
@@ -356,7 +360,7 @@ describe('MessageCenter', () => {
 
     renderMessageCenter();
     await openCenter(1);
-    expect(statusCalls).toBeGreaterThanOrEqual(2);
+    expect(statusCalls).toBeGreaterThanOrEqual(1);
 
     loggedIn = true;
     fireEvent.click(screen.getByRole('button', { name: /Release update/ }));
@@ -427,6 +431,7 @@ describe('MessageCenter', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Checking for updates...');
     expect(screen.queryByText('No messages yet')).toBeNull();
 
+    await waitFor(() => expect(releaseFirstRequest).toBeDefined());
     releaseFirstRequest?.();
     await waitFor(() => expect(screen.getByText('No messages yet')).toBeTruthy());
   });
@@ -438,7 +443,7 @@ describe('MessageCenter', () => {
       if (url.includes('/status')) return Response.json({ loggedIn: false });
       if (url.includes('/messages?')) {
         messageRequests += 1;
-        if (messageRequests <= 2) return new Response(null, { status: 500 });
+        if (messageRequests === 1) return new Response(null, { status: 500 });
         return Response.json({ messages: [], nextCursor: null, unreadCount: 0 });
       }
       if (url.includes('/read')) return Response.json({ read: true, markedCount: 1 });
@@ -536,11 +541,8 @@ describe('MessageCenter', () => {
     await waitFor(() => expect(screen.queryByLabelText(/unread/)).toBeNull());
 
     loggedIn = false;
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      value: 'visible',
-    });
-    fireEvent(document, new Event('visibilitychange'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close message center' }));
+    fireEvent.click(screen.getByTestId('message-center-trigger'));
 
     await waitFor(() =>
       expect(screen.getByLabelText(/Open message center \(1 unread\)/)).toBeTruthy(),
@@ -581,7 +583,7 @@ describe('MessageCenter', () => {
     await waitFor(() =>
       expect(
         vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/messages?')).length,
-      ).toBeGreaterThanOrEqual(2),
+       ).toBeGreaterThanOrEqual(1),
     );
 
     fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));

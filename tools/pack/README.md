@@ -9,6 +9,7 @@ Local packaging control plane for Open Design.
 - `tools-pack mac build --to all --signed`
 - `tools-pack mac build --to all --portable` for release artifacts that must not bake local tools-pack runtime paths
 - `tools-pack mac install`
+- `tools-pack mac deploy` (local signed build into `/Applications`)
 - `tools-pack mac start`
 - `tools-pack mac stop`
 - `tools-pack mac logs`
@@ -37,6 +38,28 @@ The built app is under `.tmp/tools-pack/out/mac/namespaces/local-smoke/builder/`
 Verify its signature with `codesign --verify --deep --strict <path-to-built-app>`.
 This is a local development build, not a notarized release; public release
 workflows still require their own Apple distribution credentials.
+
+### Local build and install into Applications
+
+```bash
+pnpm tools-pack mac deploy --namespace local-smoke
+```
+
+This builds a **portable**, Apple Development-signed unpacked app and installs
+`Open Design.local-smoke.app` in `/Applications`. It does not build a DMG, run
+the test suite, notarize, register `od` on `PATH`, launch the app, or configure
+MCP. It verifies the signature before and after copying and only replaces an
+existing bundle with the matching embedded namespace and bundle ID. Run as your
+normal user (not `sudo`); if your account cannot write to `/Applications`, grant
+it access before deploying. Quit the namespace's running app before redeploying;
+the command also attempts a namespace-scoped stop after staging. The app's
+Settings → MCP server panel provides the installed absolute-path OpenCode snippet.
+
+Portable installs use their packaged namespace-scoped user data rather than
+the repository-bound runtime of a non-portable `tools-pack mac start` smoke
+build. Deploying does not migrate the old smoke data, and replacing the app
+does not delete either data root. See the root `AGENTS.md` **Daemon data directory
+contract** for the authoritative data-path rules.
 
 Packaged runtime state is namespace-scoped under `.tmp/tools-pack/runtime/mac/namespaces/<namespace>/`:
 

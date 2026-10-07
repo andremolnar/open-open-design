@@ -53,7 +53,6 @@ const RUNNING_APP_VERSION = '0.16.1';
 const mockedFetchWhatsNew = fetchWhatsNew as unknown as ReturnType<typeof vi.fn>;
 const mockedOpenExternalUrl = openExternalUrl as unknown as ReturnType<typeof vi.fn>;
 
-const RELEASES_INDEX_URL = 'https://github.com/nexu-io/open-design/releases';
 
 const SHOW_PAYLOAD: WhatsNewResponse = {
   // Stale/irrelevant here: the dialog titles itself with the running version.
@@ -365,7 +364,7 @@ describe('WhatsNewPopup actions', () => {
     expect(screen.queryByTestId('whats-new-popup')).toBeNull();
   });
 
-  it('falls back to the releases index when the document omits a link', async () => {
+  it('omits the release link when the document does not supply one', async () => {
     mockedFetchWhatsNew.mockResolvedValue({
       ...SHOW_PAYLOAD,
       content: { ...SHOW_PAYLOAD.content!, linkUrl: undefined },
@@ -373,8 +372,9 @@ describe('WhatsNewPopup actions', () => {
 
     renderCard(true);
 
-    fireEvent.click(await screen.findByTestId('whats-new-cta'));
-
-    expect(mockedOpenExternalUrl).toHaveBeenCalledWith(RELEASES_INDEX_URL);
+    await screen.findByTestId('whats-new-popup');
+    expect(screen.queryByTestId('whats-new-cta')).toBeNull();
+    fireEvent.click(screen.getByTestId('whats-new-dismiss'));
+    expect(mockedOpenExternalUrl).not.toHaveBeenCalled();
   });
 });

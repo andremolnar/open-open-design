@@ -84,7 +84,7 @@ afterEach(() => {
 });
 
 describe('chat correlation — boot-time identity', () => {
-  it('takes the replay session id from the posthog instance, not from a global', async () => {
+  it('does not start replay or attach a replay session to chat correlation', async () => {
     const { getAnalyticsClient } = await import('../../src/analytics/client');
     const { chatCorrelation } = await import('../../src/observability/chat-context');
 
@@ -100,8 +100,8 @@ describe('chat correlation — boot-time identity', () => {
       appVersion: '1.2.3',
     });
 
-    expect(lastRegisterPayload).not.toBeNull();
-    expect(chatCorrelation().replay_session_id).toBe('replay-sess-1');
+    expect(lastRegisterPayload).toBeNull();
+    expect(chatCorrelation().replay_session_id).toBeUndefined();
   });
 
   it('keeps the release channel the daemon already answers with', async () => {

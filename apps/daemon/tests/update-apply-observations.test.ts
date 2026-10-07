@@ -83,7 +83,7 @@ describe('update apply observations', () => {
   });
 
   it.each(['installer', 'payload'] as const)(
-    'submits one sanitized %s analytics event and marks delivery metadata',
+    'classifies %s installer results locally without submitting analytics',
     async (artifactType) => {
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'od-update-observe-'));
     const capture = vi.fn();
@@ -105,31 +105,12 @@ describe('update apply observations', () => {
         }),
       })).resolves.toEqual({ observed: 1 });
 
-      expect(capture).toHaveBeenCalledTimes(1);
-      expect(capture.mock.calls[0]?.[0]).toMatchObject({
-        eventName: 'update_apply_observed',
-        appVersion: '0.8.0-beta.6',
-        insertId: 'update_apply_observed:flow-1',
-        properties: {
-          arch: 'x64',
-          artifact_type: artifactType,
-          channel: 'beta',
-          elapsed_bucket: 'lt_5m',
-          flow_id: 'flow-1',
-          from_version: '0.8.0-beta.5',
-          namespace: 'release-beta-win',
-          platform: 'win32',
-          reason: 'app_version_matches',
-          result: 'success',
-          to_version: '0.8.0-beta.6',
-        },
-      });
+       expect(capture).not.toHaveBeenCalled();
       const updated = JSON.parse(await readFile(summaryPath, 'utf8')) as Record<string, unknown>;
       expect(updated).toMatchObject({
         delivery: {
           eventName: 'update_apply_observed',
-          insertId: 'update_apply_observed:flow-1',
-          status: 'submitted',
+           status: 'skipped_analytics_disabled',
         },
         reason: 'app_version_matches',
         result: 'success',
@@ -143,7 +124,7 @@ describe('update apply observations', () => {
         env: { POSTHOG_KEY: 'ph_test' },
         namespace: 'release-beta-win',
       });
-      expect(capture).toHaveBeenCalledTimes(1);
+       expect(capture).not.toHaveBeenCalled();
     } finally {
       await rm(dataRoot, { force: true, recursive: true });
     }

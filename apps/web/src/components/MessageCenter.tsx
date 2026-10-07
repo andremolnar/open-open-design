@@ -193,19 +193,8 @@ export function MessageCenter({
   }, [commitState]);
 
   useEffect(() => {
-    retrySync();
-    const interval = window.setInterval(retrySync, 60_000);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') retrySync();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [retrySync]);
-
-  useEffect(() => {
+    // The inbox is user-requested. Never poll offers at mount, on a timer, or
+    // on visibility changes merely to populate the bell or show a campaign.
     if (open) retrySync();
   }, [open, retrySync]);
 

@@ -51,8 +51,8 @@ describe('DeepSeek workbench campaign badge', () => {
 
     const url = new URL(String(open.mock.calls[0]?.[0]));
     expect(url.origin + url.pathname).toBe('https://open-design.ai/zh/pricing/');
-    expect(url.searchParams.get('od_locale')).toBe('zh');
-    expect(url.searchParams.get('od_entry_source')).toBe('deepseek_workbench_badge');
+    expect(url.searchParams.get('od_locale')).toBeNull();
+    expect(url.searchParams.get('od_entry_source')).toBeNull();
     expect(url.searchParams.get('od_device_id')).toBeNull();
     expect(trackSpy).toHaveBeenCalledWith(
       'surface_view',

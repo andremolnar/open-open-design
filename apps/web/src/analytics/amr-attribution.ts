@@ -149,7 +149,6 @@ export function recordAmrEntry(
       : {}),
   });
   if (options.metricsConsent === true) {
-    void mirrorAmrEntryToAmrAnalytics(attribution);
   }
   return attribution;
 }
@@ -194,7 +193,6 @@ export function syncAmrAttributionWithOnboardingProfile(
   };
   writeAmrAttribution(next);
   if (options.metricsConsent === true) {
-    void mirrorAmrOnboardingProfileToAmrAnalytics(next, now);
   }
   return next;
 }
@@ -218,8 +216,8 @@ export function amrHandoffDeviceId(input: {
   resolvedDeviceId: string | null;
   installationId: string | null | undefined;
 }): string | null {
-  if (!input.metricsConsent) return null;
-  return input.installationId ?? input.resolvedDeviceId ?? null;
+  void input;
+  return null;
 }
 
 // Builds the AMR handoff URL with OpenDesign attribution params. When
@@ -234,26 +232,18 @@ export function attributedAmrUrl(
   attribution: AmrEntryAttribution,
   deviceId?: string | null,
 ): string {
-  const params: Record<string, string> = {
-    od_origin: attribution.sourceProduct,
-    od_entry_id: attribution.entryId,
-    od_entry_source: attribution.sourceDetail,
-    od_entry_at: attribution.occurredAt,
-  };
-  if (attribution.campaignId) params.od_campaign_id = attribution.campaignId;
-  if (attribution.conversionSource) {
-    params.od_conversion_source = attribution.conversionSource;
-  }
-  if (deviceId) params.od_device_id = deviceId;
+  void attribution;
+  void deviceId;
   try {
     const url = new URL(baseUrl);
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (key.startsWith('od_') || key.startsWith('utm_') || (key === 'source' && url.searchParams.get(key) === 'open_design')) {
+        url.searchParams.delete(key);
+      }
     }
     return url.toString();
   } catch {
-    const separator = baseUrl.includes('?') ? '&' : '?';
-    return `${baseUrl}${separator}${new URLSearchParams(params).toString()}`;
+    return baseUrl;
   }
 }
 
@@ -304,85 +294,6 @@ function readReusableAmrAttribution(
   const existing = readAmrAttribution(now);
   if (!existing) return null;
   return reuseExistingFrom.includes(existing.sourceDetail) ? existing : null;
-}
-
-async function mirrorAmrEntryToAmrAnalytics(
-  attribution: AmrEntryAttribution,
-): Promise<void> {
-  if (typeof fetch !== 'function') return;
-  const sourcePageName = ENTRY_PAGE_BY_SOURCE[attribution.sourceDetail];
-  try {
-    await fetch('/api/integrations/vela/analytics-entry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payload: {
-          pageName: 'open_design',
-          sourcePageName,
-          area: 'amr_entry',
-          element: attribution.sourceDetail,
-          action: 'click_amr_entry',
-          entryId: attribution.entryId,
-          sourceProduct: attribution.sourceProduct,
-          sourceDetail: attribution.sourceDetail,
-          entryOccurredAt: attribution.occurredAt,
-          ...(attribution.campaignId ? { campaignId: attribution.campaignId } : {}),
-          ...(attribution.conversionSource
-            ? { conversionSource: attribution.conversionSource }
-            : {}),
-          // Self-reported onboarding profile (optional). Anchored to entryId on
-          // the AMR side for paid-conversion segmentation. Not added to the
-          // redirect URL — kept to the consent-gated mirror channel only.
-          ...(attribution.odRole ? { odRole: attribution.odRole } : {}),
-          ...(attribution.odOrgSize ? { odOrgSize: attribution.odOrgSize } : {}),
-          ...(attribution.odUseCase && attribution.odUseCase.length > 0
-            ? { odUseCase: attribution.odUseCase }
-            : {}),
-          ...(attribution.odSource ? { odSource: attribution.odSource } : {}),
-        },
-      }),
-    });
-  } catch {
-    // AMR analytics mirroring must never block the primary OpenDesign action.
-  }
-}
-
-async function mirrorAmrOnboardingProfileToAmrAnalytics(
-  attribution: AmrEntryAttribution,
-  now: Date,
-): Promise<void> {
-  if (typeof fetch !== 'function') return;
-  try {
-    await fetch('/api/integrations/vela/analytics-profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payload: {
-          pageName: 'open_design',
-          sourcePageName: 'onboarding',
-          area: 'onboarding',
-          element: 'about_you_submit',
-          action: 'submit_profile',
-          entryId: attribution.entryId,
-          sourceProduct: attribution.sourceProduct,
-          sourceDetail: attribution.sourceDetail,
-          entryOccurredAt: attribution.occurredAt,
-          profileOccurredAt: now.toISOString(),
-          ...(attribution.odDeviceId
-            ? { odDeviceId: attribution.odDeviceId }
-            : {}),
-          ...(attribution.odRole ? { odRole: attribution.odRole } : {}),
-          ...(attribution.odOrgSize ? { odOrgSize: attribution.odOrgSize } : {}),
-          ...(attribution.odUseCase && attribution.odUseCase.length > 0
-            ? { odUseCase: attribution.odUseCase }
-            : {}),
-          ...(attribution.odSource ? { odSource: attribution.odSource } : {}),
-        },
-      }),
-    });
-  } catch {
-    // AMR analytics mirroring must never block onboarding completion.
-  }
 }
 
 function isValidAmrAttribution(value: Partial<AmrEntryAttribution>): value is AmrEntryAttribution {

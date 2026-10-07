@@ -47,7 +47,7 @@ describe('media generation analytics', () => {
     restoreEnv(originalEnv);
   });
 
-  it('reports one consent-gated final event for retried success and failure without private payloads', async () => {
+  it('preserves provider retries without reporting media analytics despite inherited credentials', async () => {
     const captured: PostHogEvent[] = [];
     const ingestionStarted = await listen((req, res) => {
       const chunks: Buffer[] = [];
@@ -137,56 +137,18 @@ describe('media generation analytics', () => {
       false,
     );
     const failedTaskId = await generateAndWait(daemon.url, projectId, `${PRIVATE_PROMPT} always-fail`, 'failed');
-    const mediaEvents = await waitForMediaEvents(captured, 2);
-
-    expect(mediaEvents).toHaveLength(2);
-    const success = mediaEvents.find((event) => event.properties.task_id === successTaskId);
-    const failure = mediaEvents.find((event) => event.properties.task_id === failedTaskId);
-    expect(success?.properties).toMatchObject({
-      page_name: 'studio',
-      area: 'media_generation',
-      client_type: 'desktop',
-      device_id: 'media-installation-test',
-      project_id: projectId,
-      surface: 'image',
-      provider_id: 'custom-image',
-      model_id: 'custom-image',
-      result: 'success',
-      initial_response_status: 429,
-      response_status: 200,
-      attempt_count: 2,
-      retry_count: 1,
-      retry_reason: 'rate_limit_429',
-      retry_after_ms: 0,
-      retry_delay_ms: 0,
-      retry_final_result: 'success',
-      used_stub_fallback: false,
-    });
-    expect(failure?.properties).toMatchObject({
-      client_type: 'web',
-      device_id: 'media-device-test',
-      result: 'failed',
-      initial_response_status: 429,
-      response_status: 429,
-      attempt_count: 2,
-      retry_count: 1,
-      retry_reason: 'rate_limit_429',
-      retry_final_result: 'failed',
-      used_stub_fallback: false,
-    });
-
-    const serializedEvents = JSON.stringify(mediaEvents);
-    expect(serializedEvents).not.toContain(PRIVATE_PROMPT);
-    expect(serializedEvents).not.toContain(PRIVATE_RESPONSE_BODY);
-    expect(serializedEvents).not.toContain(PRIVATE_API_KEY);
-    expect(serializedEvents).not.toContain(providerStarted.url);
+    expect(successTaskId).toBeTruthy();
+    expect(failedTaskId).toBeTruthy();
+    expect(attemptsByPrompt.get(`${PRIVATE_PROMPT} retry-success`)).toBe(2);
+    expect(attemptsByPrompt.get(`${PRIVATE_PROMPT} always-fail`)).toBe(2);
+    expect(captured).toEqual([]);
 
     await putAppConfig(daemon.url, {
       telemetry: { metrics: false, content: false, artifactManifest: false },
     });
     await generateAndWait(daemon.url, projectId, `${PRIVATE_PROMPT} opted-out`, 'done', false);
     await new Promise((resolve) => setTimeout(resolve, 250));
-    expect(captured.filter((event) => event.event === 'media_generation_result')).toHaveLength(2);
+    expect(captured).toEqual([]);
   });
 });
 
@@ -253,16 +215,6 @@ async function generateAndWait(
   const task = await waitResponse.json() as { status: string };
   expect(task.status).toBe(expectedStatus);
   return taskId;
-}
-
-async function waitForMediaEvents(events: PostHogEvent[], count: number): Promise<PostHogEvent[]> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 3_000) {
-    const found = events.filter((event) => event.event === 'media_generation_result');
-    if (found.length >= count) return found;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  return events.filter((event) => event.event === 'media_generation_result');
 }
 
 function snapshotEnv(): Record<string, string | undefined> {

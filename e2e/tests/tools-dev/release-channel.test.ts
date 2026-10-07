@@ -21,10 +21,7 @@ import {
 } from '@/tools-dev/cli';
 import type { ToolsDevSuiteSpec } from '@/tools-dev/types';
 import { resolveAppVersionInfo } from '../../../apps/daemon/src/app-version.ts';
-import {
-  DEFAULT_WHATS_NEW_URL,
-  whatsNewSourceUrl,
-} from '../../../apps/daemon/src/services/whats-new.ts';
+import { whatsNewSourceUrl } from '../../../apps/daemon/src/services/whats-new.ts';
 
 /**
  * Where GitHub's hosted Linux runners install the Node toolchain. The daemon's
@@ -55,10 +52,7 @@ function resolveCiShapedChannel(env: NodeJS.ProcessEnv): string {
 }
 
 describe('e2e tools-dev release channel', () => {
-  test('a CI-shaped runtime without the harness default fetches the live release card', () => {
-    // The red half of this file. If the daemon ever stops mistaking a hosted
-    // runner for a packaged install, this expectation fails and the harness
-    // default below becomes belt without suspenders — which is worth knowing.
+  test('a CI-shaped release channel does not fetch a hosted release card', () => {
     const ciShaped = resolveAppVersionInfo({
       arch: 'x64',
       env: {},
@@ -69,7 +63,7 @@ describe('e2e tools-dev release channel', () => {
     });
 
     expect(ciShaped.packaged).toBe(true);
-    expect(whatsNewSourceUrl({}, ciShaped.channel)).toBe(DEFAULT_WHATS_NEW_URL);
+    expect(whatsNewSourceUrl({}, ciShaped.channel)).toBeNull();
   });
 
   test('the harness environment resolves that same runtime to no release card', () => {
@@ -87,11 +81,11 @@ describe('e2e tools-dev release channel', () => {
     expect(whatsNewSourceUrl(env, resolveCiShapedChannel(env))).toBeNull();
   });
 
-  test('a spec that means to exercise a release channel can still opt back in', () => {
+  test('a release-channel override alone does not opt into remote highlights', () => {
     const env = composeToolsDevEnv(SUITE, { OD_RELEASE_CHANNEL: 'beta' }, {});
 
     expect(resolveCiShapedChannel(env)).toBe('beta');
-    expect(whatsNewSourceUrl(env, resolveCiShapedChannel(env))).toBe(DEFAULT_WHATS_NEW_URL);
+    expect(whatsNewSourceUrl(env, resolveCiShapedChannel(env))).toBeNull();
   });
 
   test('an explicit document URL still overrides the channel, which is what the page route covers', () => {

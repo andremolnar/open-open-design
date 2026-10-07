@@ -179,10 +179,10 @@ export interface PosthogConfig {
 export function readPosthogConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): PosthogConfig | null {
-  const key = env.POSTHOG_KEY?.trim();
-  if (!key) return null;
-  const host = (env.POSTHOG_HOST?.trim() || DEFAULT_HOST).replace(/\/+$/, '');
-  return { key, host, env: readTelemetryEnvironment(env) };
+  // Detached distributions never configure a product analytics destination,
+  // even when a parent environment still contains upstream credentials.
+  void env;
+  return null;
 }
 
 // Baseline wire response for GET /api/analytics/config — checks only the

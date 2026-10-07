@@ -642,7 +642,7 @@ describe('OD Next task-scoped input snapshots', () => {
   });
 });
 
-it('telemetry freezes validated task-input bytes after the original attachment changes', async () => {
+it('does not read task-input attachment bytes for telemetry after the original changes', async () => {
   const f = fixture();
   writeFileSync(path.join(f.projectRoot, 'brief.txt'), 'frozen original');
   const descriptor = createOdNextTaskInputSnapshot({ ...f, taskExecutionId: 'odnext_telemetry', projectAttachments: ['brief.txt'] });
@@ -653,10 +653,9 @@ it('telemetry freezes validated task-input bytes after the original attachment c
     attachmentPaths: loaded.attachmentReferences, taskInputSnapshot: { descriptor, snapshotsRoot: f.snapshotsRoot },
     runScopedIds: true, env: { OPEN_DESIGN_TELEMETRY_RELAY_URL: 'https://telemetry.open-design.ai/api/langfuse' } };
   const sources = await freezeTraceObjectSources(options);
-  expect(sources[0]?.body?.toString()).toBe('frozen original');
+  expect(sources).toEqual([]);
   const other = await freezeTraceObjectSources({ ...options, runId: 'run-b' });
-  expect(other[0]?.id).not.toBe(sources[0]?.id);
+  expect(other).toEqual([]);
   const invalid = await freezeTraceObjectSources({ ...options, taskInputSnapshot: { descriptor: { ...descriptor, manifestSha256: '0'.repeat(64) }, snapshotsRoot: f.snapshotsRoot } });
-  expect(invalid[0]?.body).toBeUndefined();
-  expect(invalid[0]?.reason).toBe('task_input_snapshot_invalid');
+  expect(invalid).toEqual([]);
 });

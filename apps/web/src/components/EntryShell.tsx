@@ -109,7 +109,6 @@ import {
   requiresAmrReauthentication,
 } from './entry-rail-account-state';
 import { LibrarySection } from './LibrarySection';
-import { UpdaterPopup } from './UpdaterPopup';
 import { WhatsNewPopup } from './WhatsNewPopup';
 import { DeepSeekHarnessSetupDialog } from './DeepSeekHarnessSetupDialog';
 import type { HomeAmrBalanceGateBlock } from './HomeAmrBalanceGateDialogs';
@@ -165,8 +164,6 @@ import { resolvePlanLabelTier } from '../collab/team-plan';
 import { resolveDeepSeekV4FlashCampaignAudience } from '../campaigns/deepseek-v4-flash';
 import { useDeepSeekV4FlashCampaignVisibility } from '../campaigns/use-deepseek-v4-flash-campaign';
 import { WorkbenchCampaignBadge } from './WorkbenchCampaignBadge';
-import { canRenderProductionCampaignBadge, ProductionCampaignBadge } from './ProductionCampaignBadge';
-import { ProductionCampaignHover } from './ProductionCampaignHover';
 import {
   beginWorkspaceScopedRead,
   workspaceIdentityCacheKey,
@@ -1678,26 +1675,8 @@ export function EntryShell({
     changeView('home');
   }
 
-  // #5517: the GitHub/Discord/X/mail badges and the settings chip leave the
-  // rail footer. Socials live in the account menu, while settings stays
-  // reachable through either the account menu or the signed-out rail item.
-  //
-  // The updater host has no topbar to live in any more (the rail toggle is the
-  // pinned Home tab in the workspace tabs bar), so the rail owns it: it rides
-  // the floating account row immediately after the avatar chip, falling back
-  // to the rail footer in the signed-out shell. `EntryNavRail` decides which —
-  // the shell only supplies the host, which renders nothing until the real
-  // updater reports a downloaded, unopened installer.
-  const updaterSlot = (
-    <UpdaterPopup
-      allowSilentUpdates={config.allowSilentUpdates}
-      silentUpdatePreferenceReady={daemonAppConfigReady}
-      onAllowSilentUpdatesChange={
-        onSilentUpdatePreferenceChange
-          ?? ((allowSilentUpdates) => onConfigPersist({ ...config, allowSilentUpdates }))
-      }
-    />
-  );
+  // This detached distribution has no trusted update feed or updater UI.
+  const updaterSlot = null;
 
   // #5517 removes the entry top-bar settings cog: the nav-rail account menu owns
   // the settings entry (EntryNavRail onOpenSettings), so the top strip no longer
@@ -1810,16 +1789,6 @@ export function EntryShell({
                   metricsConsent={config.telemetry?.metrics === true}
                   installationId={config.installationId}
                   loggedIn={amrLoggedIn}
-                />
-              ) : null}
-              {homeCampaignHostsVisible
-                && canRenderProductionCampaignBadge(amrLoggedIn === true, amrAccountId) ? <ProductionCampaignBadge authenticated sessionSubject={amrAccountId} /> : null}
-              {/* The requirements-specific hover entry is its own authorized
-                  touchpoint, beside—not renamed from—the account badge. */}
-              {homeCampaignHostsVisible ? (
-                <ProductionCampaignHover
-                  authenticated={amrLoggedIn === true}
-                  sessionSubject={amrAccountId}
                 />
               ) : null}
             </>

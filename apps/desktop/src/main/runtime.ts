@@ -27,7 +27,6 @@ import type {
   OpenDesignHostCaptureResult,
   OpenDesignHostPreviewNavigationFailure,
   OpenDesignHostProjectImportInit,
-  OpenDesignHostUpdaterActionOptions,
   OpenDesignHostUpdaterMenuLabels,
   OpenDesignHostUpdaterOpenDialogRequest,
 } from "@open-design/host";
@@ -1940,13 +1939,6 @@ function unavailableUpdaterStatus(): DesktopUpdateStatusSnapshot {
   };
 }
 
-function checkOptionsFromHost(options: unknown): { autoDownload?: boolean } | undefined {
-  const input = options as OpenDesignHostUpdaterActionOptions | null | undefined;
-  const payload = input?.payload;
-  if (payload == null || typeof payload.autoDownload !== "boolean") return undefined;
-  return { autoDownload: payload.autoDownload };
-}
-
 async function reportRendererCrash(
   options: DesktopRuntimeOptions,
   properties: {
@@ -2549,9 +2541,10 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
     sendUpdaterStatus(status);
     return status;
   });
-  ipcMain.handle("od:update:check", async (event, updaterOptions: unknown) => {
+  ipcMain.handle("od:update:check", async (event) => {
     requireMainWindowSender(event);
-    const status = await (options.updater?.checkForUpdates(checkOptionsFromHost(updaterOptions)) ?? unavailableUpdaterStatus());
+    // Keep the IPC shape for older renderers, but never contact a release feed.
+    const status = unavailableUpdaterStatus();
     sendUpdaterStatus(status);
     return status;
   });

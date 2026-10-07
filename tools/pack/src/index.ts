@@ -4,6 +4,7 @@ import type { CAC } from "cac";
 import { resolveToolPackConfig, type ToolPackCliOptions, type ToolPackPlatform } from "./config/index.js";
 import {
   cleanupPackedMacNamespace,
+  deployLocalMacApp,
   installPackedMacDmg,
   inspectPackedMacApp,
   packMac,
@@ -125,12 +126,19 @@ cli.command('verify-runtime', 'Verify installed prerelease Vela/OpenCode identit
     printJson(await verifyPackagedRuntime({ ...options, expectedOpenCode: options.expectedOpencode }));
   });
 
-addMacBuildOptions(addSharedOptions(cli.command("mac <action>", "Mac packaging commands: build|install|start|stop|logs|uninstall|cleanup|inspect"))).action(
+addMacBuildOptions(addSharedOptions(cli.command("mac <action>", "Mac packaging commands: build|deploy|install|start|stop|logs|uninstall|cleanup|inspect"))).action(
   async (action: string, options: CliOptions) => {
-    const config = resolveToolPackConfig("mac", options);
+    const config = resolveToolPackConfig("mac", action === "deploy"
+      ? { ...options, namespace: options.namespace ?? "local-smoke", portable: true, signed: true, notarize: false, to: "app" }
+      : options);
     switch (action) {
       case "build":
         printJson(await packMac(config));
+        return;
+      case "deploy":
+        if (options.to != null && options.to !== "app") throw new Error("mac deploy only builds --to app");
+        if (options.notarize) throw new Error("mac deploy is local-only; notarized releases use the release pipeline");
+        printJson(await deployLocalMacApp(config));
         return;
       case "install":
         printJson(await installPackedMacDmg(config));

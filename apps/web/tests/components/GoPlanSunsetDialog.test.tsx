@@ -155,7 +155,7 @@ describe('GoPlanSunsetDialog', () => {
       conversion_source: 'go_plan_sunset_modal',
     }), undefined);
     expect(open).toHaveBeenCalledWith(
-      expect.stringContaining('od_entry_source=go_plan_sunset_modal'),
+      expect.stringContaining('https://open-design.ai/cloud/dashboard?billing=plan'),
       '_blank',
       'noopener,noreferrer',
     );
@@ -169,7 +169,7 @@ describe('GoPlanSunsetDialog', () => {
 
     expect(open).toHaveBeenCalledWith(
       expect.stringContaining(
-        'https://open-design.powerformer.net/cloud/dashboard?source=open_design&billing=plan',
+        'https://open-design.powerformer.net/cloud/dashboard?billing=plan',
       ),
       '_blank',
       'noopener,noreferrer',

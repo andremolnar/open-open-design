@@ -35,15 +35,13 @@ describe("desktop updater host boundary", () => {
     expect([...new Set(listed)].sort()).toEqual([...new Set(registered)].sort());
   });
 
-  it("does not turn automatic startup checks into native desktop dialogs", () => {
+  it("does not schedule automatic update checks at startup", () => {
     const main = source("src/main/index.ts");
-    const scheduleStart = main.indexOf("updateScheduler = createDesktopUpdaterScheduler");
-    const nextSection = main.indexOf('app.on("before-quit"', scheduleStart);
-    expect(scheduleStart).toBeGreaterThanOrEqual(0);
-    expect(nextSection).toBeGreaterThan(scheduleStart);
-    const scheduleBody = main.slice(scheduleStart, nextSection);
-    expect(scheduleBody).toContain("updateScheduler.start()");
-    expect(scheduleBody).not.toContain("showUpdateResultDialog");
+    expect(main).not.toContain("updateScheduler.start()");
+    expect(main).not.toContain("createDesktopUpdaterScheduler(");
+    expect(main).not.toContain('id: "check-for-updates"');
+    const runtime = source("src/main/runtime.ts");
+    expect(runtime).not.toContain('options.updater?.checkForUpdates(');
   });
 
   it("starts the normalized sidecar client after creating the BrowserWindow runtime", () => {
@@ -102,12 +100,13 @@ describe("desktop updater host boundary", () => {
     expect(main).not.toContain("return await updater.status()");
   });
 
-  it("adds updater access to the macOS app menu without changing the Windows File menu", () => {
+  it("omits update checks from the macOS app menu and Windows File menu", () => {
     const main = source("src/main/index.ts");
     expect(main).toContain("deriveDesktopUpdateMenuItem");
     expect(main).toContain("DEFAULT_DESKTOP_UPDATE_MENU_LABELS");
-    expect(main).toContain('source: "mac-app-menu"');
-    expect(main).toContain("updateMenuItem.visible");
+    expect(main).not.toContain('source: "mac-app-menu"');
+    expect(main).not.toContain("updateMenuItem.visible");
+    expect(main).not.toContain('id: "check-for-updates"');
     const fileMenuStart = main.indexOf('label: "File"');
     const editMenuStart = main.indexOf('label: "Edit"', fileMenuStart);
     expect(fileMenuStart).toBeGreaterThanOrEqual(0);

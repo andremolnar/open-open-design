@@ -297,7 +297,7 @@ describe('ChatPane session switcher', () => {
       'https://open-design.powerformer.net/cloud/dashboard',
     );
     expect(parsedPlansUrl.searchParams.get('billing')).toBe('plan');
-    expect(parsedPlansUrl.searchParams.get('od_entry_source')).toBe('chat_upgrade_card');
+    expect(parsedPlansUrl.searchParams.get('od_entry_source')).toBeNull();
     openSpy.mockRestore();
   });
 });

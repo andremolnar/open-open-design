@@ -564,48 +564,10 @@ describe('SettingsDialog privacy settings interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('preserves a pending privacy choice when an unrelated parent config update arrives', async () => {
-    const randomUUID = vi.fn(() => 'inst-new');
-    vi.stubGlobal('crypto', { randomUUID });
-    const initial: AppConfig = {
-      ...baseConfig,
-      mode: 'daemon',
-      agentId: null,
-      installationId: null,
-      // Undecided: the consent card (and its Share button) only renders before
-      // a choice exists — deciding swaps it for the toggles it just set.
-      telemetry: { metrics: false, content: false, artifactManifest: true },
-    };
-    const view = renderSettingsDialog(initial, { initialSection: 'privacy' });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
-
-    await waitFor(() => {
-      expect((screen.getByLabelText('Anonymous ID') as HTMLInputElement).value).toBe('inst-new');
-    });
-
-    view.rerender(
-      <SettingsDialog
-        initial={{ ...initial, agentId: 'codex' }}
-        agents={availableAgents}
-        daemonLive={true}
-        appVersionInfo={null}
-        initialSection="privacy"
-        onPersist={view.onPersist}
-        onPersistComposioKey={view.onPersistComposioKey}
-        onClose={view.onClose}
-        onRefreshAgents={view.onRefreshAgents}
-      />,
-    );
-
-    // The pending choice survives the unrelated parent update: the card is
-    // gone (a decision exists now) and the toggles it set are still on.
+  it('does not offer removed telemetry preferences even with legacy consent state', () => {
+    renderSettingsDialog({ ...baseConfig, telemetry: { metrics: true, content: true } });
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
-    expect((screen.getByLabelText('Anonymous ID') as HTMLInputElement).value).toBe('inst-new');
-    expect(screen.getByRole('button', { name: /Anonymous metrics/ }).getAttribute('aria-pressed'))
-      .toBe('true');
-    expect(screen.getByRole('button', { name: /Conversation and tool content/ }).getAttribute('aria-pressed'))
-      .toBe('true');
+    expect(screen.queryByRole('button', { name: /Anonymous metrics/ })).toBeNull();
   });
 });
 
@@ -5910,9 +5872,7 @@ describe('SettingsDialog about interactions', () => {
     expect(screen.queryByRole('button', { name: en['settings.installLatest'] })).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: en['settings.updateViewReleases'] }));
-
-    expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/nexu-io/open-design/releases');
+    expect(screen.queryByRole('button', { name: en['settings.updateViewReleases'] })).toBeNull();
   });
 
   it('downloads an available packaged update from the about page', async () => {
@@ -6173,173 +6133,9 @@ describe('SettingsDialog about interactions', () => {
     expect(install).toHaveBeenCalledTimes(1);
   });
 
-  it('toggles allowSilentUpdates via the non-optimistic Settings path without crashing', async () => {
-    const onSilentUpdatePreferenceChange = vi.fn(async () => undefined);
-    const { onPersist } = renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex', allowSilentUpdates: false },
-      {
-        initialSection: 'about',
-        appVersionInfo: {
-          version: '0.14.1',
-          channel: 'beta',
-          packaged: true,
-          platform: 'darwin',
-          arch: 'arm64',
-        },
-        onSilentUpdatePreferenceChange,
-      },
-    );
-
-    const checkbox = screen.getByTestId('settings-allow-silent-updates') as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
-
-    fireEvent.click(checkbox);
-    expect(checkbox.checked).toBe(true);
-    await waitFor(() => expect(onSilentUpdatePreferenceChange).toHaveBeenCalledWith(true));
-    // Must not go through optimistic handleConfigPersist autosave.
-    expect(onPersist).not.toHaveBeenCalled();
-
-    fireEvent.click(checkbox);
-    expect(checkbox.checked).toBe(false);
-    await waitFor(() => expect(onSilentUpdatePreferenceChange).toHaveBeenCalledWith(false));
-  });
-
-  it('reverts the Settings silent-update toggle when the non-optimistic save fails', async () => {
-    let appConfigSilent: boolean | undefined = false;
-    const onSilentUpdatePreferenceChange = vi.fn(async (value: boolean) => {
-      throw new Error('daemon offline');
-      appConfigSilent = value;
-    });
-    renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex', allowSilentUpdates: false },
-      {
-        initialSection: 'about',
-        appVersionInfo: {
-          version: '0.14.1',
-          channel: 'beta',
-          packaged: true,
-          platform: 'darwin',
-          arch: 'arm64',
-        },
-        onSilentUpdatePreferenceChange,
-      },
-    );
-
-    const checkbox = screen.getByTestId('settings-allow-silent-updates') as HTMLInputElement;
-    fireEvent.click(checkbox);
-    await waitFor(() => expect(onSilentUpdatePreferenceChange).toHaveBeenCalledWith(true));
-    await waitFor(() => {
-      expect((screen.getByTestId('settings-allow-silent-updates') as HTMLInputElement).checked).toBe(false);
-    });
-    // App-wide preference must not keep the rejected value.
-    expect(appConfigSilent).toBe(false);
-  });
-
-  it('disables the Settings silent-update checkbox while a save is in flight', async () => {
-    let resolveSave: (() => void) | null = null;
-    const onSilentUpdatePreferenceChange = vi.fn(
-      () => new Promise<void>((resolve) => {
-        resolveSave = resolve;
-      }),
-    );
-    renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex', allowSilentUpdates: false },
-      {
-        initialSection: 'about',
-        appVersionInfo: {
-          version: '0.14.1',
-          channel: 'beta',
-          packaged: true,
-          platform: 'darwin',
-          arch: 'arm64',
-        },
-        onSilentUpdatePreferenceChange,
-      },
-    );
-
-    const checkbox = screen.getByTestId('settings-allow-silent-updates') as HTMLInputElement;
-    fireEvent.click(checkbox);
-    await waitFor(() => expect(onSilentUpdatePreferenceChange).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(checkbox.disabled).toBe(true));
-
-    await act(async () => {
-      resolveSave?.();
-      await Promise.resolve();
-    });
-    await waitFor(() => expect(checkbox.disabled).toBe(false));
-    expect(onSilentUpdatePreferenceChange).toHaveBeenCalledTimes(1);
-  });
-
-  it('still autosaves an unrelated edit that lands during a silent-update save', async () => {
-    // Regression: success must only advance autosaveLastSavedRef for
-    // allowSilentUpdates. Spreading the whole latest draft would mark a
-    // concurrent unrelated change as already saved and skip onPersist.
-    let resolveSave: (() => void) | null = null;
-    const onSilentUpdatePreferenceChange = vi.fn(
-      () => new Promise<void>((resolve) => {
-        resolveSave = resolve;
-      }),
-    );
-    const { onPersist } = renderSettingsDialog(
-      {
-        mode: 'daemon',
-        agentId: 'codex',
-        allowSilentUpdates: false,
-        // Seeded on so the concurrent click below is a real state change.
-        notifications: {
-          soundEnabled: true,
-          successSoundId: 'chime',
-          failureSoundId: 'two-tone-down',
-          desktopEnabled: false,
-        },
-      },
-      {
-        initialSection: 'about',
-        appVersionInfo: {
-          version: '0.14.1',
-          channel: 'beta',
-          packaged: true,
-          platform: 'darwin',
-          arch: 'arm64',
-        },
-        onSilentUpdatePreferenceChange,
-      },
-    );
-
-    fireEvent.click(screen.getByTestId('settings-allow-silent-updates'));
-    await waitFor(() => expect(onSilentUpdatePreferenceChange).toHaveBeenCalledTimes(1));
-    await waitFor(() => {
-      expect(
-        (screen.getByTestId('settings-allow-silent-updates') as HTMLInputElement).disabled,
-      ).toBe(true);
-    });
-    expect(onPersist).not.toHaveBeenCalled();
-
-    // Concurrent persisted edit while the silent-update request is in flight.
-    // The invariant under test is the autosave bookkeeping, not the field that
-    // carries it — theme selection was the old vehicle and is gone, so this
-    // reaches for the notifications completion-sound toggle instead.
-    fireEvent.click(screen.getByRole('button', { name: /General/i }));
-    fireEvent.click(
-      within(screen.getByRole('group', { name: 'Completion sound' })).getByRole('button', {
-        name: 'inactive',
-      }),
-    );
-
-    // Resolve silent-update AFTER the concurrent edit is in draft. The success
-    // path must not stamp this edit into autosaveLastSavedRef.
-    await act(async () => {
-      resolveSave?.();
-      await Promise.resolve();
-    });
-
-    await waitForPersist(
-      onPersist,
-      expect.objectContaining({
-        notifications: expect.objectContaining({ soundEnabled: false }),
-      }),
-      {},
-    );
+  it('does not show the obsolete silent-update preference without an update feed', () => {
+    renderSettingsDialog({ ...baseConfig, allowSilentUpdates: true }, { initialSection: 'about' });
+    expect(screen.queryByTestId('settings-allow-silent-updates')).toBeNull();
   });
 
   it('does not read event.currentTarget inside the silent-updates setCfg updater', async () => {

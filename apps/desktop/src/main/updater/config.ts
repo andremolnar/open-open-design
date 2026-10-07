@@ -3,7 +3,6 @@ import { isAbsolute, join, resolve } from "node:path";
 import {
   DESKTOP_UPDATE_CHANNELS,
   DESKTOP_UPDATE_MODES,
-  SIDECAR_SOURCES,
   type DesktopUpdateChannel,
   type DesktopUpdateMode,
   type SidecarSource,
@@ -38,7 +37,6 @@ export const DESKTOP_UPDATE_ENV = Object.freeze({
   PLATFORM: "OD_UPDATE_PLATFORM",
 } as const);
 
-const DEFAULT_RELEASE_ORIGIN = "https://releases.open-design.ai";
 const BETA_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const STABLE_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_POLL_INITIAL_DELAY_MS = 5000;
@@ -114,10 +112,6 @@ export function isDesktopUpdateChannel(value: unknown): value is DesktopUpdateCh
   return isReleaseChannel(value);
 }
 
-function defaultMetadataUrl(channel: DesktopUpdateChannel): string {
-  return `${DEFAULT_RELEASE_ORIGIN}/${channel}/latest/metadata.json`;
-}
-
 export function normalizeDownloadRoot(value: string): string {
   if (value.includes("\0")) throw new Error("update download root must not contain null bytes");
   if (!isAbsolute(value)) throw new Error(`update download root must be absolute: ${value}`);
@@ -162,8 +156,13 @@ export function defaultChannelForVersion(version: string): DesktopUpdateChannel 
 export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): DesktopUpdaterConfig {
   const env = input.env ?? process.env;
   const mode = normalizeMode(env[DESKTOP_UPDATE_ENV.MODE], input.mode ?? DESKTOP_UPDATE_MODES.PACKAGE_LAUNCHER);
-  const defaultEnabled = input.source === SIDECAR_SOURCES.PACKAGED;
-  const enabled = isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
+  // A detached build must never infer an upstream release feed from its
+  // channel, even when a caller explicitly asks to enable updates. Only an
+  // independently supplied feed can be used by a local acceptance harness.
+  const metadataUrl = env[DESKTOP_UPDATE_ENV.METADATA_URL]?.trim() ?? "";
+  // There is no inferred upstream feed. Explicit fixture-fed library tests
+  // can still exercise the updater; the desktop host disables it in production.
+  const enabled = isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) === true && metadataUrl.length > 0;
   const runtimeBase = resolve(input.runtimeBase == null ? process.cwd() : input.runtimeBase);
   const downloadRoot = normalizeDownloadRoot(
     env[DESKTOP_UPDATE_ENV.DOWNLOAD_ROOT] ??
@@ -186,7 +185,7 @@ export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): D
 
   return {
     arch: env[DESKTOP_UPDATE_ENV.ARCH] ?? input.arch ?? process.arch,
-    autoCheck: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_CHECK]) ?? enabled,
+    autoCheck: false,
     autoDownload: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_DOWNLOAD]) ?? true,
     autoOpen: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_OPEN]) ?? false,
     checkBackoffInitialMs: positiveDurationEnv(
@@ -219,7 +218,7 @@ export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): D
     ...(launcherRoot == null ? {} : { launcherRoot }),
     ...(launcherPayloadExtractorPath == null ? {} : { launcherPayloadExtractorPath }),
     ...(launcherRuntimePath == null ? {} : { launcherRuntimePath }),
-    metadataUrl: env[DESKTOP_UPDATE_ENV.METADATA_URL] ?? defaultMetadataUrl(channel),
+    metadataUrl,
     mode,
     ...(namespace == null ? {} : { namespace }),
     openDryRun: isTruthyEnv(env[DESKTOP_UPDATE_ENV.OPEN_DRY_RUN]) ?? false,

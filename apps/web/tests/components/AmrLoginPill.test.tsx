@@ -380,11 +380,11 @@ describe('AmrLoginPill', () => {
     );
   });
 
-  it('bridges the attributed management URL even though its click stops propagation', async () => {
+  it('opens the management URL without analytics identifiers', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url === '/api/attribution/bridge-url') {
-        return jsonResponse({ body: { url: 'https://open-design.ai/amr/dashboard?od_bridge=odbr_12345678' } });
+        return jsonResponse({ body: { url: null } });
       }
       if (url === '/api/system/open-external') return jsonResponse({ body: { ok: true } });
       return new Response('{}', { status: 202 });
@@ -413,27 +413,20 @@ describe('AmrLoginPill', () => {
     fireEvent.click(link);
 
     const url = new URL(link.href);
-    expect(url.searchParams.get('source')).toBe('open_design');
-    expect(url.searchParams.get('od_origin')).toBe('open_design');
-    expect(url.searchParams.get('od_entry_source')).toBe('settings_amr_console');
-    expect(url.searchParams.get('od_device_id')).toBe('od-install-abc');
-    expect(url.searchParams.get('od_entry_id')).toMatch(/^od-amr-/u);
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/integrations/vela/analytics-entry',
-      expect.objectContaining({ method: 'POST' }),
-    );
+    expect(url.search).toBe('');
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/integrations/vela/analytics-entry', expect.anything());
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       '/api/attribution/bridge-url',
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('od_device_id=od-install-abc'),
+        body: expect.not.stringContaining('od_device_id'),
       }),
     ));
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/system/open-external',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ url: 'https://open-design.ai/amr/dashboard?od_bridge=odbr_12345678' }),
+        body: JSON.stringify({ url: 'https://open-design.ai/cloud/dashboard' }),
       }),
     );
   });
@@ -598,8 +591,7 @@ describe('AmrLoginPill', () => {
         (init as RequestInit | undefined)?.method === 'POST',
     );
     const body = JSON.parse(String((loginCall?.[1] as RequestInit).body));
-    expect(body.attribution.sourceDetail).toBe('settings_amr_authorize');
-    expect(body.attribution.odDeviceId).toBe('od-install-abc');
+    expect(body.attribution).toBeUndefined();
   });
 
   it('shows an AMR error instead of staying in signing-in state when login fails immediately', async () => {

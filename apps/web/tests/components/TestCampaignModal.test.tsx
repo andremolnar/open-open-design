@@ -231,6 +231,22 @@ describe("TestCampaignModal", () => {
 		expect(screen.queryByTestId("touchpoint-test-selector")).toBeNull();
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+	it("does not check hosted Test offers in the shipped shell without an explicit preview URL", async () => {
+		const fetchMock = fetches();
+		vi.stubGlobal("fetch", fetchMock);
+		window.history.replaceState(null, "", "/");
+		const { unmount } = render(<TestCampaignModal authenticated allowAutomatic={false} />);
+		await act(async () => { await Promise.resolve(); });
+		expect(fetchMock).not.toHaveBeenCalled();
+		unmount();
+
+		window.history.replaceState(null, "", "/?cmsTestControls=1");
+		render(<TestCampaignModal authenticated allowAutomatic={false} />);
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+			"/api/touchpoints/test-runtime/deployments",
+			expect.anything(),
+		));
+	});
 	it("starts one realtime context request when a Test activity is selected", async () => {
 		const fetchMock = fetches();
 		vi.stubGlobal("fetch", fetchMock);

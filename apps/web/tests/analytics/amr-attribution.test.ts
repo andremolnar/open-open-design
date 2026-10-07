@@ -59,7 +59,7 @@ describe('AMR attribution helper', () => {
     expect(track.mock.calls.map(([, props]) => props.element)).toEqual(sources);
   });
 
-  it('records a last-touch AMR entry and emits the matching ui_click event', () => {
+  it('records a last-touch AMR entry without mirroring it to the cloud', () => {
     const track = vi.fn();
     const now = new Date('2026-06-03T12:00:00.000Z');
 
@@ -88,30 +88,10 @@ describe('AMR attribution helper', () => {
       }),
       undefined,
     );
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/integrations/vela/analytics-entry',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({
-      payload: {
-        pageName: 'open_design',
-        sourcePageName: 'chat_panel',
-        area: 'amr_entry',
-        element: 'chat_error_recharge',
-        action: 'click_amr_entry',
-        entryId: attribution.entryId,
-        sourceProduct: 'open_design',
-        sourceDetail: 'chat_error_recharge',
-        entryOccurredAt: '2026-06-03T12:00:00.000Z',
-      },
-    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('attaches the persisted onboarding profile and forwards it to AMR', () => {
+  it('attaches the persisted onboarding profile locally without forwarding it', () => {
     saveOnboardingProfile({
       role: 'pm',
       orgSize: 'startup',
@@ -131,13 +111,7 @@ describe('AMR attribution helper', () => {
       odUseCase: ['product', 'design-system'],
       odSource: 'github',
     });
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(init.body)).payload).toMatchObject({
-      odRole: 'pm',
-      odOrgSize: 'startup',
-      odUseCase: ['product', 'design-system'],
-      odSource: 'github',
-    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('omits profile fields entirely when no onboarding profile is stored', () => {
@@ -151,8 +125,7 @@ describe('AMR attribution helper', () => {
 
     expect(attribution.odRole).toBeUndefined();
     expect(attribution.odOrgSize).toBeUndefined();
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(init.body)).payload).not.toHaveProperty('odRole');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reuses a previous entry id for follow-up actions in the same source path', () => {
@@ -173,13 +146,13 @@ describe('AMR attribution helper', () => {
 
     expect(second).toEqual(first);
     expect(track).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(readAmrAttribution(new Date('2026-06-03T12:00:05.000Z'))).toEqual(
       first,
     );
   });
 
-  it('syncs an existing AMR entry with onboarding profile after About you is submitted', () => {
+  it('updates a local AMR entry after About you without exporting the profile', () => {
     const track = vi.fn();
     const entryTime = new Date('2026-06-03T12:00:00.000Z');
     const profileTime = new Date('2026-06-03T12:03:00.000Z');
@@ -210,33 +183,7 @@ describe('AMR attribution helper', () => {
       odSource: 'github',
     });
     expect(readAmrAttribution(profileTime)).toEqual(updated);
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/integrations/vela/analytics-profile',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({
-      payload: {
-        pageName: 'open_design',
-        sourcePageName: 'onboarding',
-        area: 'onboarding',
-        element: 'about_you_submit',
-        action: 'submit_profile',
-        entryId: attribution.entryId,
-        sourceProduct: 'open_design',
-        sourceDetail: 'onboarding_amr_card',
-        entryOccurredAt: '2026-06-03T12:00:00.000Z',
-        profileOccurredAt: '2026-06-03T12:03:00.000Z',
-        odDeviceId: 'od-install-abc',
-        odRole: 'pm',
-        odOrgSize: 'startup',
-        odUseCase: ['product', 'design-system'],
-        odSource: 'github',
-      },
-    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not mirror AMR entry analytics without metrics consent', () => {
@@ -372,124 +319,24 @@ describe('AMR attribution helper', () => {
     expect(readAmrAttribution(new Date('2026-08-25T12:00:00.000Z'))).toBeNull();
   });
 
-  it('adds OpenDesign attribution params to AMR wallet URLs', () => {
+  it('keeps functional AMR wallet parameters while removing tracking identifiers', () => {
     expect(
-      attributedAmrUrl('https://open-design.ai/amr/dashboard?tab=recharge', {
+      attributedAmrUrl('https://open-design.ai/amr/dashboard?tab=recharge&source=open_design&od_entry_id=old&utm_source=app', {
         entryId: 'od-amr-entry-123',
         sourceProduct: 'open_design',
         sourceDetail: 'generation_preview_recharge',
         occurredAt: '2026-06-03T12:00:00.000Z',
-      }),
-    ).toBe(
-      'https://open-design.ai/amr/dashboard?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
-    );
+      }, 'od-install-abc'),
+    ).toBe('https://open-design.ai/amr/dashboard?tab=recharge');
   });
 
-  it('adds od_device_id only when a device id is provided', () => {
-    const attribution = {
-      entryId: 'od-amr-entry-123',
-      sourceProduct: 'open_design' as const,
-      sourceDetail: 'generation_preview_recharge' as const,
-      occurredAt: '2026-06-03T12:00:00.000Z',
-    };
-    // With a device id (user opted into metrics): od_device_id is present.
-    expect(
-      attributedAmrUrl('https://open-design.ai/amr/dashboard', attribution, 'od-install-abc'),
-    ).toContain('od_device_id=od-install-abc');
-    // Without one (consent off): no od_device_id param leaks into the URL.
-    expect(
-      attributedAmrUrl('https://open-design.ai/amr/dashboard', attribution, null),
-    ).not.toContain('od_device_id');
-  });
-
-  it('forwards campaign and conversion attribution for final payment joins', () => {
-    const track = vi.fn();
-    const attribution = recordAmrEntry(
-      track,
-      'deepseek_workbench_badge',
-      new Date('2026-08-05T12:00:00.000Z'),
-      {
-        campaignId: 'deepseek_v4_flash',
-        conversionSource: 'deepseek_workbench_badge',
-      },
-    );
-
-    expect(track).toHaveBeenCalledWith(
-      'ui_click',
-      expect.objectContaining({
-        entry_id: attribution.entryId,
-        source_detail: 'deepseek_workbench_badge',
-        campaign_id: 'deepseek_v4_flash',
-        conversion_source: 'deepseek_workbench_badge',
-      }),
-      undefined,
-    );
-    const url = new URL(
-      attributedAmrUrl('https://open-design.ai/zh/pricing/', attribution),
-    );
-    expect(url.searchParams.get('od_entry_id')).toBe(attribution.entryId);
-    expect(url.searchParams.get('od_entry_source')).toBe('deepseek_workbench_badge');
-    expect(url.searchParams.get('od_conversion_source')).toBe('deepseek_workbench_badge');
-    expect(url.searchParams.get('od_campaign_id')).toBe('deepseek_v4_flash');
-  });
-
-  it('resolves the AMR handoff device id to the canonical id, gated on consent', () => {
-    // Consent off: never forwarded, regardless of available ids.
-    expect(
-      amrHandoffDeviceId({
-        metricsConsent: false,
-        resolvedDeviceId: 'od-install-abc',
-        installationId: 'od-install-abc',
-      }),
-    ).toBeNull();
-    // Consent on, steady state (the two ids agree): forward that id.
+  it('never forwards the installation id even with legacy metrics consent', () => {
     expect(
       amrHandoffDeviceId({
         metricsConsent: true,
         resolvedDeviceId: 'od-install-abc',
         installationId: 'od-install-abc',
       }),
-    ).toBe('od-install-abc');
-    // Consent on, config.installationId not hydrated yet: fall back to the
-    // resolved telemetry device id.
-    expect(
-      amrHandoffDeviceId({
-        metricsConsent: true,
-        resolvedDeviceId: 'od-install-abc',
-        installationId: null,
-      }),
-    ).toBe('od-install-abc');
-    // Consent on, resolved id not hydrated yet: use installationId.
-    expect(
-      amrHandoffDeviceId({
-        metricsConsent: true,
-        resolvedDeviceId: null,
-        installationId: 'config-install-xyz',
-      }),
-    ).toBe('config-install-xyz');
-    // Consent on but neither available: omit rather than invent one.
-    expect(
-      amrHandoffDeviceId({
-        metricsConsent: true,
-        resolvedDeviceId: null,
-        installationId: null,
-      }),
     ).toBeNull();
-  });
-
-  it('prefers the freshly rotated installationId over a stale resolved device id', () => {
-    // Delete-my-data rotation window: config.installationId is the new
-    // source-of-truth in the current render, but the analytics client's
-    // resolvedDeviceId module global still holds the pre-rotation value until
-    // the App-level setIdentity effect runs applyIdentity(). The handoff must
-    // forward the fresh installation id so the AMR cross-product join never
-    // points at the deleted identity.
-    expect(
-      amrHandoffDeviceId({
-        metricsConsent: true,
-        resolvedDeviceId: 'od-install-OLD',
-        installationId: 'od-install-NEW',
-      }),
-    ).toBe('od-install-NEW');
   });
 });

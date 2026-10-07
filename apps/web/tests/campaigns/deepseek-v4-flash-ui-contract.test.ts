@@ -85,21 +85,14 @@ describe('DeepSeek V4 Flash workbench campaign entry', () => {
     );
   });
 
-  it('keeps every CMS touchpoint host on the home view', () => {
-    // `opend.home.*` is the only placement family this app authorizes, so the
-    // account badge, the hover entry and the modals are home hosts. The
-    // workbench corner carries none of them.
+  it('does not mount production offer hosts while preserving the explicit Test context', () => {
     expect(entryShellSource).toContain("const homeCampaignHostsVisible = view === 'home';");
-    expect(entryShellSource).toMatch(
-      /homeCampaignHostsVisible\s*&&\s*canRenderProductionCampaignBadge\(amrLoggedIn === true, amrAccountId\)\s*\?\s*<ProductionCampaignBadge authenticated sessionSubject=\{amrAccountId\}/,
-    );
-    expect(entryShellSource).toMatch(
-      /homeCampaignHostsVisible\s*\?\s*\(\s*<ProductionCampaignHover\s+authenticated=\{amrLoggedIn === true\}\s+sessionSubject=\{amrAccountId\}/,
-    );
+    expect(entryShellSource).not.toContain('<ProductionCampaignBadge');
+    expect(entryShellSource).not.toContain('<ProductionCampaignHover');
     expect(entryNavRailSource).not.toContain('ProductionCampaignBadge');
-    expect(appSource).toMatch(
-      /\{route\.kind === 'home' && route\.view === 'home' && \([\s\S]*?<TestCampaignModal[\s\S]*?<ProductionCampaignModal/,
-    );
+    expect(appSource).toContain('<TestCampaignModal');
+    expect(appSource).toContain('allowAutomatic={false}');
+    expect(appSource).not.toContain('<ProductionCampaignModal');
   });
 
   it('sends both Go and paid DeepSeek badges to public Pricing', () => {

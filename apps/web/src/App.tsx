@@ -96,7 +96,6 @@ import {
 } from './components/SettingsDialog';
 import { PrivacyConsentModal } from './components/PrivacyConsentModal';
 import { TestCampaignModal } from './components/TestCampaignModal';
-import { ProductionCampaignModal } from './components/ProductionCampaignModal';
 import {
   clearHomeComposerAttachments,
   stashHomeComposerAttachments,
@@ -5791,26 +5790,13 @@ function AppInner() {
       {route.kind === 'home' && route.view === 'home' && (
         <>
           <TestCampaignModal
-            authenticated={isAmrSessionAuthenticated(amrLoginStatus)}
-            sessionSubject={amrLoginStatus?.user?.id ?? null}
-          />
-          <ProductionCampaignModal
+            allowAutomatic={false}
             authenticated={isAmrSessionAuthenticated(amrLoginStatus)}
             sessionSubject={amrLoginStatus?.user?.id ?? null}
           />
         </>
       )}
       <TooltipLayer />
-      <UpdateDialog />
-      {/* Mounted at shell level, outside the route views, so a survey armed by
-          an export inside a project stays on screen when the user navigates
-          back to home. */}
-      <ExperienceSurvey
-        metricsConsent={config.telemetry?.metrics === true}
-        onExposure={() => trackExperienceSurveyShown(analytics.track)}
-        onDismiss={() => trackExperienceSurveyDismissed(analytics.track)}
-        onSubmit={(answers) => trackExperienceSurveySent(analytics.track, answers)}
-      />
       <AmrArtifactUpgradeGate
         cloudModelSelected={config.mode === 'daemon' && config.agentId === 'amr'}
         homeVisible={route.kind === 'home' && route.view === 'home'}
@@ -5882,35 +5868,6 @@ function AppInner() {
           onDismiss={() => setProjectOpenError(null)}
         />
       ) : null}
-      {/* First-run privacy consent banner. It waits for daemon config
-          hydration because privacyDecisionAt is daemon-owned and stripped
-          from localStorage. It waits for `onboardingCompleted` so first-run
-          users see the welcome panel before the disclosure (Skip and
-          finish both flip the flag). Independent of Settings: z-index in
-          index.css sits above modal backdrops so opening Settings does
-          not hide the banner. */}
-      <AnimatePresence>
-      {showPrivacyConsent ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.97 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-        >
-        <PrivacyConsentModal
-          onShare={() => {
-            // The banner owns only the privacy decision; it does not drive
-            // navigation. Choosing Share keeps the current anonymous identity
-            // when one already exists and enables the telemetry surface.
-            handlePrivacyConsentChoice(true);
-          }}
-          onDecline={() => {
-            handlePrivacyConsentChoice(false);
-          }}
-        />
-      </motion.div>
-      ) : null}
-      </AnimatePresence>
     </>
   );
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  DEFAULT_WHATS_NEW_URL,
   createWhatsNewService,
   parseWhatsNewDocument,
   whatsNewSourceUrl,
@@ -24,9 +23,9 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe('whatsNewSourceUrl', () => {
-  it('uses the dedicated hosted document on release channels', () => {
-    expect(whatsNewSourceUrl({}, 'stable')).toBe(DEFAULT_WHATS_NEW_URL);
-    expect(whatsNewSourceUrl({}, 'beta')).toBe(DEFAULT_WHATS_NEW_URL);
+  it('does not contact the hosted highlights service on release channels', () => {
+    expect(whatsNewSourceUrl({}, 'stable')).toBeNull();
+    expect(whatsNewSourceUrl({}, 'beta')).toBeNull();
   });
 
   it('resolves to null on non-release channels (development/CI show no card)', () => {
@@ -91,10 +90,10 @@ describe('parseWhatsNewDocument', () => {
 });
 
 describe('createWhatsNewService', () => {
-  it('caches the parsed result and reuses it within the TTL', async () => {
+  it('caches explicitly configured local highlights within the TTL', async () => {
     let calls = 0;
     const service = createWhatsNewService({
-      env: {},
+      env: { OD_WHATS_NEW_URL: 'https://fixture.local/whats-new.json' },
       fetchImpl: async () => {
         calls += 1;
         return jsonResponse(DOC);
@@ -121,9 +120,9 @@ describe('createWhatsNewService', () => {
     expect(result.stale).toBe(false);
   });
 
-  it('resolves to null content instead of failing when the document is unreachable', async () => {
+  it('resolves to null content instead of failing when an explicit document is unreachable', async () => {
     const service = createWhatsNewService({
-      env: {},
+      env: { OD_WHATS_NEW_URL: 'https://fixture.local/whats-new.json' },
       fetchImpl: async () => {
         throw new Error('offline');
       },
@@ -134,9 +133,9 @@ describe('createWhatsNewService', () => {
     expect(result.stale).toBe(true);
   });
 
-  it('resolves to null content on a non-OK response', async () => {
+  it('resolves to null content on a non-OK explicit document response', async () => {
     const service = createWhatsNewService({
-      env: {},
+      env: { OD_WHATS_NEW_URL: 'https://fixture.local/whats-new.json' },
       fetchImpl: async () => jsonResponse({ error: 'nope' }, 404),
     });
     const result = await service.readWhatsNew('stable');

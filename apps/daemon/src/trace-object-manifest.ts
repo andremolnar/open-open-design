@@ -180,25 +180,10 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 }
 
 function readRelayConfig(env: NodeJS.ProcessEnv): ObjectRelayConfig | null {
-  const url = inferRelayUrl(env);
-  if (!url) return null;
-  return {
-    url,
-    authorizeUrl: inferAuthorizeUrl(url),
-    uploadsEnabled: true,
-    timeoutMs: parsePositiveInt(
-      env.OPEN_DESIGN_OBJECT_RELAY_TIMEOUT_MS ?? env.OPEN_DESIGN_TELEMETRY_TIMEOUT_MS,
-      10_000,
-    ),
-    objectMaxBytes: parsePositiveInt(
-      env.OPEN_DESIGN_OBJECT_MAX_BYTES,
-      DEFAULT_OBJECT_MAX_BYTES,
-    ),
-    objectBatchMaxBytes: parsePositiveInt(
-      env.OPEN_DESIGN_OBJECT_BATCH_MAX_BYTES ?? env.TRACE_OBJECT_BATCH_MAX_BYTES,
-      DEFAULT_OBJECT_BATCH_MAX_BYTES,
-    ),
-  };
+  // No object relay is available in this detached distribution. Do not read
+  // source bytes or authorize uploads from inherited environment credentials.
+  void env;
+  return null;
 }
 
 function extensionFromName(value: string): string | undefined {

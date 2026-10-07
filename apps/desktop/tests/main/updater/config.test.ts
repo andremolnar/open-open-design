@@ -12,7 +12,7 @@ function makeRoot(): string {
 }
 
 describe("desktop updater config", () => {
-  it("defaults counted beta internal builds to the beta update channel", () => {
+  it("does not point packaged beta builds at the upstream release feed", () => {
     const root = makeRoot();
     try {
       const config = resolveDesktopUpdaterConfig({
@@ -25,7 +25,8 @@ describe("desktop updater config", () => {
       });
 
       expect(config.channel).toBe(DESKTOP_UPDATE_CHANNELS.BETA);
-      expect(config.metadataUrl).toContain("/beta/latest/metadata.json");
+      expect(config.enabled).toBe(false);
+      expect(config.metadataUrl).toBe("");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
@@ -50,7 +51,7 @@ describe("desktop updater config", () => {
     }
   });
 
-  it("defaults prerelease builds to the prerelease update channel", () => {
+  it("does not point prerelease builds at the upstream release feed", () => {
     const root = makeRoot();
     try {
       const config = resolveDesktopUpdaterConfig({
@@ -63,13 +64,14 @@ describe("desktop updater config", () => {
       });
 
       expect(config.channel).toBe(DESKTOP_UPDATE_CHANNELS.PRERELEASE);
-      expect(config.metadataUrl).toContain("/prerelease/latest/metadata.json");
+      expect(config.enabled).toBe(false);
+      expect(config.metadataUrl).toBe("");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
 
-  it("defaults preview builds to the preview update channel", () => {
+  it("does not point preview builds at the upstream release feed", () => {
     const root = makeRoot();
     try {
       const config = resolveDesktopUpdaterConfig({
@@ -82,7 +84,8 @@ describe("desktop updater config", () => {
       });
 
       expect(config.channel).toBe("preview");
-      expect(config.metadataUrl).toContain("/preview/latest/metadata.json");
+      expect(config.enabled).toBe(false);
+      expect(config.metadataUrl).toBe("");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

@@ -29,9 +29,6 @@ import styles from './WhatsNewPopup.module.css';
 // the highlight link". Applying an update belongs to the real updater indicator
 // (see ./UpdaterPopup.tsx) — this surface must never claim to install anything.
 
-// Fallback for the CTA when the highlight document omits an explicit link.
-const RELEASES_INDEX_URL = 'https://github.com/nexu-io/open-design/releases';
-
 /**
  * The version this dialog is allowed to state, or null when nothing real can
  * name one yet.
@@ -64,7 +61,7 @@ type CardModel = {
   /** Release highlights, one row per line of the document's body. */
   notes: string[];
   imageUrl: string | null;
-  linkUrl: string;
+  linkUrl: string | null;
   ctaLabel: string | null;
 };
 
@@ -103,7 +100,7 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
         headline: localized.title,
         notes: whatsNewNotesFromBody(localized.body),
         imageUrl: info.content.imageUrl ?? null,
-        linkUrl: localized.linkUrl ?? RELEASES_INDEX_URL,
+        linkUrl: localized.linkUrl,
         ctaLabel: localized.ctaLabel,
       });
     });
@@ -122,7 +119,7 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
       page_name: 'home',
       area: 'whats_new_popup',
       app_version: appVersion,
-      has_release_notes: true,
+      has_release_notes: card.linkUrl != null,
     });
   }, [active, analytics.track, appVersion, card]);
 
@@ -144,7 +141,7 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
   }, [analytics.track, appVersion, card]);
 
   const openLink = useCallback(() => {
-    if (card == null || appVersion == null) return;
+    if (card == null || appVersion == null || card.linkUrl == null) return;
     markWhatsNewSeen(card.id);
     trackWhatsNewPopupClick(analytics.track, {
       page_name: 'home',
@@ -191,14 +188,14 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
         <Button className={styles.close} data-testid="whats-new-dismiss" onClick={dismiss}>
           {t('common.close')}
         </Button>
-        <Button
+        {card.linkUrl != null ? <Button
           className={styles.cta}
           data-testid="whats-new-cta"
           variant="primary"
           onClick={openLink}
         >
           {card.ctaLabel ?? t('whatsNew.cta')}
-        </Button>
+        </Button> : null}
       </div>
     </Dialog>
   );

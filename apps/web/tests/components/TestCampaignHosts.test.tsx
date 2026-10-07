@@ -252,7 +252,7 @@ describe("Test decisions at the existing host touchpoints", () => {
 			await act(async () => {
 				render(
 					<I18nProvider initial="zh-CN">
-						<TestCampaignModal authenticated sessionSubject="account-a" />
+						<TestCampaignModal authenticated allowAutomatic sessionSubject="account-a" />
 						<ProductionCampaignModal authenticated sessionSubject="account-a" />
 						<ProductionCampaignBadge authenticated sessionSubject="account-a" />
 						<ProductionCampaignHover authenticated sessionSubject="account-a" />
@@ -397,7 +397,7 @@ describe("Test decisions at the existing host touchpoints", () => {
 		render(
 			<I18nProvider initial={initialLocale}>
 				<Controls />
-				<TestCampaignModal authenticated sessionSubject="account-a" />
+				<TestCampaignModal authenticated allowAutomatic sessionSubject="account-a" />
 				<ProductionCampaignModal authenticated sessionSubject="account-a" />
 				<ProductionCampaignBadge authenticated sessionSubject="account-a" />
 				<ProductionCampaignHover authenticated sessionSubject="account-a" />
@@ -515,7 +515,7 @@ describe("Test decisions at the existing host touchpoints", () => {
 		try {
 			render(
 				<I18nProvider initial="zh-CN">
-					<TestCampaignModal authenticated sessionSubject="account-a" />
+					<TestCampaignModal authenticated allowAutomatic sessionSubject="account-a" />
 					<ProductionCampaignModal authenticated sessionSubject="account-a" />
 				</I18nProvider>,
 			);

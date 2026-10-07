@@ -24,7 +24,6 @@ import {
   type DesktopStatusSnapshot,
   type DesktopUpdateStatusSnapshot,
   type DaemonStatusSnapshot,
-  type DesktopUpdateInput,
   type RegisterDesktopAuthResult,
   type LegacySidecarRuntimeLayout,
   type WebStatusSnapshot,
@@ -58,9 +57,7 @@ import {
 } from "./update-menu.js";
 import {
   createDesktopUpdater,
-  createDesktopUpdaterScheduler,
   type DesktopUpdater,
-  type DesktopUpdaterScheduler,
 } from "./updater.js";
 import {
   exportDiagnosticsToFile,
@@ -399,7 +396,6 @@ type DesktopMenuController = {
 function installDesktopMenu(
   runtime: SidecarRuntimeContext<LegacySidecarRuntimeLayout>,
   options: Pick<DesktopMainOptions, "discoverDaemonUrl" | "discoverWebUrl"> & {
-    onOpenUpdateDialog?: () => void;
     updater: DesktopUpdater;
   },
 ): DesktopMenuController {
@@ -487,14 +483,6 @@ function installDesktopMenu(
               label: app.name,
               submenu: [
                 { role: "about" as const },
-                ...(updateMenuItem.visible
-                  ? [{
-                      click: options.onOpenUpdateDialog,
-                      enabled: updateMenuItem.enabled,
-                      id: "check-for-updates",
-                      label: updateMenuItem.label,
-                    }]
-                  : []),
                 { type: "separator" as const },
                 { role: "services" as const },
                 { type: "separator" as const },
@@ -733,6 +721,9 @@ export async function runDesktopMain(
       namespace: runtime.namespace,
       runtimeBase: runtime.base,
       source: runtime.source,
+      // The desktop host must never consult a release feed, including when
+      // inherited process env or a packaged config contains an upstream URL.
+      env: { ...process.env, OD_UPDATE_ENABLED: "0", OD_UPDATE_METADATA_URL: "" },
     },
     { openPath: (path) => shell.openPath(path) },
   );
@@ -778,12 +769,10 @@ export async function runDesktopMain(
 
   let desktop: DesktopRuntime | null = null;
   let disposeMenu: () => void = () => undefined;
-  let updateScheduler: DesktopUpdaterScheduler | null = null;
   let removeDiagnosticsIpc: () => void = () => undefined;
   let shutdownPromise: Promise<void> | null = null;
   let shutdownComplete = false;
   let shutdownRequestCount = 0;
-  let pendingUpdateDialogRequest = false;
 
   async function snapshotUpdateForStatus(): Promise<{
     update: DesktopUpdateStatusSnapshot;
@@ -841,7 +830,6 @@ export async function runDesktopMain(
       const startedAt = Date.now();
       let shutdownFailed = false;
       console.info("[open-design desktop] shutdown started");
-      updateScheduler?.stop("shutdown");
       await updater.recordLifecycle?.({ stage: "shutdown_started", outcome: "started" });
       // Stop the request-producing renderer before retiring its web/daemon
       // targets. Keeping the window alive while packaged sidecars drain leaves
@@ -925,7 +913,7 @@ export async function runDesktopMain(
           case SIDECAR_MESSAGES.EXPORT_ARTIFACT:
             return await activeDesktop.exportArtifact(request.input as DesktopExportArtifactInput);
           case SIDECAR_MESSAGES.UPDATE:
-            return await updater.handle((request.input as DesktopUpdateInput).action);
+            return updater.snapshot();
         }
       } catch (error) {
         console.error("[open-design desktop] sidecar action failed", {
@@ -944,13 +932,6 @@ export async function runDesktopMain(
 
   const menuController = installDesktopMenu(runtime, {
     ...options,
-    onOpenUpdateDialog: () => {
-      if (desktop == null) {
-        pendingUpdateDialogRequest = true;
-        return;
-      }
-      desktop.openUpdateDialog({ source: "mac-app-menu" });
-    },
     updater,
   });
   disposeMenu = menuController.dispose;
@@ -985,10 +966,6 @@ export async function runDesktopMain(
     updater,
     windowTitle: options.windowTitle,
   });
-  if (pendingUpdateDialogRequest) {
-    pendingUpdateDialogRequest = false;
-    desktop.openUpdateDialog({ source: "mac-app-menu" });
-  }
   console.info("[open-design desktop] desktop runtime created");
   options.onDesktopReady?.({
     dispatchInviteDeeplink,
@@ -1032,23 +1009,6 @@ export async function runDesktopMain(
     },
     protocolClientPath: options.inviteProtocolClientPath,
   });
-  const discoverUpdaterAppConfigBaseUrl = resolveDaemonBaseUrl(options);
-  updateScheduler = createDesktopUpdaterScheduler(updater, {
-    backoffInitialMs: updater.config.checkBackoffInitialMs,
-    backoffMaxMs: updater.config.checkBackoffMaxMs,
-    initialDelayMs: updater.config.checkInitialDelayMs,
-    intervalMs: updater.config.checkIntervalMs,
-    startupSilentPayloadUpdate: {
-      isEnabled: async () => {
-        const baseUrl = await discoverUpdaterAppConfigBaseUrl();
-        const config = await readAppConfigFromDaemon(baseUrl);
-        return config.allowSilentUpdates === true;
-      },
-      requestQuit: shutdownAndExit,
-    },
-  });
-  if (updater.shouldAutoCheck()) updateScheduler.start();
-
   app.on("before-quit", (event) => {
     if (shutdownComplete) return;
     event.preventDefault();

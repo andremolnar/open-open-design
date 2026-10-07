@@ -235,7 +235,7 @@ describe('App updater dialog integration', () => {
     );
   });
 
-  it('mounts the updater open-dialog subscription and handles the mac app menu request', async () => {
+  it('does not mount an updater dialog or subscribe to manual update requests', () => {
     let openDialogListener: OpenDesignHostUpdaterOpenDialogListener | null = null;
     const check = vi.fn(async () => idleStatus({ state: 'not-available' }));
     const unsubscribeOpenDialog = vi.fn();
@@ -255,20 +255,13 @@ describe('App updater dialog integration', () => {
 
     const { unmount } = render(<App />);
 
-    await waitFor(() => expect(subscribeOpenDialog).toHaveBeenCalledTimes(1));
-    await act(async () => {
-      openDialogListener?.({ source: 'mac-app-menu' });
-      await Promise.resolve();
-    });
-
-    expect(await screen.findByRole('dialog', { name: 'Check for updates' })).toBeTruthy();
-    await waitFor(() => expect(check).toHaveBeenCalledWith({
-      payload: { autoDownload: true, source: 'mac-app-menu' },
-    }));
-    expect(check).toHaveBeenCalledTimes(1);
+    expect(subscribeOpenDialog).not.toHaveBeenCalled();
+    expect(openDialogListener).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Check for updates' })).toBeNull();
+    expect(check).not.toHaveBeenCalled();
 
     unmount();
-    expect(unsubscribeOpenDialog).toHaveBeenCalledTimes(1);
+    expect(unsubscribeOpenDialog).not.toHaveBeenCalled();
   });
 
   it('shows the update-ready rocket in the project-detail account cluster', async () => {

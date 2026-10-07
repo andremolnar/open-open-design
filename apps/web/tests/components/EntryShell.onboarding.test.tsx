@@ -1737,13 +1737,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     const loginInit = fetchMock.mock.calls.find(([url]) =>
       String(url).endsWith('/api/integrations/vela/login'),
     )?.[1] as RequestInit;
-    expect(JSON.parse(String(loginInit.body))).toMatchObject({
-      attribution: {
-        entryId: expect.stringMatching(/^od-amr-/u),
-        sourceProduct: 'open_design',
-        sourceDetail: 'onboarding_amr_card',
-      },
-    });
+    expect(JSON.parse(String(loginInit.body)).attribution).toBeUndefined();
     expect(screen.getByText('Signing in…')).toBeTruthy();
     expect(screen.queryByText('Not signed in')).toBeNull();
     expect(signIn.hasAttribute('disabled')).toBe(true);

@@ -18,15 +18,9 @@ import {
 import { readAnalyticsContext } from '../analytics.js';
 import { agentCliEnvForAgent, type AppConfigPrefs, writeAppConfig } from '../app-config.js';
 import {
-  validateExternalPluginContext,
-  validatePluginWorkflowId,
-} from '../mcp-observability.js';
-import {
   cancelVelaLogin,
   forgetVelaLogin,
   mergeVelaEnv,
-  mirrorAmrEntryAnalytics,
-  mirrorAmrOnboardingProfileAnalytics,
   parseAmrEntryAnalyticsPayload,
   parseAmrOnboardingProfileAnalyticsPayload,
   parseVelaAuthAttemptId,
@@ -35,7 +29,6 @@ import {
   clearAllVelaLiveAccounts,
   clearVelaAuthorizationState,
   markVelaAuthorizationExpired,
-  parseVelaLoginAttribution,
   peekVelaLiveAccount,
   readVelaApiContext,
   readVelaCredentialRevision,
@@ -205,48 +198,6 @@ interface AmrModelProbe {
 
 function velaApiProxyBaseUrl(req: Request, getPublicBaseUrl: PublicBaseUrlResolver): string {
   return `${getPublicBaseUrl(req)}${AMR_API_PROXY_PREFIX}`;
-}
-
-function pluginLoginCorrelationEnv(input: {
-  body: unknown;
-  analyticsContext: ReturnType<typeof readAnalyticsContext>;
-  metricsEnabled: boolean;
-}): Record<string, string> {
-  const { analyticsContext } = input;
-  if (
-    !input.metricsEnabled
-    || !analyticsContext
-    || analyticsContext.clientType !== 'external_mcp'
-    || analyticsContext.entrySurface !== 'external_mcp'
-  ) {
-    return {};
-  }
-  const body =
-    input.body && typeof input.body === 'object' && !Array.isArray(input.body)
-      ? input.body as Record<string, unknown>
-      : {};
-  try {
-    const context = validateExternalPluginContext({
-      id: analyticsContext.externalPluginId,
-      version: analyticsContext.externalPluginVersion,
-      distributionMechanism: analyticsContext.distributionMechanism,
-      publisherClass: analyticsContext.publisherClass,
-    });
-    const pluginWorkflowId = validatePluginWorkflowId(body.pluginWorkflowId);
-    return {
-      OD_INSTALLATION_ID: analyticsContext.deviceId,
-      OPEN_DESIGN_PLUGIN_WORKFLOW_ID: pluginWorkflowId,
-      OPEN_DESIGN_EXTERNAL_PLUGIN_ID: context.id,
-      OPEN_DESIGN_EXTERNAL_PLUGIN_VERSION: context.version,
-      OPEN_DESIGN_DISTRIBUTION_MECHANISM: context.distributionMechanism,
-      OPEN_DESIGN_PUBLISHER_CLASS: context.publisherClass,
-    };
-  } catch {
-    // Login must remain functional when analytics metadata is absent or
-    // malformed. Invalid self-reported attribution is dropped rather than
-    // being trusted or turned into an authentication dependency.
-    return {};
-  }
 }
 
 function velaProxyRequestBody(req: Request): Buffer | null {
@@ -1117,58 +1068,12 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
 
   app.all('/api/integrations/vela/api-proxy/*splat', proxyAmrApiRequest);
 
-  // The helper is a strict method/path allowlist; register it for POST so the
-  // authenticated Test context selection can reach Vela, while unknown paths
-  // and methods remain default-deny.
+  // The detached app does not poll a production offer service. Keep the path
+  // closed for older renderers that still mount the production campaign hosts.
   app.all(
     ['/api/touchpoints/production-runtime', '/api/touchpoints/production-runtime/*splat'],
-    async (req, res) => {
-      try {
-        const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-        const context = readVelaControlApiContext(
-          env,
-          agentCliEnvForAgent(appConfig.agentCliEnv, 'amr'),
-        );
-        if (!context) {
-          res.status(401).json({ error: 'vela_control_key_required' });
-          return;
-        }
-        // Local end-to-end runs may keep their login/Test origin while
-        // exercising a separately owned publish-side API. Never forward a
-        // stored credential to an arbitrary remote origin through this knob.
-        const localPublishOrigin = env.OPEN_DESIGN_CMS_PRODUCTION_API_URL?.trim();
-        if (localPublishOrigin) {
-          const target = new URL(localPublishOrigin);
-          const login = new URL(context.apiUrl);
-          const loopback = new Set(['127.0.0.1', '[::1]']);
-          if (
-            context.profile !== 'local' ||
-            target.protocol !== 'http:' ||
-            login.protocol !== 'http:' ||
-            !loopback.has(target.hostname) ||
-            !loopback.has(login.hostname) ||
-            target.username ||
-            target.password ||
-            target.pathname !== '/' ||
-            target.search ||
-            target.hash
-          ) {
-            res.status(400).json({ error: 'invalid_local_cms_production_origin' });
-            return;
-          }
-          proxyTouchpointRuntimeRequest(
-            req,
-            res,
-            { ...context, apiUrl: target.origin },
-            'production',
-            touchpointContentCache,
-          );
-          return;
-        }
-        proxyTouchpointRuntimeRequest(req, res, context, 'production', touchpointContentCache);
-      } catch {
-        res.status(502).json({ error: 'touchpoint_runtime_unavailable' });
-      }
+    (_req, res) => {
+      res.status(410).json({ error: 'production_offers_unavailable' });
     },
   );
 
@@ -1240,23 +1145,8 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
-      const analyticsContext = readAnalyticsContext(req);
-      const attribution = parseVelaLoginAttribution(req.body);
-      const correlationEnv = pluginLoginCorrelationEnv({
-        body: req.body,
-        analyticsContext,
-        metricsEnabled: appConfig.telemetry?.metrics === true,
-      });
-      let loginAttribution = attribution;
-      if (attribution) {
-        if (analyticsContext && appConfig.telemetry?.metrics === true) {
-          loginAttribution = { ...attribution, odDeviceId: analyticsContext.deviceId };
-        } else {
-          const withoutDeviceId = { ...attribution };
-          delete withoutDeviceId.odDeviceId;
-          loginAttribution = withoutDeviceId;
-        }
-      }
+      // Authentication needs neither installation attribution nor plugin
+      // analytics correlation. Ignore both even from a cached older client.
       // Start device authorization over a direct connection first. The
       // daemon-local IPv4 proxy (added in #4210 for hosts whose direct
       // amr-api.open-design.ai edge path is broken, #3726) re-originates the
@@ -1273,8 +1163,6 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
         authAttemptId: requestAuthAttemptId,
         authRequestId: requestAuthRequestId,
         configuredEnv,
-        attribution: loginAttribution,
-        correlationEnv,
         proxyApiUrl: velaApiProxyBaseUrl(req, getPublicBaseUrl),
         // Block until the direct attempt reaches device-auth steady state or
         // exits/errors before it. If it remains alive beyond this grace, the
@@ -1342,51 +1230,13 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
     }
   });
 
-  app.post('/api/integrations/vela/analytics-entry', async (req, res) => {
-    const payload = parseAmrEntryAnalyticsPayload(req.body);
-    if (!payload) {
-      res.status(400).json({ error: 'invalid_amr_entry_analytics' });
-      return;
-    }
-    const analyticsContext = readAnalyticsContext(req);
-    if (!analyticsContext) {
-      res.status(202).json({ mirrored: false });
-      return;
-    }
-    const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-    if (appConfig.telemetry?.metrics !== true) {
-      res.status(202).json({ mirrored: false });
-      return;
-    }
-    const result = await mirrorAmrEntryAnalytics(payload, {
-      analyticsContext,
-      env,
-    });
-    res.status(202).json(result);
+  // Compatibility for cached renderers: do not forward entry/profile analytics
+  // even if a stale page still posts to these endpoints.
+  app.post('/api/integrations/vela/analytics-entry', (_req, res) => {
+    res.status(410).json({ mirrored: false });
   });
-
-  app.post('/api/integrations/vela/analytics-profile', async (req, res) => {
-    const payload = parseAmrOnboardingProfileAnalyticsPayload(req.body);
-    if (!payload) {
-      res.status(400).json({ error: 'invalid_amr_profile_analytics' });
-      return;
-    }
-    const analyticsContext = readAnalyticsContext(req);
-    if (!analyticsContext) {
-      res.status(202).json({ mirrored: false });
-      return;
-    }
-    const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-    if (appConfig.telemetry?.metrics !== true) {
-      res.status(202).json({ mirrored: false });
-      return;
-    }
-    const canonicalPayload = { ...payload, odDeviceId: analyticsContext.deviceId };
-    const result = await mirrorAmrOnboardingProfileAnalytics(canonicalPayload, {
-      analyticsContext,
-      env,
-    });
-    res.status(202).json(result);
+  app.post('/api/integrations/vela/analytics-profile', (_req, res) => {
+    res.status(410).json({ mirrored: false });
   });
 
   app.post('/api/integrations/vela/logout', async (_req, res) => {
