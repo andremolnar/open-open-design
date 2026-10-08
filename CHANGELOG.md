@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent.
-- [Fixed] Updated the OpenCode integration for V2 sessions, models, permissions, MCP servers, tool previews, and BYOK configuration.
-- [Added] A signed macOS build can be launched directly without installing it; contributors can use `/shipit` to document, validate, and propose changes through a PR.
+- [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent. (#1)
+- [Fixed] Updated the OpenCode integration for V2 sessions, models, permissions, MCP servers, tool previews, and BYOK configuration. (#1)
+- [Added] A signed macOS build can be launched directly without installing it; contributors can use `/shipit` to document, validate, and propose changes through a PR. (#1)
+- [Added] Connect an existing project to a local codebase from its project menus, optionally choosing a nested app folder. The connection survives restarts, shows when the source is unavailable, and can be reconnected without moving design files or modifying the source. The same status and binding actions are available through the `od` CLI. (#2)
+- [Changed] Detached builds no longer send automatic analytics, traces, or crash diagnostics or check upstream update and offer feeds. Explicit account, provider, and diagnostic-export actions remain available. (644b0134f)
+- [Added] `pnpm tools-pack mac deploy` builds a locally signed app and installs it in `/Applications`, verifying the signature and existing app identity before replacement. (644b0134f)
 - [Fixed] Long speaker notes are now scrollable inside the presenter view instead of being clipped when notes push the layout past the viewport. (#6271)
 - [Changed] Retired the official Nix flake, Home Manager/NixOS modules, and lockfile-coupled Nix CI maintenance. OpenDesign still discovers agent CLIs installed through Nix profiles on NixOS and nix-darwin hosts.
 
