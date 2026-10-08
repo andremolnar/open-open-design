@@ -1,0 +1,89 @@
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.projectName {
+  margin: 6px 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--border);
+}
+
+.section h3, .section p, .canonical p, .error p, .warning p {
+  margin: 0;
+}
+
+.section h3, .field label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.path {
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-block-start: 12px;
+}
+
+.canonical {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.error, .warning {
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--danger, #c0392b);
+}
+
+.indicator {
+  flex-shrink: 0;
+  min-width: 24px;
+  padding: 4px;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.entry > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}

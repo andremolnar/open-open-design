@@ -916,6 +916,7 @@ import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/de
 import { registerMediaRoutes } from './routes/media.js';
 import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes, createEnforceWorkspaceProjectMutation } from './routes/project/index.js';
 import { registerProjectChatArtifactRoutes } from './routes/project/chat-artifacts.js';
+import { registerProjectCodebaseBindingRoutes } from './routes/project/codebase-binding.js';
 import { createChatArtifactBlobStore } from './chat-artifacts/blob-store.js';
 import { resolveChatArtifactQuota } from './chat-artifacts/quota.js';
 import {
@@ -8950,6 +8951,14 @@ export async function startServer({
     validation: validationDeps,
     fetchProjectCreationWorkspaceDirectory,
     enforceWorkspaceProjectMutation: enforceAuthoritativeProjectMutation,
+  });
+  registerProjectCodebaseBindingRoutes(app, {
+    db,
+    http: httpDeps,
+    paths: pathDeps,
+    projectStore: projectStoreDeps,
+    auth: authDeps,
+    authorizeProjectRequest,
   });
 
   // Whether the caller may mutate (edit / publish-toggle / delete) a design

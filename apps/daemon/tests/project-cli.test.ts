@@ -10,9 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const execFileP = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DAEMON_ROOT = pathResolve(__dirname, '..');
-const REPO_ROOT = pathResolve(__dirname, '../../..');
 const CLI_SRC = pathResolve(__dirname, '../src/cli.ts');
-const TSX_CLI = pathResolve(REPO_ROOT, 'node_modules/tsx/dist/cli.mjs');
 
 interface CapturedRequest {
   method: string;
@@ -37,7 +35,7 @@ afterEach(async () => {
   tempRoot = '';
 });
 
-async function startProjectStubServer(): Promise<StubServer> {
+async function startProjectStubServer(options: { codebaseConflict?: boolean } = {}): Promise<StubServer> {
   const requests: CapturedRequest[] = [];
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -54,6 +52,31 @@ async function startProjectStubServer(): Promise<StubServer> {
       requests.push(captured);
 
       res.setHeader('content-type', 'application/json');
+      if (captured.url === '/api/projects/project-1/codebase-binding') {
+        if (captured.method === 'PUT' && options.codebaseConflict) {
+          res.statusCode = 409;
+          res.end(JSON.stringify({ error: { code: 'CODEBASE_BINDING_CONFLICT', message: 'Connection changed; reload before saving.' } }));
+          return;
+        }
+        const saved = captured.method === 'PUT' ? JSON.parse(raw) : null;
+        res.end(JSON.stringify({
+          projectId: 'project-1',
+          designStoragePath: '/design-store/project-1',
+          binding: {
+            schemaVersion: 1,
+            revision: saved ? 4 : 3,
+            sourceRoot: saved?.sourceRoot ?? '/source-repo',
+            appRelativePath: saved?.appRelativePath ?? '.',
+            updatedAt: 1,
+          },
+          status: 'connected',
+          reason: null,
+          message: null,
+          capabilities: { canBind: true, requiresTrustedPicker: false },
+        }));
+        return;
+      }
+
       if (captured.method === 'POST' && captured.url === '/api/projects/source-project/design-system-copy') {
         res.statusCode = 201;
         res.end(JSON.stringify({
@@ -206,7 +229,7 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.NODE_OPTIONS;
   try {
-    const { stdout, stderr } = await execFileP(process.execPath, [TSX_CLI, CLI_SRC, ...args], {
+    const { stdout, stderr } = await execFileP(process.execPath, ['--import', 'tsx', CLI_SRC, ...args], {
       cwd: DAEMON_ROOT,
       env,
       timeout: 15_000,
@@ -224,6 +247,69 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe('od project CLI', () => {
+  it('reads codebase status through the project endpoint with workspace identity', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli([
+      'project', 'codebase', 'status', 'project-1', '--json',
+      '--workspace', 'ws-1', '--workspace-member', 'member-1', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      projectId: 'project-1', designStoragePath: '/design-store/project-1', status: 'connected',
+    });
+    expect(stub.requests).toHaveLength(1);
+    expect(stub.requests[0]).toMatchObject({
+      method: 'GET', url: '/api/projects/project-1/codebase-binding',
+      headers: { 'x-od-workspace-id': 'ws-1', 'x-od-workspace-member-id': 'member-1' },
+    });
+  });
+
+  it('binds using the current revision without changing the design working directory', async () => {
+    stub = await startProjectStubServer();
+    tempRoot = mkdtempSync(join(tmpdir(), 'od-codebase-cli-'));
+    const result = await runCli([
+      'project', 'codebase', 'bind', 'project-1', '--source', tempRoot, '--app', 'apps/web',
+      '--json', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      designStoragePath: '/design-store/project-1', binding: { revision: 4, appRelativePath: 'apps/web' },
+    });
+    expect(stub.requests.map(({ method, url }) => ({ method, url }))).toEqual([
+      { method: 'GET', url: '/api/projects/project-1/codebase-binding' },
+      { method: 'PUT', url: '/api/projects/project-1/codebase-binding' },
+    ]);
+    expect(JSON.parse(stub.requests[1]!.body)).toEqual({
+      sourceRoot: tempRoot, appRelativePath: 'apps/web', expectedRevision: 3,
+    });
+  });
+
+  it('preserves an explicit null revision and reports conflicts without retrying', async () => {
+    stub = await startProjectStubServer({ codebaseConflict: true });
+    tempRoot = mkdtempSync(join(tmpdir(), 'od-codebase-cli-'));
+    const result = await runCli([
+      'project', 'codebase', 'bind', 'project-1', '--source', tempRoot,
+      '--expected-revision', 'null', '--json', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stdout + result.stderr).toContain('CODEBASE_BINDING_CONFLICT');
+    expect(stub.requests).toHaveLength(1);
+    expect(JSON.parse(stub.requests[0]!.body)).toEqual({
+      sourceRoot: tempRoot, appRelativePath: '.', expectedRevision: null,
+    });
+  });
+
+  it('rejects a malformed revision before contacting the daemon', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli([
+      'project', 'codebase', 'bind', 'project-1', '--source', '/unused',
+      '--expected-revision', '-1', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--expected-revision');
+    expect(stub.requests).toEqual([]);
+  });
+
   it('documents exact workspace identity for bound project and file commands', async () => {
     const projectHelp = await runCli(['project', 'help']);
     const filesHelp = await runCli(['files', 'help']);
