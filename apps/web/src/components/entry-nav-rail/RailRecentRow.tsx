@@ -12,6 +12,9 @@ import { createPortal } from 'react-dom';
 import type { ProjectDisplayStatus, WorkspaceCollabContext } from '@open-design/contracts';
 
 import { useT } from '../../i18n';
+import { workspaceAccountScopedCacheKey } from '../../collab/workspace-identity';
+import { CodebaseBindingDialog } from '../codebase-binding/CodebaseBindingDialog';
+import { CodebaseBindingMenuItem } from '../codebase-binding/CodebaseBindingEntry';
 import { Icon } from '../Icon';
 import {
   hasCompletionNotice,
@@ -200,6 +203,21 @@ export function RailRecentRow({
   const ownsPreview = claim?.rowId === project.id && claim.kind === 'preview';
   const menuOpen = claim?.rowId === project.id && claim.kind === 'menu';
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const codebaseScopeKey = workspaceAccountScopedCacheKey(workspaceContext);
+  const [codebaseTarget, setCodebaseTarget] = useState<{
+    project: Project;
+    workspaceContext: typeof workspaceContext;
+    scopeKey: string;
+  } | null>(null);
+  useEffect(() => {
+    setCodebaseTarget(null);
+    releasePopup(project.id, 'menu');
+  }, [codebaseScopeKey, project.id, ownedBySelf]);
+  const closeCodebase = () => {
+    setCodebaseTarget(null);
+    menuTriggerRef.current?.focus();
+  };
   // The menu opens where the preview would have been (per product), which puts
   // it outside the rail — so it needs its own anchor, frozen when the menu
   // claim lands. `anchor` cannot serve: it is cleared the moment the pointer
@@ -269,7 +287,6 @@ export function RailRecentRow({
     onRename?.(project.id, next);
   }
 
-  const hasMenu = Boolean(onRename || onDuplicate || onDelete || (moveToTeamAvailable && onMoveToTeam));
   const foreignTitle = ownedBySelf ? undefined : t('recentProjects.ownOnlyMutation');
 
   return (
@@ -285,7 +302,7 @@ export function RailRecentRow({
         // to it re-crossed rows, each of which claimed the slot back for its
         // preview and closed the menu out from under the pointer. A menu now
         // ends only when it is dismissed.
-        if (popupClaim?.kind === 'menu') return;
+        if (codebaseTarget || popupClaim?.kind === 'menu') return;
         const rect = event.currentTarget.getBoundingClientRect();
         setAnchor({ top: rect.top + rect.height / 2, left: rect.right + POPUP_GAP_PX });
         claimPopup({ rowId: project.id, kind: 'preview' });
@@ -361,33 +378,32 @@ export function RailRecentRow({
           ) : null}
         </button>
       )}
-      {hasMenu ? (
-        <button
-          type="button"
-          className="entry-nav-rail__recent-more"
-          aria-label={t('designs.menuMore')}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          data-testid="entry-nav-recent-more"
-          /* Click only (per product: 点击那三个小点之后才展开弹窗). Opening on
-             hover put the menu one stray pointer-move away from closing, which
-             is what made it impossible to click through to. */
-          onClick={(event) => {
-            event.stopPropagation();
-            if (menuOpen) releasePopup(project.id, 'menu');
-            else claimPopup({ rowId: project.id, kind: 'menu' });
-          }}
-        >
-          <MoreDotsMark />
-        </button>
-      ) : null}
+      <button
+        ref={menuTriggerRef}
+        type="button"
+        className="entry-nav-rail__recent-more"
+        aria-label={t('designs.menuMore')}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        data-testid="entry-nav-recent-more"
+        /* Click only (per product: 点击那三个小点之后才展开弹窗). Opening on
+           hover put the menu one stray pointer-move away from closing, which
+           is what made it impossible to click through to. */
+        onClick={(event) => {
+          event.stopPropagation();
+          if (menuOpen) releasePopup(project.id, 'menu');
+          else claimPopup({ rowId: project.id, kind: 'menu' });
+        }}
+      >
+        <MoreDotsMark />
+      </button>
       {/* Same slot as the hover preview — beside the row, clear of the rail
           (per product: 弹窗的位置就是预览图的位置). Portalled for the same
           reason the preview is: inside the rail it would sit behind the content
           column whatever its z-index.
 
-          Items, in order: 重命名 / 复制 / 转入团队空间 (team workspaces only) /
-          删除 — the product's list for this menu (OPEND-2686, OPEND-2794). No
+          Connect/manage codebase leads the existing project actions:
+          重命名 / 复制 / 转入团队空间 (team workspaces only) / 删除. No
           导出: a list row has no rendered file to export, and the whole-project
           archive the old item offered is not what this menu is for. */}
       {menuOpen && menuAnchor && typeof document !== 'undefined' ? createPortal(
@@ -398,6 +414,16 @@ export function RailRecentRow({
           data-testid="entry-nav-recent-menu"
           style={{ top: menuAnchor.top, left: menuAnchor.left }}
         >
+          <CodebaseBindingMenuItem
+            projectId={project.id}
+            workspaceContext={workspaceContext}
+            ownedBySelf={ownedBySelf}
+            onOpen={() => {
+              if (!ownedBySelf) return;
+              setCodebaseTarget({ project, workspaceContext, scopeKey: codebaseScopeKey });
+              releasePopup(project.id, 'menu');
+            }}
+          />
           {onRename ? (
             <button
               type="button"
@@ -485,6 +511,15 @@ export function RailRecentRow({
           ) : null}
         </div>,
         document.body,
+      ) : null}
+      {/* Keep the captured row alive after releasing the menu popup claim. */}
+      {codebaseTarget && codebaseTarget.project.id === project.id && codebaseTarget.scopeKey === codebaseScopeKey && ownedBySelf ? (
+        <CodebaseBindingDialog
+          projectId={codebaseTarget.project.id}
+          projectName={codebaseTarget.project.name}
+          workspaceContext={codebaseTarget.workspaceContext}
+          onClose={closeCodebase}
+        />
       ) : null}
       {/* The preview hangs OUTSIDE the rail, over the content column — and is
           portalled to <body> to get there. Inside the rail it stayed BEHIND the

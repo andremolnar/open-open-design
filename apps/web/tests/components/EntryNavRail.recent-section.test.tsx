@@ -388,7 +388,7 @@ describe('EntryNavRail 最近浏览过 section', () => {
     // OPEND-2686: 导出 is gone; 复制 sits between 重命名 and 删除. OPEND-2794: a
     // personal workspace has no team plane, so 转入团队空间 is hidden here.
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(
-      ['Rename', 'Duplicate project', 'Delete'],
+      ['Connect codebase…', 'Rename', 'Duplicate project', 'Delete'],
     );
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Duplicate project' }));
     expect(onDuplicate).toHaveBeenCalledWith('p1');
@@ -471,7 +471,7 @@ describe('EntryNavRail 最近浏览过 section', () => {
     fireEvent.click(screen.getAllByTestId('entry-nav-recent-more')[0]!);
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(
-      ['Rename', 'Duplicate project', 'Move to team space', 'Delete'],
+      ['Connect codebase…', 'Rename', 'Duplicate project', 'Move to team space', 'Delete'],
     );
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Move to team space' }));
     // The same confirmation the project cards show — nothing moves yet.

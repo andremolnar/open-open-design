@@ -4374,6 +4374,7 @@ export function FileWorkspace({
           <DesignFilesPanel
             key={projectId}
             projectId={projectId}
+            projectName={projectName}
             projectKind={projectKind}
             filesRefreshKey={filesRefreshKey}
             viewerOnly={viewerOnly}

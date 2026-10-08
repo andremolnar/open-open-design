@@ -9,6 +9,7 @@ import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectFileUrl, projectRawUrl } from '../providers/registry';
 import {
   appendResourceQuery,
+  currentWorkspaceAccountGeneration,
   workspaceIdentityCacheKey,
   workspaceProjectHeaders,
 } from '../collab/workspace-identity';
@@ -39,6 +40,8 @@ import { BuildPreviewToggle } from './design-files/BuildPreviewToggle';
 import { DesignFilesBuildingState } from './design-files/DesignFilesBuildingState';
 import { selectBuildPreviewHtmlEntry } from './auto-open-file';
 import type { RunProgressStep } from '../runtime/run-progress';
+import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
+import { CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
@@ -51,6 +54,7 @@ export interface DesignFilesNavState {
 
 interface Props {
   projectId: string;
+  projectName?: string;
   projectKind: TrackingProjectKind;
   filesRefreshKey?: number;
   /** Read-only viewer of a team-shared project: disables project mutations. */
@@ -464,6 +468,7 @@ function RotatingTip({ auxiliary = false }: { auxiliary?: boolean }) {
  */
 export function DesignFilesPanel({
   projectId,
+  projectName,
   projectKind,
   filesRefreshKey = 0,
   viewerOnly = false,
@@ -502,7 +507,13 @@ export function DesignFilesPanel({
   navState,
   onNavStateChange,
 }: Props) {
-  const { workspaceContext } = useProjectCollabContext();
+  const {
+    workspaceContext,
+    workspaceContextLoading,
+    projectResourceAuthority,
+    viewerOnly: collabViewerOnly,
+    writerAuthority,
+  } = useProjectCollabContext();
   const t = useT();
   const analytics = useAnalytics();
   // The page the run is currently building, if it has produced one. Only HTML
@@ -542,6 +553,25 @@ export function DesignFilesPanel({
   const [currentDir, setCurrentDir] = useState<string>(() => navState?.currentDir ?? '');
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
+  const projectMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const codebaseScopeKey = JSON.stringify([
+    currentWorkspaceAccountGeneration(), workspaceIdentityCacheKey(workspaceContext), projectId,
+  ]);
+  // A team's provisional editable UI is not proof of project ownership.
+  // Use the project's exact resource scope and positive writer authority.
+  const canManageCodebase = !viewerOnly && !collabViewerOnly && !workspaceContextLoading
+    && projectResourceAuthority !== 'pending' && projectResourceAuthority !== 'denied'
+    && (workspaceContext?.workspaceType !== 'team' || writerAuthority === 'allowed');
+  const [codebaseTarget, setCodebaseTarget] = useState<{
+    scopeKey: string;
+    projectId: string;
+    projectName: string;
+    workspaceContext: typeof workspaceContext;
+  } | null>(null);
+  useEffect(() => {
+    setProjectMenuOpen(false);
+    setCodebaseTarget(null);
+  }, [codebaseScopeKey, canManageCodebase]);
 
   // Keep the parent's create-target in sync with the folder being viewed, so
   // uploads / pastes / new sketches / dropped files land in the open folder
@@ -1377,67 +1407,83 @@ export function DesignFilesPanel({
           <span>{t('designFiles.library.label')}</span>
         </button>
       ) : null}
-      {onCreateDesignSystemFromProject || onDuplicateProject ? (
-        <div className="df-project-menu-anchor" ref={projectMenuRef}>
-          <button
-            type="button"
-            className="df-project-menu-trigger"
-            aria-label={t('designFiles.projectMenu')}
-            aria-haspopup="menu"
-            aria-expanded={projectMenuOpen}
-            title={t('designFiles.projectMenu')}
-            onClick={() => setProjectMenuOpen((current) => !current)}
-          >
-            <Icon name="more-horizontal" size={14} />
-          </button>
-          {projectMenuOpen ? (
-            <div className="df-project-menu" role="menu">
-              {onCreateDesignSystemFromProject ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={createDesignSystemFromProjectBusy}
-                  onClick={() => {
-                    trackFileManagerClick(analytics.track, {
-                      page_name: 'file_manager',
-                      area: 'file_manager',
-                      element: 'create_design_system_from_project',
-                      project_id: projectId,
-                      project_kind: projectKind,
-                    });
-                    setProjectMenuOpen(false);
-                    onCreateDesignSystemFromProject();
-                  }}
-                >
-                  <Icon name={createDesignSystemFromProjectBusy ? 'spinner' : 'blocks'} size={13} />
-                  <span>{t('designFiles.createDesignSystemFromProject')}</span>
-                </button>
-              ) : null}
-              {onDuplicateProject ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={duplicateProjectBusy}
-                  onClick={() => {
-                    trackFileManagerClick(analytics.track, {
-                      page_name: 'file_manager',
-                      area: 'file_manager',
-                      element: 'duplicate_project',
-                      project_id: projectId,
-                      project_kind: projectKind,
-                    });
-                    setProjectMenuOpen(false);
-                    onDuplicateProject();
-                  }}
-                >
-                  <Icon name={duplicateProjectBusy ? 'spinner' : 'copy'} size={13} />
-                  <span>{t('designFiles.duplicateProject')}</span>
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="df-project-menu-anchor" ref={projectMenuRef}>
+        <button
+          type="button"
+          ref={projectMenuTriggerRef}
+          className="df-project-menu-trigger"
+          aria-label={t('designFiles.projectMenu')}
+          aria-haspopup="menu"
+          aria-expanded={projectMenuOpen}
+          title={t('designFiles.projectMenu')}
+          onClick={() => setProjectMenuOpen((current) => !current)}
+        >
+          <Icon name="more-horizontal" size={14} />
+        </button>
+        {projectMenuOpen ? (
+          <div className="df-project-menu" role="menu">
+            <CodebaseBindingMenuItem
+              projectId={projectId}
+              workspaceContext={workspaceContext}
+              ownedBySelf={canManageCodebase}
+              onOpen={() => {
+                // The menu item unmounts on open. Give the shared dialog a
+                // persistent trigger to restore focus to when it closes.
+                projectMenuTriggerRef.current?.focus();
+                setProjectMenuOpen(false);
+                setCodebaseTarget({
+                  scopeKey: codebaseScopeKey,
+                  projectId,
+                  projectName: projectName ?? rootDirName ?? projectId,
+                  workspaceContext,
+                });
+              }}
+            />
+            {onCreateDesignSystemFromProject ? (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={createDesignSystemFromProjectBusy}
+                onClick={() => {
+                  trackFileManagerClick(analytics.track, {
+                    page_name: 'file_manager',
+                    area: 'file_manager',
+                    element: 'create_design_system_from_project',
+                    project_id: projectId,
+                    project_kind: projectKind,
+                  });
+                  setProjectMenuOpen(false);
+                  onCreateDesignSystemFromProject();
+                }}
+              >
+                <Icon name={createDesignSystemFromProjectBusy ? 'spinner' : 'blocks'} size={13} />
+                <span>{t('designFiles.createDesignSystemFromProject')}</span>
+              </button>
+            ) : null}
+            {onDuplicateProject ? (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={duplicateProjectBusy}
+                onClick={() => {
+                  trackFileManagerClick(analytics.track, {
+                    page_name: 'file_manager',
+                    area: 'file_manager',
+                    element: 'duplicate_project',
+                    project_id: projectId,
+                    project_kind: projectKind,
+                  });
+                  setProjectMenuOpen(false);
+                  onDuplicateProject();
+                }}
+              >
+                <Icon name={duplicateProjectBusy ? 'spinner' : 'copy'} size={13} />
+                <span>{t('designFiles.duplicateProject')}</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 
@@ -1955,6 +2001,14 @@ export function DesignFilesPanel({
             {t('designFiles.delete')}
           </button>
         </div>
+      ) : null}
+      {canManageCodebase && codebaseTarget?.scopeKey === codebaseScopeKey ? (
+        <CodebaseBindingDialog
+          projectId={codebaseTarget.projectId}
+          projectName={codebaseTarget.projectName}
+          workspaceContext={codebaseTarget.workspaceContext}
+          onClose={() => setCodebaseTarget(null)}
+        />
       ) : null}
     </div>
   );
