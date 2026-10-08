@@ -23,6 +23,11 @@ describe('API proxy routes', () => {
     };
     baseUrl = started.url;
     server = started.server;
+    const project = await realFetch(`${baseUrl}/api/projects`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'test-project', name: 'Proxy route fixture' }),
+    });
+    expect(project.status).toBe(200);
   });
 
   afterEach(() => {
@@ -288,12 +293,22 @@ describe('API proxy routes', () => {
   });
 
   it('reports malformed proxy env before sending the start event on Anthropic streams', async () => {
-    const originalHttpProxy = process.env.HTTP_PROXY;
-    const originalHttpsProxy = process.env.HTTPS_PROXY;
-    const originalAllProxy = process.env.ALL_PROXY;
+    // Fail closed even if the proxy precondition regresses: this test must
+    // never send its fixture key or message to an actual provider.
+    const upstreamAttempt = vi.fn();
+    vi.stubGlobal('fetch', async (input: FetchInput, init?: FetchInit) => {
+      if (String(input).startsWith(`${baseUrl}/`)) return realFetch(input, init);
+      upstreamAttempt(String(input));
+      throw new Error('Unexpected provider egress in malformed-proxy fixture');
+    });
+    const proxyKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+      'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'] as const;
+    const originalProxyEnv = Object.fromEntries(proxyKeys.map((key) => [key, process.env[key]]));
+    for (const key of proxyKeys) delete process.env[key];
+    const systemProxy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
     process.env.HTTP_PROXY = 'not a valid proxy url';
-    delete process.env.HTTPS_PROXY;
-    delete process.env.ALL_PROXY;
+    process.env.NO_PROXY = '127.0.0.1,localhost';
+    process.env.no_proxy = '127.0.0.1,localhost';
 
     try {
       const res = await realFetch(`${baseUrl}/api/proxy/anthropic/stream`, {
@@ -312,13 +327,14 @@ describe('API proxy routes', () => {
       expect(text).toContain('event: error');
       expect(text).toContain('INTERNAL_ERROR');
       expect(text).not.toContain('event: start');
+      expect(upstreamAttempt).not.toHaveBeenCalled();
     } finally {
-      if (originalHttpProxy === undefined) delete process.env.HTTP_PROXY;
-      else process.env.HTTP_PROXY = originalHttpProxy;
-      if (originalHttpsProxy === undefined) delete process.env.HTTPS_PROXY;
-      else process.env.HTTPS_PROXY = originalHttpsProxy;
-      if (originalAllProxy === undefined) delete process.env.ALL_PROXY;
-      else process.env.ALL_PROXY = originalAllProxy;
+      systemProxy.mockRestore();
+      for (const key of proxyKeys) {
+        const previous = originalProxyEnv[key];
+        if (previous === undefined) delete process.env[key];
+        else process.env[key] = previous;
+      }
     }
   });
 
@@ -1827,13 +1843,6 @@ describe('API proxy routes', () => {
   it('writes the generated image into the project folder and serves it via /api/projects/:id/files/*', async () => {
     const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x42, 0x59]);
     let capturedUrl: string | undefined;
-
-    const createResponse = await realFetch(`${baseUrl}/api/projects`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: 'test-project', name: 'Proxy route fixture' }),
-    });
-    expect(createResponse.status).toBe(200);
 
     const fetchMock = vi.fn(async (input: FetchInput, init?: FetchInit) => {
       const url = String(input);

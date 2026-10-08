@@ -7,6 +7,7 @@ import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
 import { runArtifactsCli } from './artifacts-cli.js';
 import { runResource } from './resource-cli.js';
 import { runProjectHandoff } from './handoff-cli.js';
+import { buildProjectSourceContextCliRequest } from './projects/source-context-cli.js';
 import { runConnectorsToolCli } from './tools-connectors-cli.js';
 import { runDesignSystemsToolCli } from './tools-design-systems-cli.js';
 import { DESIGN_SYSTEMS_USAGE, isDesignSystemsHelpArg } from './cli-help/index.js';
@@ -250,7 +251,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source', 'out', 'app', 'expected-revision',
+  'source', 'out', 'app', 'expected-revision', 'query',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -2400,6 +2401,9 @@ Tools exposed:
   get_active_context             what project/file the user has open right now
   get_artifact([project, entry]) bundle: entry file + every referenced sibling
   get_project([project])         single project metadata
+  get_project_source_context(projectId) bounded connected source evidence
+  resolve_project_context(sourceRoot[, appRelativePath, projectId, query])
+                                resolve an authorized source/package connection
   get_file([project, path])      file contents (textual mimes only for now)
   search_files(query[, project]) literal substring search across textual files
   list_files([project])          project files + artifactManifest sidecars
@@ -7009,6 +7013,12 @@ async function runProject(args) {
                     [--design-system <id>] [--json]
   od project list                         List projects.
   od project info <id>                    Print one project.
+  od project context <id> [--query "<text>"] [--json]
+                    Read bounded source context for an explicit stable project ID.
+  od project resolve-context --source <folder> [--app <relative-folder>]
+                    [--project <stable-id>] [--query "<text>"] [--json]
+                    Resolve the authorized source/package connection without
+                    falling back to the active project or writing local files.
   od project codebase status <id> [--json]
                     Show design storage and the saved codebase connection.
   od project codebase bind <id> --source <folder> [--app <relative-folder>]
@@ -7128,6 +7138,43 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'context':
+    case 'resolve-context': {
+      const positionals = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS);
+      if ((sub === 'context' && positionals.length !== 1)
+        || (sub === 'resolve-context' && positionals.length !== 0)) {
+        console.error('Usage: od project context <id> | resolve-context --source <folder> [--app <relative-folder>] [--project <stable-id>] [--query "<text>"] [--json]');
+        process.exit(2);
+      }
+      let request;
+      try {
+        request = buildProjectSourceContextCliRequest({
+          command: sub,
+          projectId: sub === 'context' ? positionals[0] : flags.project,
+          sourceRoot: flags.source,
+          appRelativePath: flags.app,
+          query: flags.query,
+        });
+      } catch (error) {
+        console.error(error.message);
+        process.exit(2);
+      }
+      const contextHeaders = explicitWorkspaceHeaders
+        ?? (await resolveMcpWorkspaceContext(base))?.headers ?? {};
+      const response = await fetch(`${base}${request.path}`, {
+        ...request.init,
+        headers: { 'content-type': 'application/json', ...contextHeaders },
+      });
+      if (!response.ok) return structuredHttpFailure(response);
+      const data = await response.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(`Status: ${data.status}`);
+      if (data.projectId) console.log(`Project: ${data.projectId}`);
+      if (data.bindingRevision != null) console.log(`Binding revision: ${data.bindingRevision}`);
+      if (data.message) console.log(data.message);
+      for (const item of data.evidence ?? []) console.log(`\n${item.path} (${item.kind})\n${item.content}`);
       return;
     }
     case 'codebase': {

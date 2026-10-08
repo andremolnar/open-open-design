@@ -73,6 +73,7 @@ async function startChatServer(options: {
     lifecycle: { isDaemonShuttingDown: () => false },
     telemetry: { reportFeedback },
     authorizeProjectRequest: options.authorizeProjectRequest,
+    sourceContext: { readPrompt: async () => '' },
   } as any);
 
   server = http.createServer(app);
@@ -101,7 +102,10 @@ describe('chat-owned project route authority', () => {
     path,
   }) => {
     const authorizeProjectRequest = vi.fn(
-      async (_req, res: express.Response) => {
+      async (_req, res: express.Response, _projectId, options: { mode: string }) => {
+        // Source context is readable, but the media loop must still enforce
+        // its existing creator/write gate before provider or tool work.
+        if (options.mode === 'read') return true;
         res.status(403).json({ error: 'WORKSPACE_PROJECT_PERMISSION_DENIED' });
         return false;
       },
@@ -129,12 +133,10 @@ describe('chat-owned project route authority', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: 'WORKSPACE_PROJECT_PERMISSION_DENIED',
     });
-    expect(authorizeProjectRequest).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'project-a',
-      { mode: 'write', capability: 'writeFiles' },
-    );
+    expect(authorizeProjectRequest).toHaveBeenNthCalledWith(1,
+      expect.anything(), expect.anything(), 'project-a', { mode: 'read' });
+    expect(authorizeProjectRequest).toHaveBeenNthCalledWith(2,
+      expect.anything(), expect.anything(), 'project-a', { mode: 'write', capability: 'writeFiles' });
   });
 
   it.each([

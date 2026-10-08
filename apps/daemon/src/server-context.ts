@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 import type { SkillInfo } from './skills.js';
 import type { DesignSystemSummary } from './design-systems/index.js';
 import type { RoutineRoutesService } from './routes/routine.js';
@@ -189,6 +189,10 @@ export interface ServerContext {
   uploads: any;
   node: any;
   projectStore: any;
+  sourceContext: {
+    listAuthorizedProjects: (req: Request) => Promise<Array<{ id: string; metadata?: { baseDir?: string } }>>;
+    readPrompt: (projectId: string, query?: string) => Promise<string | null>;
+  };
   authorizeProjectRequest: AuthorizeProjectRequest;
   authorizeProjectToolRequest: AuthorizeProjectToolRequest;
   isApiTokenAuthorization: (authorization: string | undefined) => boolean;

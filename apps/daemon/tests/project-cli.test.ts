@@ -52,6 +52,12 @@ async function startProjectStubServer(options: { codebaseConflict?: boolean } = 
       requests.push(captured);
 
       res.setHeader('content-type', 'application/json');
+      if (captured.url === '/api/projects/project-1/source-context?query=button+tokens'
+        || captured.url === '/api/projects/source-context/resolve') {
+        res.end(JSON.stringify({ status: 'ready', projectId: 'project-1', bindingRevision: 3, evidence: [] }));
+        return;
+      }
+
       if (captured.url === '/api/projects/project-1/codebase-binding') {
         if (captured.method === 'PUT' && options.codebaseConflict) {
           res.statusCode = 409;
@@ -247,6 +253,40 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe('od project CLI', () => {
+  it('prints source context as JSON with explicit workspace identity', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli([
+      'project', 'context', 'project-1', '--query', 'button tokens', '--json',
+      '--workspace', 'ws-1', '--workspace-member', 'member-1', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ status: 'ready', projectId: 'project-1', bindingRevision: 3, evidence: [] });
+    expect(stub.requests).toHaveLength(1);
+    expect(stub.requests[0]).toMatchObject({
+      method: 'GET', url: '/api/projects/project-1/source-context?query=button+tokens',
+      headers: { 'x-od-workspace-id': 'ws-1', 'x-od-workspace-member-id': 'member-1' },
+    });
+  });
+
+  it('passes explicit reverse lookup selectors as JSON without local reference writes', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli([
+      'project', 'resolve-context', '--source', '/source-repo', '--app', 'apps/web',
+      '--project', 'project-1', '--query', 'button tokens', '--json',
+      '--workspace', 'ws-1', '--workspace-member', 'member-1', '--daemon-url', stub.baseUrl,
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'ready', projectId: 'project-1' });
+    expect(stub.requests).toHaveLength(1);
+    expect(stub.requests[0]).toMatchObject({
+      method: 'POST', url: '/api/projects/source-context/resolve',
+      headers: { 'x-od-workspace-id': 'ws-1', 'x-od-workspace-member-id': 'member-1' },
+    });
+    expect(JSON.parse(stub.requests[0]!.body)).toEqual({
+      sourceRoot: pathResolve('/source-repo'), appRelativePath: 'apps/web', projectId: 'project-1', query: 'button tokens',
+    });
+  });
+
   it('reads codebase status through the project endpoint with workspace identity', async () => {
     stub = await startProjectStubServer();
     const result = await runCli([

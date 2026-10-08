@@ -94,6 +94,7 @@ const SECTION_INPUTS = {
     'runtimeToolPrompt',
   ],
   'client-system': ['clientSystemPrompt'],
+  'source-context': ['sourceContextPrompt'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type StableSectionName = keyof typeof SECTION_INPUTS;
