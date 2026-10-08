@@ -2096,6 +2096,96 @@ describe('WorkspaceTabsBar dock dropdown project actions', () => {
     }
   });
 
+  it('opens the real codebase dialog even when no other row actions are supplied, and Cancel restores focus', async () => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/codebase-binding')) {
+        return new Response(JSON.stringify({
+          projectId: project.id,
+          designStoragePath: '/design-storage/original',
+          binding: null,
+          status: 'unbound', reason: null, message: null,
+          capabilities: { canBind: true, requiresTrustedPicker: false },
+        }));
+      }
+      return previousFetch(input, init);
+    });
+    render(<WorkspaceTabsBar route={projectRoute} projects={[project]} />);
+    const menu = await openRowMenu();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'codebaseBinding.connectAction' }));
+    const dialog = await screen.findByRole('dialog', { name: 'codebaseBinding.connectTitle' });
+    expect(within(dialog).getByRole('region', { name: 'codebaseBinding.designStorage' }).textContent)
+      .toContain('/design-storage/original');
+    expect(within(dialog).getByRole('region', { name: 'codebaseBinding.connectedSource' })).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'codebaseBinding.cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByTestId('workspace-tabs-dropdown-trigger'));
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('opens the selected row’s codebase even when a different project is active', async () => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const match = String(input).match(/\/api\/projects\/([^/]+)\/codebase-binding$/);
+      if (match) {
+        return new Response(JSON.stringify({
+          projectId: match[1], designStoragePath: `/design-storage/${match[1]}`,
+          binding: null, status: 'unbound', reason: null, message: null,
+          capabilities: { canBind: true, requiresTrustedPicker: false },
+        }));
+      }
+      return previousFetch(input, init);
+    });
+    const view = render(<WorkspaceTabsBar route={projectRoute} projects={[project, projectBeta]} />);
+    act(() => openWorkspaceTab({ kind: 'project', projectId: projectBeta.id, conversationId: null, fileName: null }));
+    fireEvent.click(await screen.findByTestId('workspace-tabs-dropdown-trigger'));
+    const beta = within(screen.getByRole('listbox')).getByRole('option', { name: 'Project Beta' });
+    fireEvent.click(within(beta.parentElement!).getByRole('button', { name: 'designs.menuMore' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'codebaseBinding.connectAction' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByText(`/design-storage/${projectBeta.id}`);
+    view.rerender(<WorkspaceTabsBar route={projectRoute} projects={[project, projectBeta]} />);
+    expect(within(dialog).getByText('Project Beta')).toBeTruthy();
+    expect(within(dialog).queryByText(`/design-storage/${project.id}`)).toBeNull();
+  });
+
+  it('shows Manage codebase for a bound row and an actionable unavailable indicator', async () => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/codebase-binding')) {
+        return new Response(JSON.stringify({
+          projectId: project.id, designStoragePath: '/design-storage/original',
+          binding: { schemaVersion: 1, revision: 2, sourceRoot: '/source/moved', appRelativePath: '.', updatedAt: 1 },
+          status: 'unavailable', reason: 'missing_source', message: 'Source folder is missing.',
+          capabilities: { canBind: true, requiresTrustedPicker: false },
+        }));
+      }
+      return previousFetch(input, init);
+    });
+    render(<WorkspaceTabsBar route={projectRoute} projects={[project]} />);
+    await screen.findByRole('button', { name: 'codebaseBinding.unavailable' });
+    const menu = await openRowMenu();
+    const manage = await within(menu).findByRole('menuitem', { name: 'codebaseBinding.manageAction' });
+    fireEvent.click(manage);
+    await screen.findByRole('dialog', { name: 'codebaseBinding.manageTitle' });
+    expect(screen.getByRole('button', { name: 'codebaseBinding.reconnect' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'codebaseBinding.unavailable' }));
+    await screen.findByRole('dialog', { name: 'codebaseBinding.manageTitle' });
+  });
+
+  it('keeps codebase changes disabled for a foreign shared project', async () => {
+    const foreign = { ...project, workspaceId: teamContext.workspaceId, workspaceVisibility: 'team' as const };
+    render(<WorkspaceTabsBar route={projectRoute} projects={[foreign]} workspaceContext={teamContext} />);
+    const menu = await openRowMenu();
+    const item = within(menu).getByRole('menuitem', { name: 'codebaseBinding.connectAction' });
+    expect((item as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(item);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('offers rename, duplicate, move-to-team and delete on a team workspace row', async () => {
     render(
       <WorkspaceTabsBar
@@ -2110,6 +2200,7 @@ describe('WorkspaceTabsBar dock dropdown project actions', () => {
     const menu = await openRowMenu();
     const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
     expect(items).toEqual([
+      'codebaseBinding.connectAction',
       'designs.menuRename',
       'designs.menuDuplicate',
       'recentProjects.moveToTeam',

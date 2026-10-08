@@ -55,6 +55,7 @@ import {
   serializeRunEventsForStorage,
 } from './runtimes/run-event-payload-budget.js';
 import { migrateStrategyTaskStore } from './strategies/task-store.js';
+import { migrateCodebaseBindings } from './storage/codebase-binding.js';
 import { observeRead } from './services/daemon-health.js';
 
 type SqliteDb = Database.Database;
@@ -620,6 +621,7 @@ function migrate(db: SqliteDb): void {
   migratePlugins(db);
   migrateProjectScenarioBindings(db);
   migrateStrategyTaskStore(db);
+  migrateCodebaseBindings(db);
   migrateChatArtifacts(db);
   migrateCollabSyncSnapshots(db);
   migrateCommentRelayOutbox(db);

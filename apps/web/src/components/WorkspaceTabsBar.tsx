@@ -81,6 +81,10 @@ import { isMacPlatform } from '../utils/platform';
 import { useGlideIndicator } from '../hooks/useGlideIndicator';
 import { useLiquidGlass } from '../hooks/useLiquidGlass';
 import { WORKSPACE_CHROME_ACCOUNT_ACTIONS_ID } from './workspaceChromeActions';
+import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
+import { CodebaseBindingIndicator, CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
+import { useProjectCodebaseBinding } from '../hooks/useProjectCodebaseBinding';
+import codebaseStyles from './codebase-binding/CodebaseBindingDialog.module.css';
 
 type WorkspaceChromeTab =
   | {
@@ -1149,6 +1153,30 @@ export function WorkspaceTabsBar({
   // The ⋮ button the open menu is anchored to: a scroll only dismisses the
   // menu when it moves THIS element (see `scrollMovesAnchor`).
   const dockActionsTriggerRef = useRef<HTMLElement | null>(null);
+  // The row's stable identity and scope belong to the dialog for its entire
+  // lifetime. Navigation must never retarget an in-flight connection save.
+  const [codebaseTarget, setCodebaseTarget] = useState<{
+    project: Project;
+    scopeKey: typeof identityScopeKey;
+    workspaceContext: typeof workspaceContext;
+  } | null>(null);
+  const activeCodebaseProjectId = route.kind === 'project' && projectById.has(route.projectId)
+    ? route.projectId : null;
+  const activeCodebaseStatus = useProjectCodebaseBinding(activeCodebaseProjectId, workspaceContext);
+  const openCodebase = (project: Project) => {
+    setCodebaseTarget({ project, scopeKey: identityScopeKey, workspaceContext });
+    setDockActionsProjectId(null);
+    setDockMenuOpen(false);
+  };
+  const closeCodebase = () => {
+    setCodebaseTarget(null);
+    // The row menu has closed, so its removed trigger cannot receive focus.
+    document.querySelector<HTMLElement>('[data-testid="workspace-tabs-dropdown-trigger"]')?.focus();
+  };
+  useEffect(() => {
+    setCodebaseTarget(null);
+  }, [identityScopeKey]);
+
   // 重命名 edits in place, in the row (the rail row does the same).
   const [dockRenamingProjectId, setDockRenamingProjectId] = useState<string | null>(null);
   const [dockRenameDraft, setDockRenameDraft] = useState('');
@@ -2140,7 +2168,7 @@ export function WorkspaceTabsBar({
         ? moveFlow.error.kind
         : null;
     return (
-      <div className="workspace-tabs-dropdown" data-testid="workspace-tabs-dropdown">
+      <div className={`workspace-tabs-dropdown ${codebaseStyles.entry}`} data-testid="workspace-tabs-dropdown">
         <button
           type="button"
           className="workspace-tabs-dropdown__trigger"
@@ -2155,6 +2183,16 @@ export function WorkspaceTabsBar({
           <span className="workspace-tabs-dropdown__label">{activeDisplay.title}</span>
           <Icon name="chevron-down" size={14} />
         </button>
+        {activeCodebaseProjectId ? (
+          <CodebaseBindingIndicator
+            status={activeCodebaseStatus}
+            disabled={!dockRowOwnedBySelf(activeCodebaseProjectId)}
+            onOpen={() => {
+              const project = projectById.get(activeCodebaseProjectId);
+              if (project) openCodebase(project);
+            }}
+          />
+        ) : null}
         {dockMenuOpen ? (
           <>
             <div
@@ -2242,7 +2280,7 @@ export function WorkspaceTabsBar({
                       ) : null}
                     </button>
                     )}
-                    {rowProject && (onRenameProject || onDuplicateProject || onDeleteProject || moveToTeamAvailable) ? (
+                    {rowProject ? (
                       <button
                         type="button"
                         className={actionStyles.more}
@@ -2290,6 +2328,12 @@ export function WorkspaceTabsBar({
                 data-testid="workspace-tabs-dropdown-row-menu"
                 style={{ top: dockActionsAnchor.top, left: dockActionsAnchor.left }}
               >
+                <CodebaseBindingMenuItem
+                  projectId={dockActionsProject.id}
+                  workspaceContext={workspaceContext}
+                  ownedBySelf={dockActionsOwnedBySelf}
+                  onOpen={() => openCodebase(dockActionsProject)}
+                />
                 {onRenameProject ? (
                   <button
                     type="button"
@@ -2690,6 +2734,14 @@ export function WorkspaceTabsBar({
           onConfirm={() => void deleteFlow.commit()}
         />,
         document.body,
+      ) : null}
+      {codebaseTarget && codebaseTarget.scopeKey === identityScopeKey ? (
+        <CodebaseBindingDialog
+          projectId={codebaseTarget.project.id}
+          projectName={codebaseTarget.project.name}
+          workspaceContext={codebaseTarget.workspaceContext}
+          onClose={closeCodebase}
+        />
       ) : null}
       {moveTarget ? (
         <MoveToTeamConfirmDialog

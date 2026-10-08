@@ -5696,4 +5696,38 @@ export interface Dict {
   'labs.optOutSkip': string;
   'labs.optOutOtherPlaceholder': string;
   'labs.optOutSubmit': string;
+  // Project codebase connection
+  'codebaseBinding.connectAction': string;
+  'codebaseBinding.manageAction': string;
+  'codebaseBinding.connectTitle': string;
+  'codebaseBinding.manageTitle': string;
+  'codebaseBinding.description': string;
+  'codebaseBinding.designStorage': string;
+  'codebaseBinding.designStorageHint': string;
+  'codebaseBinding.connectedSource': string;
+  'codebaseBinding.chooseFolder': string;
+  'codebaseBinding.chooseAnotherFolder': string;
+  'codebaseBinding.noFolder': string;
+  'codebaseBinding.appFolder': string;
+  'codebaseBinding.appFolderHint': string;
+  'codebaseBinding.save': string;
+  'codebaseBinding.saving': string;
+  'codebaseBinding.cancel': string;
+  'codebaseBinding.loading': string;
+  'codebaseBinding.retry': string;
+  'codebaseBinding.reconnect': string;
+  'codebaseBinding.connected': string;
+  'codebaseBinding.unavailable': string;
+  'codebaseBinding.unbound': string;
+  'codebaseBinding.unsupported': string;
+  'codebaseBinding.pickerRequired': string;
+  'codebaseBinding.loadFailed': string;
+  'codebaseBinding.saveFailed': string;
+  'codebaseBinding.pickerFailed': string;
+  'codebaseBinding.invalidAppFolder': string;
+  'codebaseBinding.changedElsewhere': string;
+  'codebaseBinding.unavailableHint': string;
+  'codebaseBinding.permissionDenied': string;
+  'codebaseBinding.previewing': string;
+  'codebaseBinding.canonicalLocation': string;
 }

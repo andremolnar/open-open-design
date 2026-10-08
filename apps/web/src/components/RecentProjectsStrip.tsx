@@ -30,6 +30,8 @@ import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { RemixIcon } from './RemixIcon';
 import { InviteDialog } from './InviteDialog';
+import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
+import { CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
 import { ProjectDeleteConfirmDialog } from './project-actions/ProjectDeleteConfirmDialog';
 import { useProjectDeleteFlow } from './project-actions/useProjectDeleteFlow';
 import { useProjectDuplicateFlow } from './project-actions/useProjectDuplicateFlow';
@@ -79,7 +81,7 @@ import {
 // decision; re-exported so its existing importers keep resolving.
 export { deckPreviewSrcDoc } from '../lib/project-cover-pipeline';
 import { useInView } from './plugins-home/useInView';
-import { workspaceIdentityCacheKey } from '../collab/workspace-identity';
+import { workspaceAccountScopedCacheKey, workspaceIdentityCacheKey } from '../collab/workspace-identity';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackProjectCollectionClick,
@@ -407,6 +409,7 @@ export function RecentProjectsStrip({
   const workspaceContextLoadingRef = useRef(workspaceContextLoading);
   workspaceContextLoadingRef.current = workspaceContextLoading;
   const workspaceIdentity = workspaceIdentityCacheKey(workspaceContext);
+  const codebaseScopeKey = workspaceAccountScopedCacheKey(workspaceContext);
   const workspaceBilling = useWorkspaceBilling();
   const workspaceDimensions = workspaceAnalyticsDimensions(workspaceContext);
   function trackCollection(
@@ -548,6 +551,22 @@ export function RecentProjectsStrip({
     Record<string, ProjectCoverOverride | null>
   >({});
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  // The dialog outlives the menu and captures its row, rather than following
+  // a later sort, navigation, or workspace/account selection.
+  const [codebaseTarget, setCodebaseTarget] = useState<{
+    project: Project;
+    workspaceContext: typeof workspaceContext;
+    scopeKey: string;
+    trigger: HTMLButtonElement | null;
+  } | null>(null);
+  useEffect(() => {
+    setCodebaseTarget(null);
+    setMenuOpenId(null);
+  }, [codebaseScopeKey, workspaceContextLoading]);
+  const closeCodebase = () => {
+    setCodebaseTarget(null);
+    if (codebaseTarget?.trigger?.isConnected) codebaseTarget.trigger.focus();
+  };
   const [menuPlacement, setMenuPlacement] = useState<'down' | 'up'>('down');
   const [renameTarget, setRenameTarget] = useState<{ id: string; original: string } | null>(null);
   const [renameInput, setRenameInput] = useState('');
@@ -600,6 +619,12 @@ export function RecentProjectsStrip({
     const initial = (Array.from(name.trim())[0] ?? 'T').toUpperCase();
     return { name, initial, avatarUrl: null, ownedBySelf: false };
   };
+  const codebaseTargetAvailable = codebaseTarget !== null
+    && projects.some((project) => project.id === codebaseTarget.project.id)
+    && resolveCreator(codebaseTarget.project.id).ownedBySelf;
+  useEffect(() => {
+    if (!codebaseTargetAvailable) setCodebaseTarget(null);
+  }, [codebaseTargetAvailable]);
   const visibleProjects = useMemo(
     () => sortedProjects
       .map((project) => ({ project, creator: resolveCreator(project.id) }))
@@ -682,7 +707,8 @@ export function RecentProjectsStrip({
     setMoveTarget(null);
     void (action === 'to-team' ? handleShareToTeam(project) : handleUnshareFromTeam(project));
   }
-  const actionsAvailable = Boolean(onDelete || onDuplicate || onRename || collaborationAvailable);
+  const actionsAvailable = !workspaceContextLoading
+    || Boolean(onDelete || onDuplicate || onRename || collaborationAvailable);
 
   // Bulk-action state for the 多选 bar. Every action below is the batch form of
   // an action the per-card ⋯ menu already offers (move in/out of the team
@@ -1813,6 +1839,23 @@ export function RecentProjectsStrip({
                       role="menu"
                       onClick={(event) => event.stopPropagation()}
                     >
+                      {!workspaceContextLoading ? (
+                        <CodebaseBindingMenuItem
+                          projectId={project.id}
+                          workspaceContext={workspaceContext}
+                          ownedBySelf={creator.ownedBySelf}
+                          onOpen={() => {
+                            if (!creator.ownedBySelf) return;
+                            setCodebaseTarget({
+                              project,
+                              workspaceContext,
+                              scopeKey: codebaseScopeKey,
+                              trigger: menuContainerRef.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]') ?? null,
+                            });
+                            setMenuOpenId(null);
+                          }}
+                        />
+                      ) : null}
                       {onRename ? (
                         <button
                           type="button"
@@ -1917,6 +1960,14 @@ export function RecentProjectsStrip({
           );
         })}
       </div>
+      {codebaseTarget && codebaseTargetAvailable && codebaseTarget.scopeKey === codebaseScopeKey && !workspaceContextLoading ? (
+        <CodebaseBindingDialog
+          projectId={codebaseTarget.project.id}
+          projectName={codebaseTarget.project.name}
+          workspaceContext={codebaseTarget.workspaceContext}
+          onClose={closeCodebase}
+        />
+      ) : null}
       {renameTarget ? (
         <Dialog
           as="form"

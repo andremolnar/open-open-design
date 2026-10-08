@@ -250,7 +250,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source', 'out',
+  'source', 'out', 'app', 'expected-revision',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -7009,6 +7009,11 @@ async function runProject(args) {
                     [--design-system <id>] [--json]
   od project list                         List projects.
   od project info <id>                    Print one project.
+  od project codebase status <id> [--json]
+                    Show design storage and the saved codebase connection.
+  od project codebase bind <id> --source <folder> [--app <relative-folder>]
+                    [--expected-revision <number|null>] [--json]
+                    Save or reconnect a codebase without editing or running it.
   od project restore-automatic-scenario <id> [--json]
                                           Restore the daemon-selected default
                                           scenario with a snapshot CAS guard.
@@ -7123,6 +7128,62 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'codebase': {
+      const [action, id, ...extra] = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS);
+      if (!id || extra.length || (action !== 'status' && action !== 'bind')) {
+        console.error('Usage: od project codebase status <id> | bind <id> --source <folder> [--app <relative-folder>] [--expected-revision <number|null>] [--json]');
+        process.exit(2);
+      }
+      const source = typeof flags.source === 'string' ? flags.source.trim() : '';
+      if (action === 'bind' && !source) {
+        console.error('od project codebase bind requires --source <folder>');
+        process.exit(2);
+      }
+      let expectedRevision: number | null | undefined;
+      if (flags['expected-revision'] !== undefined) {
+        const revision = String(flags['expected-revision']);
+        if (revision === 'null') expectedRevision = null;
+        else if (/^[1-9][0-9]*$/.test(revision) && Number.isSafeInteger(Number(revision))) {
+          expectedRevision = Number(revision);
+        } else {
+          console.error('--expected-revision must be a positive integer or null');
+          process.exit(2);
+        }
+      }
+      const endpoint = `${base}/api/projects/${encodeURIComponent(id)}/codebase-binding`;
+      let data;
+      if (action === 'status' || expectedRevision === undefined) {
+        const response = await fetch(endpoint, { headers: workspaceHeaders });
+        if (!response.ok) return structuredHttpFailure(response);
+        data = await response.json();
+        expectedRevision = data.binding?.revision ?? null;
+      }
+      if (action === 'bind') {
+        // The same canonical selection and desktop trust flow as folder import;
+        // only the binding endpoint is called, never the workspace-import route.
+        const sourceRoot = await resolveFolderPathForCli(source);
+        const headers = { 'content-type': 'application/json', ...workspaceHeaders };
+        const importToken = await mintCliImportToken(sourceRoot);
+        if (importToken != null) headers['x-od-desktop-import-token'] = importToken;
+        const response = await fetch(endpoint, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            sourceRoot,
+            appRelativePath: flags.app ?? '.',
+            expectedRevision,
+          }),
+        });
+        if (!response.ok) return structuredHttpFailure(response);
+        data = await response.json();
+      }
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(`Design storage: ${data.designStoragePath}`);
+      console.log(`Connected source: ${data.binding?.sourceRoot ?? '(none)'}`);
+      if (data.binding) console.log(`App/package folder: ${data.binding.appRelativePath}`);
+      console.log(`Status: ${data.status}${data.message ? ` — ${data.message}` : ''}`);
       return;
     }
     case 'restore-automatic-scenario': {
