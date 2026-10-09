@@ -47,9 +47,9 @@ export const MCP_BOOTSTRAP_CONTRACT = Object.freeze({
   /** Appended to OD_MCP_BOOTSTRAP_ARGS by a managed outer. */
   MANAGED_ARG: "--od-mcp-managed",
   /**
-   * JSON `{ daemon: string[]; desktop: string[] }` of absolute sidecar client
-   * endpoints for every mode of the registering namespace. They are resolved by
-   * the daemon because the MCP process may not share its TMPDIR.
+   * JSON `{ stamp: SidecarStamp }` in current registrations: the MCP process
+   * resolves runtime/headless endpoints with its current temporary directory.
+   * Older registrations may contain absolute daemon/desktop endpoint lists.
    */
   DISCOVERY_ENV: "OD_MCP_DISCOVERY",
 } as const);

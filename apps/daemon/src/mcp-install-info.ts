@@ -52,6 +52,21 @@ export interface McpInstallPayload {
   buildHint: string | null;
 }
 
+/** Use the packaged namespace bridge only while both of its targets exist. */
+export function selectMcpLaunchPaths(
+  cliPath: string,
+  execPath: string,
+  env: NodeJS.ProcessEnv,
+  exists: (path: string) => boolean,
+): { cliPath: string; execPath: string } {
+  const stableCli = env.OD_MCP_STABLE_CLI;
+  const stableCommand = env.OD_MCP_STABLE_COMMAND;
+  if (stableCli && stableCommand && exists(stableCli) && exists(stableCommand)) {
+    return { cliPath: stableCli, execPath: stableCommand };
+  }
+  return { cliPath, execPath };
+}
+
 export function buildMcpInstallPayload(
   inputs: BuildMcpInstallPayloadInputs,
 ): McpInstallPayload {

@@ -105,6 +105,9 @@ The Express daemon is the product authority for `/api/*`. It owns:
 - plugin, MCP, media, automation, memory, library, and design-system services;
 - static production serving and loopback/security policy.
 
+For an inventory of the daemon's startup, recurring, conditional, and
+per-session background work, see [`daemon-background-work.md`](daemon-background-work.md).
+
 `apps/daemon/src/server.ts` still composes the application, while route modules
 under `apps/daemon/src/routes/` own increasingly focused HTTP boundaries.
 Shared request/response shapes live in `packages/contracts`.

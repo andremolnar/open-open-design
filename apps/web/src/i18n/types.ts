@@ -1009,6 +1009,7 @@ export interface Dict {
   'settings.mcpInstructionCli': string;
   'settings.mcpMethodToml': string;
   'settings.mcpInstructionCodex': string;
+  'settings.mcpInstructionOpenCode': string;
   'settings.mcpMethodOneClick': string;
   'settings.mcpInstructionCursor': string;
   'settings.mcpDeeplinkInstallCursor': string;

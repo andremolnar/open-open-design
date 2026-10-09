@@ -1,10 +1,10 @@
 import type { Express } from 'express';
 import fs from 'node:fs';
 import { SIDECAR_ENV } from '@open-design/sidecar-proto';
-import { buildMcpInstallPayload, type McpInstallPayload } from './mcp-install-info.js';
+import { buildMcpInstallPayload, selectMcpLaunchPaths, type McpInstallPayload } from './mcp-install-info.js';
 import { installCodexMcp, probeCodexInstall, refreshOwnedCodexMcp, uninstallCodexMcp } from './codex-cli.js';
 import { isManagedMcpBootstrapEnv } from './mcp-bootstrap.js';
-import { isCodexRegistrationOwnedBy, managedMcpRegistrationEnv } from './mcp-managed-registration.js';
+import { isCodexRegistrationOwnedBy, managedMcpRegistrationEnv, mergeManagedMcpRegistrationEnvironment } from './mcp-managed-registration.js';
 import { MCP_TEMPLATES, buildAcpMcpServers, buildClaudeMcpJson, isManagedProjectCwd, readMcpConfig, writeMcpConfig } from './mcp-config.js';
 import { beginAuth, exchangeCodeForToken, refreshAccessToken } from './mcp-oauth.js';
 import { clearToken, getToken, isTokenExpired, readAllTokens, setToken } from './mcp-tokens.js';
@@ -45,10 +45,13 @@ export function registerMcpRoutes(app: Express, ctx: RegisterMcpRoutesDeps) {
   // the factoring — divergence here would mean Codex behaves
   // differently depending on which install path the user took.
   function computeInstallPayload(): McpInstallPayload {
-    const cliPath = OD_BIN;
+    // Packaged launchers publish a namespace-stable bridge to the selected
+    // bundle. A payload's own OD_BIN/process.execPath may be versioned and
+    // disappear after the next update.
+    const { cliPath, execPath } = selectMcpLaunchPaths(OD_BIN, process.execPath, process.env, fs.existsSync);
     // Forward only the opaque inherited client capability. IPC endpoint
     // naming and transport stay private to @open-design/sidecar.
-    const sidecarEnv = inheritedEnvironment();
+    let sidecarEnv = inheritedEnvironment();
     const isSidecarMode = Object.keys(sidecarEnv).length > 0;
     const mcpBootstrapCommand = process.env.OD_MCP_BOOTSTRAP_COMMAND;
     if (
@@ -61,7 +64,7 @@ export function registerMcpRoutes(app: Express, ctx: RegisterMcpRoutesDeps) {
     if (mcpBootstrapArgs != null && mcpBootstrapArgs.length > 0) {
       sidecarEnv.OD_MCP_BOOTSTRAP_ARGS = mcpBootstrapArgs;
     }
-    Object.assign(sidecarEnv, managedMcpRegistrationEnv());
+    sidecarEnv = mergeManagedMcpRegistrationEnvironment(sidecarEnv, managedMcpRegistrationEnv());
     // tools-dev / packaged launchers export OD_WEB_PORT so the daemon
     // knows where the browser-facing OpenDesign studio is running.
     // CLI-only / headless launches set neither and webBaseUrl falls
@@ -81,8 +84,8 @@ export function registerMcpRoutes(app: Express, ctx: RegisterMcpRoutesDeps) {
       // separate bundled Node binary; the helper surfaces that env
       // requirement on the command so IDE-spawned MCP clients can
       // reproduce the same mode from a minimal OS launcher env.
-      execPath: process.execPath,
-      nodeExists: fs.existsSync(process.execPath),
+      execPath,
+      nodeExists: fs.existsSync(execPath),
       port: getResolvedPort(),
       platform: process.platform,
       dataDir: RUNTIME_DATA_DIR,

@@ -751,6 +751,7 @@ export const tr: Dict = {
   'settings.mcpInstructionCursor': 'Onay iletişim kutusuyla kurmak için "Cursor\'a Kur"a tıklayın veya bu JSON\'u {path} dosyasıyla birleştirin.',
   'settings.mcpDeeplinkInstallCursor': 'Cursor\'a Kur',
   'settings.mcpMethodJson': 'JSON yapılandırması',
+  'settings.mcpInstructionOpenCode': 'Bu JSON’u {path} dosyasına (genel OpenCode yapılandırması) diğer ayarları koruyarak birleştirin. OpenCode’u yeniden başlatın.',
   'settings.mcpInstructionKiro': "{path} dosyasını açın ve bu JSON'u birleştirin. Workspace düzeyi yapılandırma için .kiro/settings/mcp.json kullanın.",
   'settings.mcpInstructionCopilot': 'Komut Paletini ({shortcut}) açın, "MCP: Open User Configuration" komutunu çalıştırın ve bu JSON\'u birleştirin. Araçların görünmesi için Copilot Chat\'in Agent modunda olması gerekir.',
   'settings.mcpInstructionAntigravity': 'Antigravity\'de: Agent paneli "..." menüsü → MCP Servers → Manage MCP Servers → View raw config. Bu JSON\'u birleştirin.',

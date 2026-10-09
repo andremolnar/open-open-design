@@ -626,12 +626,18 @@ describe('buildPackagedDaemonSpawnEnv', () => {
       ],
       mcpBootstrapCommand:
         '/usr/bin/open',
+      stableMcpEntry: {
+        command: '/Application Support/Open Design/namespaces/release-stable/mcp/current/Contents/MacOS/Open Design',
+        cliPath: '/Application Support/Open Design/namespaces/release-stable/mcp/current/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs',
+      },
       requireDesktopAuth: false,
     });
 
     expect(env.OD_MCP_BOOTSTRAP_COMMAND).toBe(
       '/usr/bin/open',
     );
+    expect(env.OD_MCP_STABLE_COMMAND).toContain('/mcp/current/Contents/MacOS/Open Design');
+    expect(env.OD_MCP_STABLE_CLI).toContain('/mcp/current/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs');
     expect(JSON.parse(env.OD_MCP_BOOTSTRAP_ARGS ?? 'null')).toEqual([
       '-g',
       '-j',

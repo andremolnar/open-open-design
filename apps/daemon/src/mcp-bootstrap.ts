@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { isAbsolute } from "node:path";
 
-import { SidecarFactory } from "@open-design/sidecar";
+import { SidecarFactory, normalizeSidecarStamp, resolveSidecarClientEndpoint } from "@open-design/sidecar";
 import {
   APP_KEYS,
   MCP_BOOTSTRAP_CONTRACT,
@@ -96,7 +96,7 @@ type SidecarEndpointStatusReader = <T>(
   timeoutMs: number,
 ) => Promise<T | null>;
 
-/** Absolute client endpoints of every mode of the registering namespace. */
+/** Client endpoints of every mode, resolved when the MCP process starts. */
 export type ManagedMcpDiscovery = { daemon: string[]; desktop: string[] };
 
 /** True when the registration was written under a managed outer. */
@@ -105,14 +105,23 @@ export function isManagedMcpBootstrapEnv(env: NodeJS.ProcessEnv): boolean {
 }
 
 /**
- * The discovery endpoints of a managed registration, or null when the
- * registration is not managed or is malformed; either way the caller keeps
- * the unmanaged bootstrap path.
+ * The discovery endpoints of a managed registration, or null when it is
+ * unmanaged or malformed. A malformed managed registration is rejected by
+ * ensureMcpDaemonUrl instead of falling back to an unrelated daemon.
  */
 export function parseManagedMcpDiscovery(env: NodeJS.ProcessEnv): ManagedMcpDiscovery | null {
   if (!isManagedMcpBootstrapEnv(env)) return null;
   try {
     const parsed = JSON.parse(env[MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV] ?? "") as Partial<ManagedMcpDiscovery>;
+    if ("stamp" in parsed) {
+      const stamp = normalizeSidecarStamp(parsed.stamp);
+      if (stamp.app !== APP_KEYS.DAEMON || !["runtime", "headless"].includes(stamp.mode)) return null;
+      const endpoints = (app: string) => ["runtime", "headless"].map((mode) =>
+        resolveSidecarClientEndpoint({ ...stamp, app, mode }));
+      return { daemon: endpoints(APP_KEYS.DAEMON), desktop: endpoints(APP_KEYS.DESKTOP) };
+    }
+    // Older registrations store absolute IPC paths. Keep them working until
+    // refreshed; new installations never persist these temporary addresses.
     const isEndpointList = (value: unknown): value is string[] =>
       Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.length > 0);
     if (!isEndpointList(parsed.daemon) || !isEndpointList(parsed.desktop)) return null;
@@ -141,6 +150,9 @@ export async function ensureMcpDaemonUrl(
   // A managed registration finds the namespace's daemon in whichever mode owns
   // it, and never asks the OS to reopen an app that is already running.
   const managedDiscovery = explicitDaemonUrl ? null : parseManagedMcpDiscovery(env);
+  if (!explicitDaemonUrl && isManagedMcpBootstrapEnv(env) && managedDiscovery == null) {
+    throw new Error("The OpenDesign MCP registration has invalid discovery information. Open the app and refresh the MCP registration.");
+  }
   if (managedDiscovery != null) {
     return await ensureManagedMcpDaemonUrl(managedDiscovery, env, {
       probeDaemon,
@@ -208,12 +220,9 @@ async function ensureManagedMcpDaemonUrl(
     timeoutMs: number;
   },
 ): Promise<string> {
-  // The endpoints were resolved by the registering daemon. Never derive them
-  // here: this process may not share the daemon's TMPDIR.
-  const daemonEndpoints = [...new Set([
-    ...(env.OD_SIDECAR_CLIENT_ENDPOINT ? [env.OD_SIDECAR_CLIENT_ENDPOINT] : []),
-    ...discovery.daemon,
-  ])];
+  // New registrations resolve endpoints using this process's current temp root;
+  // legacy registrations carry absolute endpoints from their original daemon.
+  const daemonEndpoints = discovery.daemon;
   const findDaemon = async (timeoutMs: number): Promise<string | null> => {
     for (const endpoint of daemonEndpoints) {
       const status = await deps.statusAtEndpoint<DaemonStatusSnapshot>(endpoint, APP_KEYS.DAEMON, timeoutMs);

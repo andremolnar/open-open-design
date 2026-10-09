@@ -1,5 +1,6 @@
 import { MCP_BOOTSTRAP_CONTRACT } from "@open-design/sidecar-proto";
-import { describe, expect, it, vi } from "vitest";
+import { resolveSidecarClientEndpoint } from "@open-design/sidecar";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ensureMcpDaemonUrl,
@@ -173,6 +174,7 @@ describe("ensureMcpDaemonUrl", () => {
 });
 
 describe("managed MCP registrations", () => {
+  afterEach(() => vi.unstubAllEnvs());
   const managedEnv = (overrides: Record<string, string> = {}): NodeJS.ProcessEnv => ({
     OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
     OD_MCP_BOOTSTRAP_ARGS: JSON.stringify(["-g", "-j", "/Applications/Open Design.app", "--args", "--headless", MCP_BOOTSTRAP_CONTRACT.MANAGED_ARG]),
@@ -188,6 +190,49 @@ describe("managed MCP registrations", () => {
   function statusReader(statuses: Record<string, unknown>) {
     return vi.fn(async (endpoint: string) => (statuses[endpoint] ?? null) as never);
   }
+
+  it("resolves managed sockets in the MCP process rather than persisting the registering process's temp root", async () => {
+    const stamp = { app: "daemon", channel: "stable", mode: "runtime", namespace: "local-smoke", source: "packaged" };
+    const previousEndpoint = resolveSidecarClientEndpoint({ ...stamp, mode: "headless" });
+    vi.stubEnv("TMPDIR", "/new-user-temp-root");
+    const env = managedEnv({
+      [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp }),
+      OD_SIDECAR_CLIENT_ENDPOINT: "/old-temp/daemon.sock",
+    });
+    const daemonEndpoint = resolveSidecarClientEndpoint({ ...stamp, mode: "headless" });
+    expect(daemonEndpoint).not.toBe(previousEndpoint);
+    const statusAtEndpoint = statusReader({ [daemonEndpoint]: { state: "running", url: "http://127.0.0.1:50861" } });
+    await expect(ensureMcpDaemonUrl({ env, probeDaemon: async () => true, statusAtEndpoint, sleep: async () => undefined, timeoutMs: 10 })).resolves.toBe("http://127.0.0.1:50861");
+    expect(statusAtEndpoint).not.toHaveBeenCalledWith("/old-temp/daemon.sock", expect.anything(), expect.anything());
+  });
+
+  it("cold-starts the installed app and finds its headless daemon using newly resolved sockets", async () => {
+    const stamp = { app: "daemon", channel: "stable", mode: "runtime", namespace: "local-smoke", source: "packaged" };
+    const env = managedEnv({ [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp }), OD_SIDECAR_CLIENT_ENDPOINT: "/old-temp/daemon.sock" });
+    const daemonEndpoint = resolveSidecarClientEndpoint({ ...stamp, mode: "headless" });
+    let launched = false;
+    const statusAtEndpoint = vi.fn(async (endpoint: string) =>
+      launched && endpoint === daemonEndpoint ? { url: "http://127.0.0.1:51001" } as never : null);
+    const spawnBootstrap = vi.fn(async () => { launched = true; });
+    await expect(ensureMcpDaemonUrl({
+      env, statusAtEndpoint, probeDaemon: async () => true, spawnBootstrap,
+      sleep: async () => undefined, timeoutMs: 10,
+    })).resolves.toBe("http://127.0.0.1:51001");
+    expect(spawnBootstrap).toHaveBeenCalledTimes(1);
+    expect(statusAtEndpoint).not.toHaveBeenCalledWith("/old-temp/daemon.sock", expect.anything(), expect.anything());
+  });
+
+  it("refuses malformed or unrelated managed identity rather than falling back to an arbitrary daemon", async () => {
+    const stamp = { app: "daemon", channel: "stable", mode: "runtime", namespace: "local-smoke", source: "packaged" };
+    expect(parseManagedMcpDiscovery(managedEnv({ [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp: { ...stamp, app: "web" } }) }))).toBeNull();
+    expect(parseManagedMcpDiscovery(managedEnv({ [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp: { ...stamp, namespace: "../other" } }) }))).toBeNull();
+    const resolveDaemonUrl = vi.fn(async () => "http://127.0.0.1:7456");
+    await expect(ensureMcpDaemonUrl({
+      env: managedEnv({ [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp: { ...stamp, app: "web" } }) }),
+      resolveDaemonUrl,
+    })).rejects.toThrow(/invalid discovery/i);
+    expect(resolveDaemonUrl).not.toHaveBeenCalled();
+  });
 
   it("parses only well-formed managed registrations", () => {
     expect(parseManagedMcpDiscovery(managedEnv())).toEqual({

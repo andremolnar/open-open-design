@@ -751,6 +751,7 @@ export const th: Dict = {
   'settings.mcpInstructionCursor': 'คลิก "Install in Cursor" เพื่อติดตั้งพร้อมกล่องโต้ตอบขออนุมัติ หรือผสาน JSON นี้เข้ากับ {path}',
   'settings.mcpDeeplinkInstallCursor': 'ติดตั้งใน Cursor',
   'settings.mcpMethodJson': 'การตั้งค่า JSON',
+  'settings.mcpInstructionOpenCode': 'รวม JSON นี้เข้ากับ {path} (การตั้งค่าส่วนกลางของ OpenCode) โดยเก็บการตั้งค่าอื่นไว้ แล้วเริ่ม OpenCode ใหม่',
   'settings.mcpInstructionKiro': 'เปิด {path} แล้วรวม JSON นี้ สำหรับการตั้งค่าระดับ workspace ให้ใช้ .kiro/settings/mcp.json',
   'settings.mcpInstructionCopilot': 'เปิด Command Palette ({shortcut}) รัน "MCP: Open User Configuration" แล้วผสาน JSON นี้ Copilot Chat ต้องอยู่ในโหมด Agent เพื่อให้เครื่องมือแสดงขึ้นมา',
   'settings.mcpInstructionAntigravity': 'ใน Antigravity: เมนู "..." ของแผง Agent → MCP Servers → Manage MCP Servers → View raw config แล้วรวม JSON นี้',

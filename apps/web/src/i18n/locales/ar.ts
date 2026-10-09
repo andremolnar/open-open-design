@@ -751,6 +751,7 @@ export const ar: Dict = {
   'settings.mcpInstructionCursor': 'انقر على "Install in Cursor" للتثبيت عبر مربع حوار للموافقة، أو ادمج ملف JSON هذا في {path}.',
   'settings.mcpDeeplinkInstallCursor': 'التثبيت في Cursor',
   'settings.mcpMethodJson': 'إعداد JSON',
+  'settings.mcpInstructionOpenCode': 'ادمج هذا JSON في {path} (إعداد OpenCode العام) مع الاحتفاظ بإعداداتك الأخرى، ثم أعد تشغيل OpenCode.',
   'settings.mcpInstructionKiro': 'افتح {path} وادمج ملف JSON هذا. لإعداد على مستوى مساحة العمل، استخدم .kiro/settings/mcp.json.',
   'settings.mcpInstructionCopilot': 'افتح Command Palette ({shortcut})، وشغّل "MCP: Open User Configuration"، ثم ادمج ملف JSON هذا. يجب أن يكون Copilot Chat في وضع Agent حتى تظهر الأدوات.',
   'settings.mcpInstructionAntigravity': 'في Antigravity: قائمة "..." في لوحة الوكيل ← MCP Servers ← Manage MCP Servers ← View raw config. ادمج هذا الـ JSON.',

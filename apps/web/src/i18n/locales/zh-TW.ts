@@ -748,6 +748,7 @@ export const zhTW: Dict = {
     "點擊「在 Cursor 中安裝」以透過核准對話框安裝，或將此 JSON 合併至 {path}。",
   "settings.mcpDeeplinkInstallCursor": "在 Cursor 中安裝",
   "settings.mcpMethodJson": "JSON 設定檔",
+  "settings.mcpInstructionOpenCode": "將此 JSON 合併至 {path}（OpenCode 全域設定），保留其他設定，然後重新啟動 OpenCode。",
   "settings.mcpInstructionKiro":
     "開啟 {path} 並合併此 JSON。若要使用 workspace 層級設定，請使用 .kiro/settings/mcp.json。",
   "settings.mcpInstructionCopilot":
