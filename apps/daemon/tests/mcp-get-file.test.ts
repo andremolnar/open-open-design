@@ -14,7 +14,7 @@ interface Harness {
 
 interface TextContent {
   type: string;
-  text: string;
+  text?: string;
 }
 
 function makeDaemonApp(text: string, contentType = 'text/plain'): Express {
@@ -42,7 +42,10 @@ function startServer(app: Express): Promise<Harness> {
 const FIVE_HUNDRED_LINES = Array.from({ length: 500 }, (_, i) => `line ${i + 1}`).join('\n');
 
 function contentTexts(content: TextContent[]): string[] {
-  return content.map((c) => c.text);
+  return content.map((c) => {
+    if (typeof c.text !== 'string') throw new Error('expected MCP text content');
+    return c.text;
+  });
 }
 
 function lastText(parts: string[]): string {

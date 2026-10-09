@@ -5439,4 +5439,7 @@ export const ko: Dict = {
   'codebaseBinding.permissionDenied': "이 프로젝트를 연결할 권한이 없습니다.",
   'codebaseBinding.previewing': "폴더 확인 중…",
   'codebaseBinding.canonicalLocation': "선택한 위치",
+  'codebaseBinding.workHereTitle': "현재 코딩 에이전트에서 작업하기",
+  'codebaseBinding.workHereHint': "이 프롬프트를 OpenDesign MCP에 연결된 현재 코딩 에이전트 세션에 복사하세요. 에이전트가 자체 디자인 컨텍스트를 준비하고 기본 편집, 테스트 및 승인 도구를 사용합니다.",
+  'codebaseBinding.workHerePrompt': "코딩 에이전트용 프롬프트",
 };

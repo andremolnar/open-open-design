@@ -67,6 +67,12 @@ export function registerProjectCodebaseBindingRoutes(app: Express, ctx: Register
     }
   }
 
+  function scope(req: Request) {
+    const workspaceId = req.get('x-od-workspace-id');
+    const workspaceMemberId = req.get('x-od-workspace-member-id');
+    return workspaceId && workspaceMemberId ? { workspaceScope: { workspaceId, workspaceMemberId } } : {};
+  }
+
   app.get(route, async (req, res) => {
     try {
       const id = req.params.id as string;
@@ -77,11 +83,11 @@ export function registerProjectCodebaseBindingRoutes(app: Express, ctx: Register
         req, db, projectId: id, getWorkspaceProject, getWorkspaceProjectByProjectId,
         options: { mode: 'write', capability: 'writeFiles' },
       });
-      res.json(await codebaseBindingStatus(db, project, paths, {
+      res.json({ ...scope(req), ...await codebaseBindingStatus(db, project, paths, {
         canBind: writable && !project.metadata?.sharedProjectPlaceholderAt
           && (!auth.isDesktopAuthGateActive() || auth.desktopAuthSecret() !== null),
         requiresTrustedPicker: auth.isDesktopAuthGateActive(),
-      }));
+      }) });
     } catch (error) { failure(res, error); }
   });
 
@@ -120,9 +126,9 @@ export function registerProjectCodebaseBindingRoutes(app: Express, ctx: Register
       if (!authorization) return;
       saveCodebaseBinding(db, id, input.expectedRevision, selection);
       if (authorization !== true) auth.consumedImportNonces.set(authorization.nonce, authorization.exp);
-      res.json(await codebaseBindingStatus(db, project, paths, {
+      res.json({ ...scope(req), ...await codebaseBindingStatus(db, project, paths, {
         canBind: true, requiresTrustedPicker: auth.isDesktopAuthGateActive(),
-      }));
+      }) });
     } catch (error) { failure(res, error); }
   }
 

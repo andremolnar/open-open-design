@@ -383,7 +383,7 @@ import {
   readDesignSystemStaticFile,
   readUserDesignSystemFile,
   readUserDesignSystemFileBytes,
-  resolveDesignSystemAssets,
+  resolveDesignSystemAssetPackage,
   stripPrefixAndValidateId,
   syncUserDesignSystemAssetsFromFiles,
   updateUserDesignSystem,
@@ -919,6 +919,9 @@ import { registerProjectChatArtifactRoutes } from './routes/project/chat-artifac
 import { registerProjectCodebaseBindingRoutes } from './routes/project/codebase-binding.js';
 import { registerProjectSourceContextRoutes } from './routes/project/source-context.js';
 import { readProjectSourceContext } from './services/project-source-context.js';
+import { composeWorkHereGuidance } from './prompts/work-here.js';
+import { createDesignWorkflowService, readDesignWorkflowFile } from './services/design-workflow.js';
+import { registerDesignWorkflowRoutes } from './routes/project/design-workflow.js';
 import { appendProjectSourceContext, renderProjectSourceContext } from './prompts/source-context.js';
 import { createChatArtifactBlobStore } from './chat-artifacts/blob-store.js';
 import { resolveChatArtifactQuota } from './chat-artifacts/quota.js';
@@ -9874,6 +9877,7 @@ export async function startServer({
     odNextAutomaticAdmission = false,
     runtimeCapabilitySnapshot,
     sourceContextQuery,
+    workHere = false,
   }) => {
     const project =
       typeof projectId === 'string' && projectId
@@ -10280,6 +10284,7 @@ export async function startServer({
     let designSystemCraftExemptions = [];
     let activeDesignSystemId = null;
     let designSystemDigest = null;
+    const workHereResourceRoots = [];
     if (effectiveDesignSystemId) {
       const designSystemListOptions = designSystemWorkspaceId
         ? {
@@ -10328,11 +10333,27 @@ export async function startServer({
           designSystemWorkspaceId && resourceBinding?.visibility === 'team'
             ? teamResourceWorkspaceRoot(USER_DESIGN_SYSTEMS_DIR, designSystemWorkspaceId)
             : USER_DESIGN_SYSTEMS_DIR;
-        const assets = await resolveDesignSystemAssets(
+        const assetPackage = await resolveDesignSystemAssetPackage(
           effectiveDesignSystemId,
           DESIGN_SYSTEMS_DIR,
           scopedUserDesignSystemsRoot,
         );
+        const assets = assetPackage.assets;
+        if (workHere) {
+          const resourceRoots = [...assetPackage.resourceRoots];
+          // The editable DESIGN.md may already describe unsynced workspace
+          // assets. Capture that same managed mirror; Team packages never use it.
+          if (workspaceBody !== null && summary.teamSynced !== true && summary.projectId) {
+            const designProject = getProject(db, summary.projectId);
+            if (designProject) resourceRoots.unshift(resolveProjectDir(PROJECTS_DIR, designProject.id, designProject.metadata));
+          }
+          for (const [index, root] of [...new Set(resourceRoots)].entries()) {
+            workHereResourceRoots.push({ root,
+              prefix: `design-system/${index}`, role: 'design_system',
+              provenance: `design-system:${effectiveDesignSystemId}:${index}`,
+            });
+          }
+        }
         designSystemUsageMd = assets.usageMd;
         designSystemTokensCss = assets.tokensCss;
         designSystemComponentsManifest = assets.componentsManifest;
@@ -10373,6 +10394,43 @@ export async function startServer({
         craftBody = loaded.body;
         craftSections = loaded.sections;
       }
+    }
+
+    // Context preparation reuses the real scoped resolution above, then exits
+    // before provider discovery, runtime detection, staging or Run admission.
+    if (workHere) {
+      if (!project) throw new Error('Work here requires an exact existing project.');
+      if (effectiveSkillId && !skillBody) throw new Error('The selected skill is unavailable; reconnect or select it again.');
+      if (effectiveDesignSystemId && !activeDesignSystemId) throw new Error('The selected design system is unavailable; reconnect or select it again.');
+      const snapshot = project.appliedPluginSnapshotId
+        ? getSnapshot(db, project.appliedPluginSnapshotId) : null;
+      if (project.appliedPluginSnapshotId && !snapshot) throw new Error('The selected plugin snapshot is unavailable.');
+      let recipe = null;
+      if (snapshot?.strategy) {
+        const { resolveOdNextStrategyRequestRecipeV2 } = await import('./plugins/strategy-recipe.js');
+        const { loadBundledAtomBodiesStrict } = await import('./plugins/atom-bodies.js');
+        recipe = await resolveOdNextStrategyRequestRecipeV2({
+          bundledPluginsDir: BUNDLED_PLUGINS_DIR, snapshot,
+          executionProfile: 'filesystem', atomPromptsEnabled: true,
+          loadAtomBodies: (ids) => loadBundledAtomBodiesStrict(db, ids),
+        });
+      }
+      const guidance = composeWorkHereGuidance({
+        skillBody, skillName, designSystemBody, designSystemTitle,
+        designSystemUsageMd, designSystemTokensCss, designSystemComponentsManifest,
+        designSystemFixtureHtml, designSystemPullIndex, craftBody,
+        userInstructions, projectInstructions,
+        pluginBlock: snapshot ? pluginPromptBlock(snapshot) : undefined,
+      }, recipe);
+      return { ...guidance, resourceRoots: [
+        ...workHereResourceRoots,
+        ...activeSkillDirs.map((root, index) => ({
+          root, prefix: `skill/${index}`, role: 'skill_sidefile',
+          provenance: `skill:${effectiveCanonicalSkillId ?? skillName ?? index}`,
+        })),
+        { root: resolveProjectDir(PROJECTS_DIR, project.id, metadata),
+          prefix: 'project', role: 'project_asset', provenance: `project:${project.id}` },
+      ] };
     }
 
     const template =
@@ -10844,6 +10902,34 @@ export async function startServer({
       stableSectionInputs: { ...systemPromptInputs, sourceContextPrompt },
     };
   };
+
+  const designWorkflows = createDesignWorkflowService({
+    db,
+    readSourceContext: async (projectId) => {
+      const project = getProject(db, projectId);
+      if (!project) throw new Error('Project not found.');
+      return readProjectSourceContext(db, project, {
+        projectsRoot: PROJECTS_DIR, runtimeDataRoot: RUNTIME_DATA_DIR_CANONICAL,
+      });
+    },
+    prepareGuidance: async (projectId, prompt) => {
+      const project = getProject(db, projectId);
+      return composeDaemonSystemPrompt({ projectId, workHere: true,
+        appliedPluginSnapshotId: project?.appliedPluginSnapshotId,
+        sourceContextQuery: prompt.slice(0, 2_000) });
+    },
+    readManagedArtifact: async (projectId, name) => {
+      const project = getProject(db, projectId);
+      if (!project) throw new Error('Project not found.');
+      const bytes = await readDesignWorkflowFile(
+        resolveProjectDir(PROJECTS_DIR, projectId, project.metadata), name,
+      );
+      return { bytes, mimeType: mimeFor(name) };
+    },
+  });
+  registerDesignWorkflowRoutes(app, {
+    authorizeProjectRequest, sendApiError, service: designWorkflows,
+  });
 
   const prepareOdNextInitialPromptBundle = createOdNextInitialPromptBundleService({
     db,

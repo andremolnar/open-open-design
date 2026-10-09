@@ -31,6 +31,8 @@ export type ProjectCodebaseBindingReason =
 
 export interface ProjectCodebaseBindingResponse {
   projectId: string;
+  /** Exact authorized request scope for an external host handoff; never UI focus. */
+  workspaceScope?: { workspaceId: string; workspaceMemberId: string };
   designStoragePath: string;
   binding: ProjectCodebaseBinding | null;
   status: ProjectCodebaseBindingStatus;

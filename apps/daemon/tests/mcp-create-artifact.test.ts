@@ -18,9 +18,9 @@ function withDirectory(
   };
 }
 
-function firstText(result: { content: Array<{ text: string }> }): string {
+function firstText(result: { content: Array<{ text?: string }> }): string {
   const item = result.content[0];
-  if (!item) throw new Error('expected MCP text content');
+  if (typeof item?.text !== 'string') throw new Error('expected MCP text content');
   return item.text;
 }
 

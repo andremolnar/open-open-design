@@ -48,3 +48,11 @@ Omit `--app` for a source-root binding. `--query` is optional relevance text, li
 - Source evidence is included in the configured model's generation input, as other design references are. Choose sources appropriate for that provider.
 - Daemon-managed storage follows the root [Daemon data directory contract](../AGENTS.md#daemon-data-directory-contract). This feature introduces no second runtime data root.
 - This is read-only source context. Native implementation, source asset promotion, target scripts and dependency installation are outside this feature.
+
+
+## Implement in the current coding session
+
+For host-owned native implementation with OpenDesign guidance and real asset bytes,
+see [Work here](work-here.md). This is a separate explicit workflow: the current
+coding session owns edits, tests and approvals; the read-only source binding
+continues to grant no source-write or execution authority.

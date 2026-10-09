@@ -20,9 +20,9 @@ function withDirectory(
   };
 }
 
-function firstText(result: { content: Array<{ text: string }> }): string {
+function firstText(result: { content: Array<{ text?: string }> }): string {
   const item = result.content[0];
-  if (!item) throw new Error('expected MCP text content');
+  if (typeof item?.text !== 'string') throw new Error('expected MCP text content');
   return item.text;
 }
 
@@ -326,7 +326,7 @@ describe('public MCP delete_project', () => {
       confirm: true,
     });
     expect(result).not.toMatchObject({ isError: true });
-    const body = JSON.parse(firstText(result as { content: Array<{ text: string }> }));
+    const body = JSON.parse(firstText(result as { content: Array<{ text?: string }> }));
     expect(body).toMatchObject({
       ok: true,
       resolvedProject: { id: 'p1', name: 'Throwaway demo' },
@@ -358,7 +358,7 @@ describe('formatDaemonError (shared error mapper)', () => {
       path: 'gone.html',
     });
     expect(result).toMatchObject({ isError: true });
-    const text = firstText(result as { content: Array<{ text: string }> });
+    const text = firstText(result as { content: Array<{ text?: string }> });
     // The mapper should fold the structured error into "code: message"
     // and prefix the daemon status, so agents can branch on either.
     expect(text).toContain('FILE_NOT_FOUND');
@@ -380,7 +380,7 @@ describe('formatDaemonError (shared error mapper)', () => {
       path: 'gone.html',
     });
     expect(result).toMatchObject({ isError: true });
-    const text = firstText(result as { content: Array<{ text: string }> });
+    const text = firstText(result as { content: Array<{ text?: string }> });
     // JSON.parse throws on the non-JSON body and the catch fallthrough
     // must preserve the raw text so the agent still sees the upstream
     // signal.
@@ -411,7 +411,7 @@ describe('formatDaemonError (shared error mapper)', () => {
       confirm: true,
     });
     expect(result).toMatchObject({ isError: true });
-    const text = firstText(result as { content: Array<{ text: string }> });
+    const text = firstText(result as { content: Array<{ text?: string }> });
     expect(text).toContain('PROJECT_LOCKED');
     expect(text).toContain('in use');
     expect(text).toContain('409');

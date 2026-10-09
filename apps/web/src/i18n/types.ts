@@ -5731,4 +5731,7 @@ export interface Dict {
   'codebaseBinding.permissionDenied': string;
   'codebaseBinding.previewing': string;
   'codebaseBinding.canonicalLocation': string;
+  'codebaseBinding.workHereTitle': string;
+  'codebaseBinding.workHereHint': string;
+  'codebaseBinding.workHerePrompt': string;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
-  Button, Dialog, DialogDescription, DialogFooter, DialogTitle, Input,
+  Button, Dialog, DialogDescription, DialogFooter, DialogTitle, Input, Textarea,
 } from '@open-design/components';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type {
@@ -19,6 +19,7 @@ import {
   validateProjectCodebaseBinding,
 } from '../../providers/codebase-binding';
 import styles from './CodebaseBindingDialog.module.css';
+import { buildWorkHerePrompt } from './work-here-prompt';
 
 interface Props {
   projectId: string;
@@ -316,6 +317,23 @@ function CodebaseBindingDialogBody({ projectId, projectName, workspaceContext, o
               ) : null}
               {validationError ? <p role="alert" className={styles.error}>{validationError}</p> : null}
             </section>
+            {snapshot.status === 'connected' && snapshot.binding && snapshot.projectId === projectId
+              && !picked && !conflict && !loading && !loadError ? (
+              <section aria-labelledby={`${titleId}-work-here`} className={styles.section}>
+                <h3 id={`${titleId}-work-here`}>{t('codebaseBinding.workHereTitle')}</h3>
+                <p id={`${titleId}-work-here-hint`} className={styles.hint}>{t('codebaseBinding.workHereHint')}</p>
+                <Textarea
+                  className={styles.workHerePrompt}
+                  aria-label={t('codebaseBinding.workHerePrompt')}
+                  aria-describedby={`${titleId}-work-here-hint`}
+                  readOnly
+                  rows={8}
+                  dir="ltr"
+                  value={buildWorkHerePrompt(projectId, snapshot.binding, snapshot.workspaceScope)}
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              </section>
+            ) : null}
           </>
         ) : null}
         {conflict ? <p role="alert" className={styles.error}>{t('codebaseBinding.changedElsewhere')}</p> : null}

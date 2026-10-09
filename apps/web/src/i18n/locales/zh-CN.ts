@@ -5884,4 +5884,7 @@ export const zhCN: Dict = {
   'codebaseBinding.permissionDenied': "你没有权限连接此项目。",
   'codebaseBinding.previewing': "正在检查文件夹…",
   'codebaseBinding.canonicalLocation': "所选位置",
+  'codebaseBinding.workHereTitle': "在当前编程智能体中开展设计工作",
+  'codebaseBinding.workHereHint': "将此提示复制到已连接 OpenDesign MCP 的当前编程智能体会话中。智能体将准备自己的设计上下文，并使用其原生编辑、测试和审批工具。",
+  'codebaseBinding.workHerePrompt': "给编程智能体的提示",
 };

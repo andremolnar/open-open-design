@@ -11,9 +11,9 @@ function emptyDirectory(): Response {
   return new Response(JSON.stringify({ items: [], activeWorkspaceId: null }), { status: 200 });
 }
 
-function firstJson<T>(result: { content: Array<{ text: string }> }): T {
+function firstJson<T>(result: { content: Array<{ text?: string }> }): T {
   const item = result.content[0];
-  if (!item) throw new Error('expected MCP text content');
+  if (typeof item?.text !== 'string') throw new Error('expected MCP text content');
   return JSON.parse(item.text) as T;
 }
 

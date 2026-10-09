@@ -22,7 +22,7 @@ interface Harness {
 
 interface TextContent {
   type: string;
-  text: string;
+  text?: string;
 }
 
 interface ArtifactBody {
@@ -33,7 +33,7 @@ interface ArtifactBody {
 
 function firstText(content: TextContent[]): string {
   const item = content[0];
-  if (item == null) throw new Error('expected MCP text content');
+  if (typeof item?.text !== 'string') throw new Error('expected MCP text content');
   return item.text;
 }
 

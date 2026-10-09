@@ -5891,4 +5891,7 @@ export const zhTW: Dict = {
   'codebaseBinding.permissionDenied': "你沒有權限連接此專案。",
   'codebaseBinding.previewing': "正在檢查資料夾…",
   'codebaseBinding.canonicalLocation': "所選位置",
+  'codebaseBinding.workHereTitle': "在目前的程式設計代理中進行設計工作",
+  'codebaseBinding.workHereHint': "將此提示複製到已連接 OpenDesign MCP 的目前程式設計代理工作階段中。代理將準備自己的設計脈絡，並使用其原生編輯、測試和核准工具。",
+  'codebaseBinding.workHerePrompt': "給程式設計代理的提示",
 };
