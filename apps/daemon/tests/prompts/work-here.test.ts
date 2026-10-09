@@ -17,5 +17,9 @@ describe('work-here guidance boundary', () => {
     expect(result.adaptations.map((adaptation) => adaptation.original).join('\n')).toContain('Standalone HTML');
     expect(result.adaptations.map((adaptation) => adaptation.host).join('\n')).toContain('repository native stack');
     expect(result.critique.join('\n')).toContain('not_run');
+    expect(result.preflight.join('\n')).toContain('never claim pixel inspection that did not occur');
+    expect(result.adaptations.map((entry) => entry.host).join('\n')).toContain('never claim generation that did not occur');
+    expect(result.critique.join('\n')).toContain('label source-only assessment accurately');
+    expect(result.critique.join('\n')).toContain('Keep operational diagnostics in tool output');
   });
 });
