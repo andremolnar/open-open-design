@@ -78,6 +78,10 @@ describe('CodebaseBindingDialog', () => {
     expect(prompt.value).not.toContain('"workspaceMemberId":');
     expect(prompt.value).toContain('your own stable hostSessionId');
     expect(prompt.value).toContain('prepare_design_context');
+    expect(prompt.value).toContain('discover_project_context');
+    expect(prompt.value.indexOf('discover_project_context')).toBeLessThan(prompt.value.indexOf('prepare_design_context'));
+    expect(prompt.value).toContain('actual working directory from this host session');
+    expect(prompt.value).toContain('matching the saved sourceRoot, appRelativePath and binding revision');
     expect(prompt.value).toContain('get_design_asset');
     expect(prompt.value).toContain('checkpoint_design_workflow');
     expect(prompt.value).toContain('native tools for source edits, tests, permissions');

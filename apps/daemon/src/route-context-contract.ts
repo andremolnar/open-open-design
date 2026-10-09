@@ -1,3 +1,4 @@
+import type { RegisterProjectContextDiscoveryRoutesDeps } from './routes/project/context-discovery.js';
 import type { ServerContext } from './server-context.js';
 import type { RegisterActiveContextRoutesDeps } from './routes/active-context.js';
 import type { RegisterAutomationRoutesDeps } from './routes/automation.js';
@@ -42,6 +43,7 @@ type AllRegisteredRouteDeps =
   & RegisterProjectArtifactRoutesDeps
   & RegisterProjectChatArtifactRoutesDeps
   & RegisterProjectCodebaseBindingRoutesDeps
+  & RegisterProjectContextDiscoveryRoutesDeps
   & RegisterProjectSourceContextRoutesDeps
   & RegisterProjectExportRoutesDeps
   & RegisterProjectFileRoutesDeps

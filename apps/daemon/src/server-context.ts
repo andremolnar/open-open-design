@@ -1,3 +1,4 @@
+import type { ProjectContextDiscoveryAuthority } from './services/project-context-discovery-authority.js';
 import type { Express, Request } from 'express';
 import type { SkillInfo } from './skills.js';
 import type { DesignSystemSummary } from './design-systems/index.js';
@@ -189,6 +190,7 @@ export interface ServerContext {
   uploads: any;
   node: any;
   projectStore: any;
+  contextDiscovery: ProjectContextDiscoveryAuthority;
   sourceContext: {
     listAuthorizedProjects: (req: Request) => Promise<Array<{ id: string; metadata?: { baseDir?: string } }>>;
     readPrompt: (projectId: string, query?: string) => Promise<string | null>;

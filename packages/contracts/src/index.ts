@@ -48,6 +48,7 @@ export * from './api/providerModels.js';
 export * from './api/projects.js';
 export * from './api/codebase-binding.js';
 export * from './api/project-source-context.js';
+export * from './api/project-context-discovery.js';
 export * from './api/question-form-markup.js';
 export * from './api/proxy.js';
 export * from './api/routines.js';
