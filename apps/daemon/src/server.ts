@@ -918,6 +918,8 @@ import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFi
 import { registerProjectChatArtifactRoutes } from './routes/project/chat-artifacts.js';
 import { registerProjectCodebaseBindingRoutes } from './routes/project/codebase-binding.js';
 import { registerProjectSourceContextRoutes } from './routes/project/source-context.js';
+import { registerProjectContextDiscoveryRoutes } from './routes/project/context-discovery.js';
+import { createProjectContextDiscoveryAuthority } from './services/project-context-discovery-authority.js';
 import { readProjectSourceContext } from './services/project-source-context.js';
 import { composeWorkHereGuidance } from './prompts/work-here.js';
 import { createDesignWorkflowService, readDesignWorkflowFile } from './services/design-workflow.js';
@@ -8990,6 +8992,24 @@ export async function startServer({
     projectStore: projectStoreDeps,
     auth: authDeps,
     authorizeProjectRequest,
+  });
+
+  const contextDiscovery = createProjectContextDiscoveryAuthority({
+    db,
+    getProject,
+    getWorkspaceProject,
+    getWorkspaceProjectByProjectId,
+    isProjectRevoked: (projectId) => revokedTeamProjectMirrors.has(projectId),
+    ...(process.env.OD_WORKSPACE_CONTEXT_SOURCE?.trim() === 'vela'
+      ? { fetchWorkspaceDirectory: fetchFreshMutationWorkspaceDirectory,
+          authorityIdentity: () => velaWorkspaceDirectoryIdentity(readVelaControlApiContext, configuredAmrEnv()) }
+      : {}),
+  });
+  registerProjectContextDiscoveryRoutes(app, {
+    db,
+    http: httpDeps,
+    paths: pathDeps,
+    contextDiscovery,
   });
 
   registerProjectSourceContextRoutes(app, {
@@ -18100,6 +18120,7 @@ export async function startServer({
   routineService.start();
 
   assertServerContextSatisfiesRoutes({
+    contextDiscovery,
     sourceContext,
     db,
     design,

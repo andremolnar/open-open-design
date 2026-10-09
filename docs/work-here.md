@@ -6,17 +6,57 @@ bytes and a durable workflow record through the existing MCP connection. Your
 current agent owns its plan, edits, tests, permissions and progress. No second
 coding Run is started. Existing `start_run` delegated generation remains available.
 
-## Start from an exact connection
+## Start from the current host directory
 
-Connect the repository and specific app/package to an OpenDesign project first.
-The **Connected source** dialog now contains a selectable Work here starter
-prompt with that exact project ID, canonical source root, package and binding
-revision. Paste it into the coding session already open in that package. The web
-dialog does not prepare a synthetic session on the agent's behalf.
+You do not need to copy IDs from OpenDesign for an existing saved connection.
+A generic request such as “Work here using the connected OpenDesign guidance”
+starts with read-only discovery, followed by a pinned preparation:
 
-If starting from the repository instead, call `resolve_project_context` and
-continue only when it returns `ready`. Resolve ambiguous, unavailable or moved
-bindings explicitly; the workflow never falls back to the active UI project.
+1. The calling coding agent obtains its actual current directory using its own
+   native tools. Call `discover_project_context({"cwd":"<absolute-host-cwd>"})`.
+   Cwd is explicit input; the daemon/MCP server launch directory and active UI
+   project/workspace are never substituted. This does not connect an unbound
+   repository automatically.
+2. Inspect `status`, `coverage`, `truncated`, `candidates` and `selected`.
+   A complete unique ready match supplies the exact project ID/name, verified
+   workspace/member scope, source root, app/package and binding revision.
+   If several connections match, ask the user to choose from those candidates,
+   then rediscover with that `projectId` and its exact workspace/member pair.
+   Never pick the first result, the nearest package or Personal by default.
+3. Use the selected fields with `prepare_design_context`: `bindingRevision`
+   becomes `expectedBindingRevision`; flatten `selected.workspaceScope`'s
+   `workspaceId`/`workspaceMemberId` into subsequent MCP calls when non-null.
+   Prepare does not resolve an ambient directory or change the connection.
+   `resolve_project_context` remains available for exact source/app lookups and
+   `get_project_source_context` for source evidence; both now accept the same
+   explicit workspace/member pair.
+
+Discovery searches only persisted source bindings readable through current
+verified memberships and project access rules. Denied or revoked projects are
+not candidate hints. A production membership-directory failure stops discovery;
+it does not retry bound projects with headerless permissions. Local-only mode
+without a membership directory reports `coverage.scope: "unbound_local"` and
+only considers legacy projects that have no workspace binding. Explicit scope
+requires a verified membership; local mode does not invent one.
+
+For a saved `/repo` + `apps/web` binding, cwd `/repo/apps/web/src` matches. Cwd
+`/repo` may match several connected packages and requires selection. If both
+`/repo` + `.` and `/repo` + `apps/web` are connected, a nested web cwd matches
+both: there is no implicit “closest wins” rule. A directory above `/repo`, a
+sibling package, or a merely similar path prefix does not match that binding.
+Missing/moved/replaced folders, symlink aliases, unsafe paths and changed
+bindings fail closed. Discovery checks directory identity only after an
+allowed saved association matches; it does not read arbitrary source files.
+
+Discovery returns at most 64 candidates after a bounded scan of 2,048 catalog
+entries and 128 memberships. Truncation never produces an automatic selection;
+explicitly narrow the scope/project and retry. The full response includes its
+limits. Discovery stores no cwd and creates no workflow, files or Run.
+
+Alternatively, the **Connected source** dialog still offers a selectable Work
+here prompt for a project/package the user has already chosen. That prompt
+validates the copied connection against the actual host cwd with discovery
+before preparation. The dialog never prepares a synthetic host session.
 
 Call `prepare_design_context` with:
 
@@ -132,9 +172,13 @@ issuing a different mutation. Replays never authorize a different payload.
 
 ## CLI and HTTP
 
-The CLI exercises the same authorized HTTP boundary as MCP:
+The CLI exercises the same authorized HTTP boundary as MCP. Start with the
+caller location; `--cwd .` is resolved by the native CLI process, not the daemon:
 
 ```sh
+od project discover-context --cwd "$PWD" --json
+# If ambiguous, repeat with the user-selected candidate and exact scope:
+od project discover-context --cwd "$PWD" --project <project-id> --workspace <workspace-id> --workspace-member <member-id> --json
 od project work-here prepare <project-id> --request-file request.json --prompt-file brief.txt --json
 od project work-here status <project-id> --request-file identity.json --json
 od project work-here asset <project-id> --request-file asset-request.json --json
@@ -146,7 +190,8 @@ od project work-here archive <project-id> --request-file archive.json --json
 `--request-file -` reads JSON from stdin; `--prompt-file -` reads prompt text from
 stdin for prepare. They cannot both consume stdin. Existing daemon/workspace
 selection flags apply. Each request includes the matching explicit `projectId`.
-The routes are POST `/api/projects/:id/design-workflow/prepare`, `/get`, `/asset`,
+Discovery is POST `/api/projects/source-context/discover`. The workflow routes
+are POST `/api/projects/:id/design-workflow/prepare`, `/get`, `/asset`,
 `/checkpoint`, `/register-artifact` and `/archive`. Durable mutations require the project's
 existing `writeFiles` authority; reads retain project/workspace authorization.
 
@@ -157,11 +202,18 @@ rule, an existing native component and a small real reference PNG/JPEG in the
 OpenDesign project's Design Files. Pick an image with an unambiguous visible
 detail not described by its filename. Record the initial source diff and Runs.
 
-1. In the already-open OpenCode session, use the dialog's starter prompt. Add:
+1. In the already-open OpenCode session, start without copying project IDs:
+   “Discover the OpenDesign connections for my current working directory. Ask
+   me to choose if several workspaces/projects/packages match.” Then add:
    “Work in this session. Follow our repository rule. Inspect the reference image,
    describe its distinctive visible detail, then implement this small screen in
    our existing component. Keep the plan, edits and test results visible here.”
-2. Verify preparation resolves the expected project/package/revision and returns
+2. Verify discovery shows the expected candidates and exact workspace/member
+   scope. Try the repository root and a nested package cwd with both Personal
+   and Team connections; overlapping matches must require your selection.
+   Switch the active UI workspace and repeat: candidates must not silently
+   change to the active or Personal workspace. A denied/revoked project must
+   not appear. Then verify preparation pins the selected project/package/revision and returns
    the actual selected brand/skill/craft. Read every required sidefile and request
    the image representation. Check the described visual detail yourself. A
    plausible answer or successful tool result alone is not proof of perception.

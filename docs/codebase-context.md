@@ -56,3 +56,15 @@ For host-owned native implementation with OpenDesign guidance and real asset byt
 see [Work here](work-here.md). This is a separate explicit workflow: the current
 coding session owns edits, tests and approvals; the read-only source binding
 continues to grant no source-write or execution authority.
+
+
+### Discover from the calling directory
+
+`discover_project_context` accepts an explicit host `cwd` and finds saved
+connections across verified memberships before a project ID is known. It
+returns bounded exact project/workspace/package/revision candidates, requires
+selection for overlap, and never treats daemon cwd or UI focus as the caller.
+The CLI equivalent is `od project discover-context --cwd "$PWD" --json`.
+Use the selected exact scope with `resolve_project_context` or
+`get_project_source_context`, then keep it pinned for work-here preparation.
+See [discovery semantics and limits](work-here.md#start-from-the-current-host-directory).

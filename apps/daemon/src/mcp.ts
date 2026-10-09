@@ -41,6 +41,7 @@ import { randomUUID } from 'node:crypto';
 import { postCreateArtifactRequest } from './artifacts/create.js';
 import { resolveMcpWorkspaceContext, resolveExactMcpWorkspaceContext } from './mcp-workspace-context.js';
 import { DESIGN_WORKFLOW_MCP_TOOL_DEFS, DESIGN_WORKFLOW_MCP_NAMES, designWorkflowMcpRequest, designWorkflowMcpScope, designAssetMcpResult, type DesignMcpSupplement } from './mcp-design-workflow.js';
+import { PROJECT_CONTEXT_DISCOVERY_MCP_TOOL, PROJECT_CONTEXT_SCOPE_PROPERTIES, projectContextDiscoveryMcpRequest } from './projects/context-discovery-mcp.js';
 import type { DesignAssetResponse } from '@open-design/contracts';
 import {
   createLocalMcpBriefStore as createBriefStore,
@@ -75,7 +76,7 @@ export const OPEN_DESIGN_BRIEF_APP_RESOURCE =
 export const MCP_SERVER_INSTRUCTIONS = [
   'Use only these product names in user-facing replies: OpenDesign Cloud and Local Codex.',
   'Tool names, runtime ids, endpoints, and correlation values are machine protocol. Never repeat them as product copy.',
-  'When the user asks to work here, use prepare_design_context and keep execution in the current host session. Do not call start_run or launch another coding harness. Fetch real image content, retain exact project/workflow/session identity, and report checkpoints with the returned revisions.',
+  'When the user asks to work here, first obtain the actual current directory from the calling host and call discover_project_context with that explicit cwd. Never use the MCP server launch directory or active UI project. Continue only with a unique complete ready selection, or ask the user to select an exact returned project/workspace/package candidate and rediscover with that selection. Pass its projectId, sourceRoot, appRelativePath, bindingRevision as expectedBindingRevision, and exact workspaceId/workspaceMemberId to prepare_design_context. Keep execution in the current host session: no start_run or nested coding harness. Fetch real image content and retain exact workflow/session/revision identities for subsequent calls.',
 ].join('\n');
 
 type JsonObject = Record<string, unknown>;
@@ -124,6 +125,7 @@ const SAFE_MCP_DAEMON_RETRY_CALLS = new Set([
   'get_design_workflow',
   'get_design_asset',
   'resolve_project_context',
+  'discover_project_context',
   'get_run',
   'get_vela_login_status',
   'list_agents',
@@ -514,6 +516,7 @@ export const TOOL_DEFS = [
     },
     annotations: { ...READ_ANNOTATIONS, title: 'Get OpenDesign project' },
   },
+  PROJECT_CONTEXT_DISCOVERY_MCP_TOOL,
   {
     name: 'get_project_source_context',
     description:
@@ -522,6 +525,7 @@ export const TOOL_DEFS = [
       type: 'object',
       properties: {
         projectId: { type: 'string', description: 'Exact stable OpenDesign project ID; required.' },
+        ...PROJECT_CONTEXT_SCOPE_PROPERTIES,
         query: { type: 'string', maxLength: 2000, description: 'Optional source relevance query, at most 2000 characters.' },
       },
       required: ['projectId'],
@@ -536,7 +540,8 @@ export const TOOL_DEFS = [
     inputSchema: {
       type: 'object',
       properties: {
-        sourceRoot: { type: 'string', description: 'Absolute path to the connected source repository.' },
+        ...PROJECT_CONTEXT_SCOPE_PROPERTIES,
+        sourceRoot: { type: 'string', description: 'Absolute path to the connected source repository; use discover_project_context first when only the caller cwd is known.' },
         appRelativePath: { type: 'string', description: 'Selected app/package path relative to sourceRoot; defaults to dot.' },
         projectId: { type: 'string', description: 'Optional exact stable project ID from an explicit local reference.' },
         query: { type: 'string', maxLength: 2000, description: 'Optional source relevance query, at most 2000 characters.' },
@@ -2209,7 +2214,16 @@ async function handleMcpToolCall(
   options: HandleMcpToolCallOptions = {},
 ): Promise<McpToolCallResult> {
   try {
-    const exactScope = DESIGN_WORKFLOW_MCP_NAMES.has(String(name)) ? designWorkflowMcpScope(args) : null;
+    if (name === 'discover_project_context') {
+      const request = projectContextDiscoveryMcpRequest(args);
+      // The daemon verifies all requested memberships. Do not narrow discovery
+      // to the bridge's default Personal workspace before it can see candidates.
+      const payload = await postJson(`${baseUrl}${request.path}`, request.body);
+      return { ...ok(payload), structuredContent: payload as JsonObject };
+    }
+    const acceptsExactScope = DESIGN_WORKFLOW_MCP_NAMES.has(String(name))
+      || name === 'resolve_project_context' || name === 'get_project_source_context';
+    const exactScope = acceptsExactScope ? designWorkflowMcpScope(args) : null;
     const workspaceContext = exactScope
       ? await resolveExactMcpWorkspaceContext(baseUrl, exactScope)
       : PROJECT_OR_RUN_TOOLS.has(String(name)) ? await resolveMcpWorkspaceContext(baseUrl) : null;
