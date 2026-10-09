@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Added] Connected projects can prepare design guidance and original image assets for the coding session already open in their source repository, track progress across restarts, and register a finished design through MCP or `od project work-here` without starting a separate OpenDesign run. (#5)
+- [Fixed] OpenCode agent runs now attach selected images as actual files rather than passing image paths as text. (#5)
 - [Added] Settings → MCP server now includes copyable global OpenCode configuration, and the daemon background-work guide explains scheduled tasks and team collaboration data flow. (#4)
 - [Fixed] Packaged MCP registrations keep working across app updates and temporary socket changes by launching through a stable installed-app path and discovering the active daemon at startup. (#4)
 - [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent. (#1)
