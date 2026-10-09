@@ -7,6 +7,7 @@ import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
 import { runArtifactsCli } from './artifacts-cli.js';
 import { runResource } from './resource-cli.js';
 import { runProjectHandoff } from './handoff-cli.js';
+import { buildProjectContextDiscoveryCliRequest } from './projects/context-discovery-cli.js';
 import { buildProjectSourceContextCliRequest } from './projects/source-context-cli.js';
 import { runDesignWorkflowCli } from './projects/design-workflow-cli.js';
 import { runConnectorsToolCli } from './tools-connectors-cli.js';
@@ -252,7 +253,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source', 'out', 'app', 'expected-revision', 'query',
+  'source', 'out', 'app', 'expected-revision', 'query', 'cwd',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -2402,6 +2403,8 @@ Tools exposed:
   get_active_context             what project/file the user has open right now
   get_artifact([project, entry]) bundle: entry file + every referenced sibling
   get_project([project])         single project metadata
+  discover_project_context(cwd[, projectId, workspaceId, workspaceMemberId])
+                                      saved authorized project/package candidates
   get_project_source_context(projectId) bounded connected source evidence
   resolve_project_context(sourceRoot[, appRelativePath, projectId, query])
                                 resolve an authorized source/package connection
@@ -7016,6 +7019,9 @@ async function runProject(args) {
   od project info <id>                    Print one project.
   od project context <id> [--query "<text>"] [--json]
                     Read bounded source context for an explicit stable project ID.
+  od project discover-context --cwd <caller-folder> [--project <stable-id>] [--json]
+                    Discover saved project/package bindings across authorized
+                    memberships. Supply the current host directory explicitly.
   od project resolve-context --source <folder> [--app <relative-folder>]
                     [--project <stable-id>] [--query "<text>"] [--json]
                     Resolve the authorized source/package connection without
@@ -7160,6 +7166,29 @@ Common options:
       });
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
+      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'discover-context': {
+      if (positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS).length !== 0) {
+        console.error('Usage: od project discover-context --cwd <caller-folder> [--project <stable-id>] [--workspace <id> --workspace-member <id>] [--json]');
+        process.exit(2);
+      }
+      let request;
+      try {
+        request = buildProjectContextDiscoveryCliRequest({ cwd: flags.cwd, projectId: flags.project,
+          workspaceId: flags.workspace, workspaceMemberId: flags['workspace-member'] });
+      } catch (error) {
+        console.error(error.message);
+        process.exit(2);
+      }
+      // All authorized memberships are discovered by the daemon. No default
+      // Personal workspace lookup may erase Team candidates here.
+      const response = await fetch(`${base}${request.path}`, {
+        ...request.init, headers: { 'content-type': 'application/json', ...workspaceHeaders },
+      });
+      if (!response.ok) return structuredHttpFailure(response);
+      const data = await response.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
       return;
     }

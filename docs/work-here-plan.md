@@ -31,3 +31,19 @@ Automated tests can establish bytes, protocol and no-spawn behavior. Live image
 perception depends on the user's installed host/provider/model and is a separate
 manual acceptance check. No local Mac run, merge, deployment or installation is
 part of this change.
+
+
+## Follow-up: caller-location discovery
+
+1. Accept the calling host's explicit cwd in a read-only discovery call; do not
+   infer it from daemon/MCP launch state or UI focus.
+2. Verify membership scopes and existing project read permission before examining
+   saved bindings. Return bounded exact candidate identities and coverage.
+3. Match contained cwd/package ancestors against canonical saved roots, validate
+   directory identity without source reads/writes, and fail closed on stale or
+   unsafe paths. Preserve overlapping and cross-workspace ambiguity.
+4. Keep preparation explicit and revision-pinned. Teach MCP/CLI and the starter
+   prompt to discover, select when needed, then prepare with exact scope.
+5. Test permission non-disclosure, Personal/Team and monorepo ambiguity, stale
+   bindings, symlinks, bounded scans, scope continuity and active-UI independence;
+   run typechecks, relevant regressions and independent review before publishing.
