@@ -5434,4 +5434,7 @@ export const fa: Dict = {
   'codebaseBinding.permissionDenied': "اجازهٔ اتصال این پروژه را ندارید.",
   'codebaseBinding.previewing': "در حال بررسی پوشه…",
   'codebaseBinding.canonicalLocation': "مکان انتخاب‌شده",
+  'codebaseBinding.workHereTitle': "اینجا با عامل برنامه‌نویسی خود کار کنید",
+  'codebaseBinding.workHereHint': "این دستور را در نشست فعلی عامل برنامه‌نویسی خود که به OpenDesign MCP متصل است کپی کنید. عامل شما زمینهٔ طراحی خودش را آماده می‌کند و از ابزارهای بومی ویرایش، آزمون و تأیید استفاده می‌کند.",
+  'codebaseBinding.workHerePrompt': "دستور برای عامل برنامه‌نویسی شما",
 };

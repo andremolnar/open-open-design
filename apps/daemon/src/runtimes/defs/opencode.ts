@@ -107,7 +107,7 @@ export const opencodeAgentDef = {
     // Prompt delivered via stdin (`opencode run` with no message argv) to
     // avoid Windows `spawn ENAMETOOLONG` while preserving structured output.
     // A literal `-` is parsed as a positional message, not stdin.
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}, runtimeContext = {}) => {
+    buildArgs: (_prompt, imagePaths, _extra, options = {}, runtimeContext = {}) => {
       const args = [
         'run',
         '--standalone',
@@ -115,6 +115,8 @@ export const opencodeAgentDef = {
         'json',
       ];
       appendOpenCodePermissionBypass(args, 'opencode');
+      // Stdin is text-only; explicit file arguments carry the image bytes.
+      for (const imagePath of imagePaths) args.push('--file', imagePath);
       // The daemon spawns with cwd set to the managed project. V2 uses cwd
       // as the active Location even when its Project is an enclosing Git root.
       // Capture-style resume: OpenCode mints its own session id (reported on

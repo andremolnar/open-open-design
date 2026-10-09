@@ -64,6 +64,76 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('CodebaseBindingDialog', () => {
+  it('offers a selectable host-session prompt with the exact saved project, root, package and revision', async () => {
+    const saved = { ...binding, sourceRoot: '/source/My App', appRelativePath: 'packages/site', revision: 7 };
+    mocks.get.mockResolvedValue(status({ binding: saved, status: 'connected' }));
+    render(<CodebaseBindingDialog projectId="project-a" projectName="A mutable display name" onClose={vi.fn()} />);
+    await flush();
+    const region = screen.getByRole('region', { name: 'Work here with your coding agent' });
+    const prompt = within(region).getByRole('textbox', { name: 'Prompt for your coding agent' }) as HTMLTextAreaElement;
+    expect(prompt.readOnly).toBe(true);
+    expect(prompt.value).toContain(JSON.stringify({ projectId: 'project-a', sourceRoot: saved.sourceRoot, appRelativePath: saved.appRelativePath, expectedBindingRevision: 7 }, null, 2));
+    expect(prompt.value).not.toContain('A mutable display name');
+    expect(prompt.value).not.toContain('"workspaceId":');
+    expect(prompt.value).not.toContain('"workspaceMemberId":');
+    expect(prompt.value).toContain('your own stable hostSessionId');
+    expect(prompt.value).toContain('prepare_design_context');
+    expect(prompt.value).toContain('get_design_asset');
+    expect(prompt.value).toContain('checkpoint_design_workflow');
+    expect(prompt.value).toContain('native tools for source edits, tests, permissions');
+    expect(prompt.value).toContain('explicitly refresh');
+    expect(prompt.value).toContain('binding is unchanged');
+    expect(prompt.value).toContain('do not refresh the old workflow');
+    expect(prompt.value).toContain('without the old workflowId or expectedRevision');
+    expect(prompt.value).toContain('If authorization or project identity fails, stop');
+    fireEvent.focus(prompt);
+    expect(prompt.selectionStart).toBe(0);
+    expect(prompt.selectionEnd).toBe(prompt.value.length);
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+    expect(mocks.validate).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('copies the exact authorized team scope into every-call MCP instructions', async () => {
+    mocks.get.mockResolvedValue(status({ binding, status: 'connected', workspaceScope: { workspaceId: 'team-exact', workspaceMemberId: 'member-exact' } }));
+    render(<CodebaseBindingDialog projectId="project-a" projectName="Design A" onClose={vi.fn()} />);
+    await flush();
+    const prompt = screen.getByRole('textbox', { name: 'Prompt for your coding agent' }) as HTMLTextAreaElement;
+    expect(prompt.value).toContain('"workspaceId": "team-exact"');
+    expect(prompt.value).toContain('"workspaceMemberId": "member-exact"');
+    expect(prompt.value).toContain('include those exact fields in every MCP call');
+    expect(prompt.value).toContain('Do not fall back to a Personal workspace');
+  });
+
+  it.each(['unbound', 'unavailable', 'unsupported'] as const)('hides work-here for a %s source', async (sourceStatus) => {
+    mocks.get.mockResolvedValue(status({ status: sourceStatus, binding: sourceStatus === 'unbound' ? null : binding }));
+    render(<CodebaseBindingDialog projectId="project-a" projectName="Design A" onClose={vi.fn()} />);
+    await flush();
+    expect(screen.queryByRole('region', { name: 'Work here with your coding agent' })).toBeNull();
+  });
+
+  it('hides the saved prompt when a rebind is being drafted or the binding changes elsewhere', async () => {
+    mocks.get.mockResolvedValue(status({ binding, status: 'connected' }));
+    const view = render(<CodebaseBindingDialog projectId="project-a" projectName="Design A" onClose={vi.fn()} />);
+    await flush();
+    await choose();
+    expect(screen.queryByRole('region', { name: 'Work here with your coding agent' })).toBeNull();
+    view.unmount();
+    render(<CodebaseBindingDialog projectId="project-a" projectName="Design A" onClose={vi.fn()} />);
+    await flush();
+    mocks.get.mockResolvedValue(status({ binding: { ...binding, revision: 5 }, status: 'connected' }));
+    fireEvent.focus(window);
+    await flush();
+    expect(screen.queryByRole('region', { name: 'Work here with your coding agent' })).toBeNull();
+  });
+
+  it('does not offer a prompt for a mismatched project response', async () => {
+    mocks.get.mockResolvedValue(status({ projectId: 'other-project', binding, status: 'connected' }));
+    render(<CodebaseBindingDialog projectId="project-a" projectName="Design A" onClose={vi.fn()} />);
+    await flush();
+    expect(screen.queryByRole('region', { name: 'Work here with your coding agent' })).toBeNull();
+  });
+
   it('keeps design storage separate, displays canonical selection, and saves the signed picker path once', async () => {
     const pending = deferred<ProjectCodebaseBindingResponse>();
     mocks.save.mockReturnValue(pending.promise);

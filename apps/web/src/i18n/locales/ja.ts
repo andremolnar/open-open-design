@@ -5439,4 +5439,7 @@ export const ja: Dict = {
   'codebaseBinding.permissionDenied': "このプロジェクトを接続する権限がありません。",
   'codebaseBinding.previewing': "フォルダーを確認中…",
   'codebaseBinding.canonicalLocation': "選択した場所",
+  'codebaseBinding.workHereTitle': "現在のコーディングエージェントで作業する",
+  'codebaseBinding.workHereHint': "このプロンプトを、OpenDesign MCP に接続された現在のコーディングエージェントのセッションにコピーしてください。エージェントが独自のデザインコンテキストを準備し、そのエージェントの編集・テスト・承認ツールを使用します。",
+  'codebaseBinding.workHerePrompt': "コーディングエージェント用プロンプト",
 };

@@ -265,3 +265,21 @@ Verified on `6fb440a86` (2026-08-31).
   `packages/contracts/tests/od-next-prompt-recipe.test.ts`, which does exercise
   the OD Next recipe for the deck contract specifically; nothing generalizes
   that to the other rows.
+
+
+## Host-owned Work here context
+
+`composeDaemonSystemPrompt` has an explicit `workHere` context-preparation seam
+after the existing scoped skill/plugin, design-system/token and craft resolution.
+It exits before provider discovery, runtime detection, staging and Run admission.
+`prompts/work-here.ts` exposes those canonical bodies as ordered design references
+beneath a host-owned execution contract. A verified OD Next snapshot is loaded
+through the existing strict recipe/package loader without a runtime capability
+claim; otherwise the canonical slim design charter supplies the design reference.
+
+The returned adaptation map translates standalone HTML, UI forms, stage workers,
+server aliases and critique protocols into current-host tasks. Repository rules
+remain authoritative and conflicts are explicit. This is not another independently
+maintained copy of the generation prompt. All hosts (including BYOK OpenCode) use
+the same daemon context endpoint; neither delegated generation composer changes.
+See [Work here](work-here.md) for byte transport, pinning, refresh and acceptance.

@@ -8,6 +8,7 @@ import { runArtifactsCli } from './artifacts-cli.js';
 import { runResource } from './resource-cli.js';
 import { runProjectHandoff } from './handoff-cli.js';
 import { buildProjectSourceContextCliRequest } from './projects/source-context-cli.js';
+import { runDesignWorkflowCli } from './projects/design-workflow-cli.js';
 import { runConnectorsToolCli } from './tools-connectors-cli.js';
 import { runDesignSystemsToolCli } from './tools-design-systems-cli.js';
 import { DESIGN_SYSTEMS_USAGE, isDesignSystemsHelpArg } from './cli-help/index.js';
@@ -7019,6 +7020,11 @@ async function runProject(args) {
                     [--project <stable-id>] [--query "<text>"] [--json]
                     Resolve the authorized source/package connection without
                     falling back to the active project or writing local files.
+  od project work-here <prepare|status|asset|checkpoint|register-artifact|archive> <id>
+                    --request-file <path|-> [--prompt-file <path|->] [--json]
+                    Use design guidance in the current coding-agent session.
+                    Every JSON request must include the same stable projectId.
+                    --prompt-file overrides prepare prompt only.
   od project codebase status <id> [--json]
                     Show design storage and the saved codebase connection.
   od project codebase bind <id> --source <folder> [--app <relative-folder>]
@@ -7060,6 +7066,23 @@ Common options:
   }
   const sub = args[0];
   const rest = args.slice(1);
+  if (sub === 'work-here') {
+    const exitCode = await runDesignWorkflowCli(rest, {
+      request: async (path, init, flags) => {
+        const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+        const contextHeaders = workspaceHeadersFromExplicitFlags(flags)
+          ?? (await resolveMcpWorkspaceContext(base))?.headers ?? {};
+        return fetch(`${base}${path}`, {
+          ...init,
+          headers: { 'content-type': 'application/json', ...contextHeaders },
+        });
+      },
+      stdout: (text) => process.stdout.write(text),
+      stderr: (text) => process.stderr.write(text),
+    });
+    if (exitCode !== 0) await flushStreamsAndExit(exitCode);
+    return;
+  }
   // Handoff owns its own flag parsing, daemon-URL resolution, and
   // structured fail() output. Dispatch it before the generic project
   // parser below so a malformed `od project handoff` invocation

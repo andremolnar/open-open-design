@@ -5439,4 +5439,7 @@ export const fr: Dict = {
   'codebaseBinding.permissionDenied': "Vous n’avez pas l’autorisation de connecter ce projet.",
   'codebaseBinding.previewing': "Vérification du dossier…",
   'codebaseBinding.canonicalLocation': "Emplacement sélectionné",
+  'codebaseBinding.workHereTitle': "Travaillez ici avec votre agent de programmation",
+  'codebaseBinding.workHereHint': "Copiez ce prompt dans votre session actuelle d’agent de programmation disposant de la connexion MCP OpenDesign. Votre agent préparera son propre contexte de conception et utilisera ses outils natifs de modification, de test et d’approbation.",
+  'codebaseBinding.workHerePrompt': "Prompt pour votre agent de programmation",
 };

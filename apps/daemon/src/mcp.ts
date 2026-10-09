@@ -39,7 +39,9 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { postCreateArtifactRequest } from './artifacts/create.js';
-import { resolveMcpWorkspaceContext } from './mcp-workspace-context.js';
+import { resolveMcpWorkspaceContext, resolveExactMcpWorkspaceContext } from './mcp-workspace-context.js';
+import { DESIGN_WORKFLOW_MCP_TOOL_DEFS, DESIGN_WORKFLOW_MCP_NAMES, designWorkflowMcpRequest, designWorkflowMcpScope, designAssetMcpResult, type DesignMcpSupplement } from './mcp-design-workflow.js';
+import type { DesignAssetResponse } from '@open-design/contracts';
 import {
   createLocalMcpBriefStore as createBriefStore,
   localMcpBriefResponseCopy,
@@ -73,6 +75,7 @@ export const OPEN_DESIGN_BRIEF_APP_RESOURCE =
 export const MCP_SERVER_INSTRUCTIONS = [
   'Use only these product names in user-facing replies: OpenDesign Cloud and Local Codex.',
   'Tool names, runtime ids, endpoints, and correlation values are machine protocol. Never repeat them as product copy.',
+  'When the user asks to work here, use prepare_design_context and keep execution in the current host session. Do not call start_run or launch another coding harness. Fetch real image content, retain exact project/workflow/session identity, and report checkpoints with the returned revisions.',
 ].join('\n');
 
 type JsonObject = Record<string, unknown>;
@@ -105,9 +108,9 @@ interface McpPluginAttribution {
   context: ExternalPluginContext;
   pluginWorkflowId: string;
 }
-interface McpToolCallResult {
+export interface McpToolCallResult {
   [key: string]: unknown;
-  content: Array<{ type: 'text'; text: string }>;
+  content: [{ type: 'text'; text: string }, ...Array<{ type: 'text'; text: string } | DesignMcpSupplement>];
   structuredContent?: JsonObject;
   isError?: boolean;
 }
@@ -118,6 +121,8 @@ const SAFE_MCP_DAEMON_RETRY_CALLS = new Set([
   'get_file',
   'get_project',
   'get_project_source_context',
+  'get_design_workflow',
+  'get_design_asset',
   'resolve_project_context',
   'get_run',
   'get_vela_login_status',
@@ -138,7 +143,7 @@ function normalizeDaemonUrl(value: string | URL): string {
 function isDaemonUnreachableResult(result: McpToolCallResult): boolean {
   return result.isError === true
     && result.content.some((item) =>
-      item.text.includes('cannot reach the OpenDesign daemon'),
+      item.type === 'text' && item.text.includes('cannot reach the OpenDesign daemon'),
     );
 }
 
@@ -363,6 +368,7 @@ const EXTERNAL_PLUGIN_CONTEXT_ARG = {
 } as const;
 
 export const TOOL_DEFS = [
+  ...DESIGN_WORKFLOW_MCP_TOOL_DEFS,
   {
     name: 'collect_brief',
     description:
@@ -2177,6 +2183,7 @@ function publicVelaLoginStatus(status: unknown): unknown {
 // 400 with WORKSPACE_CONTEXT_REQUIRED (#6569). These resolve the signed-in
 // workspace and send x-od-workspace-* headers on every daemon call.
 const PROJECT_OR_RUN_TOOLS = new Set([
+  ...DESIGN_WORKFLOW_MCP_NAMES,
   'list_projects',
   'get_project',
   'get_project_source_context',
@@ -2202,11 +2209,19 @@ async function handleMcpToolCall(
   options: HandleMcpToolCallOptions = {},
 ): Promise<McpToolCallResult> {
   try {
-    const workspaceContext = PROJECT_OR_RUN_TOOLS.has(String(name))
-      ? await resolveMcpWorkspaceContext(baseUrl)
-      : null;
+    const exactScope = DESIGN_WORKFLOW_MCP_NAMES.has(String(name)) ? designWorkflowMcpScope(args) : null;
+    const workspaceContext = exactScope
+      ? await resolveExactMcpWorkspaceContext(baseUrl, exactScope)
+      : PROJECT_OR_RUN_TOOLS.has(String(name)) ? await resolveMcpWorkspaceContext(baseUrl) : null;
     const headers = workspaceContext?.headers;
     const workspaceId = workspaceContext?.workspaceId;
+    if (typeof name === 'string' && DESIGN_WORKFLOW_MCP_NAMES.has(name)) {
+      const request = designWorkflowMcpRequest(name, args);
+      const payload = await postJson(`${baseUrl}${request.path}`, request.body, headers);
+      return name === 'get_design_asset'
+        ? designAssetMcpResult(payload as DesignAssetResponse)
+        : { ...ok(payload), structuredContent: payload as JsonObject };
+    }
     switch (name) {
       case 'collect_brief': {
         const collected = (options.briefStore ?? createLocalMcpBriefStore())
@@ -3234,7 +3249,7 @@ async function getFile(
   offset = 0,
   limit = 2000,
   headers?: Record<string, string>,
-) {
+): Promise<McpToolCallResult> {
   const segments = String(relPath)
     .split('/')
     .filter((s) => s.length > 0)
@@ -3273,10 +3288,11 @@ async function getFile(
       `[od:file-window offset=${start} returnedLines=${returnedLines} totalLines=${totalLines}${next}]`,
     );
   }
+  const blocks = [...extra, slice.join('\n')];
   return {
     content: [
-      ...extra.map((t) => ({ type: 'text' as const, text: t })),
-      { type: 'text' as const, text: slice.join('\n') },
+      { type: 'text', text: blocks[0]! },
+      ...blocks.slice(1).map((text) => ({ type: 'text' as const, text })),
     ],
   };
 }

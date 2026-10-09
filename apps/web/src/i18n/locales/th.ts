@@ -5439,4 +5439,7 @@ export const th: Dict = {
   'codebaseBinding.permissionDenied': "คุณไม่มีสิทธิ์เชื่อมต่อโปรเจกต์นี้",
   'codebaseBinding.previewing': "กำลังตรวจสอบโฟลเดอร์…",
   'codebaseBinding.canonicalLocation': "ตำแหน่งที่เลือก",
+  'codebaseBinding.workHereTitle': "ทำงานที่นี่กับเอเจนต์เขียนโค้ดของคุณ",
+  'codebaseBinding.workHereHint': "คัดลอกพรอมป์ต์นี้ไปยังเซสชันปัจจุบันของเอเจนต์เขียนโค้ดที่เชื่อมต่อกับ OpenDesign MCP เอเจนต์จะเตรียมบริบทการออกแบบของตัวเองและใช้เครื่องมือแก้ไข ทดสอบ และอนุมัติที่มีอยู่ในตัว",
+  'codebaseBinding.workHerePrompt': "พรอมป์ต์สำหรับเอเจนต์เขียนโค้ดของคุณ",
 };

@@ -5439,4 +5439,7 @@ export const id: Dict = {
   'codebaseBinding.permissionDenied': "Anda tidak memiliki izin untuk menghubungkan proyek ini.",
   'codebaseBinding.previewing': "Memeriksa folder…",
   'codebaseBinding.canonicalLocation': "Lokasi yang dipilih",
+  'codebaseBinding.workHereTitle': "Kerjakan di sini dengan agen pemrograman Anda",
+  'codebaseBinding.workHereHint': "Salin prompt ini ke sesi agen pemrograman Anda saat ini yang terhubung ke OpenDesign MCP. Agen Anda akan menyiapkan konteks desainnya sendiri dan menggunakan alat penyuntingan, pengujian, serta persetujuan bawaannya.",
+  'codebaseBinding.workHerePrompt': "Prompt untuk agen pemrograman Anda",
 };

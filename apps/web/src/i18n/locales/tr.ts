@@ -5439,4 +5439,7 @@ export const tr: Dict = {
   'codebaseBinding.permissionDenied': "Bu projeyi bağlama izniniz yok.",
   'codebaseBinding.previewing': "Klasör kontrol ediliyor…",
   'codebaseBinding.canonicalLocation': "Seçilen konum",
+  'codebaseBinding.workHereTitle': "Kodlama aracınızla burada çalışın",
+  'codebaseBinding.workHereHint': "Bu istemi OpenDesign MCP bağlantısı olan mevcut kodlama aracınızın oturumuna kopyalayın. Aracınız kendi tasarım bağlamını hazırlayacak ve yerleşik düzenleme, test ve onay araçlarını kullanacaktır.",
+  'codebaseBinding.workHerePrompt': "Kodlama aracınız için istem",
 };

@@ -5439,4 +5439,7 @@ export const uk: Dict = {
   'codebaseBinding.permissionDenied': "У вас немає дозволу на підключення цього проєкту.",
   'codebaseBinding.previewing': "Перевірка папки…",
   'codebaseBinding.canonicalLocation': "Вибране розташування",
+  'codebaseBinding.workHereTitle': "Працюйте тут зі своїм агентом програмування",
+  'codebaseBinding.workHereHint': "Скопіюйте цей запит у поточний сеанс агента програмування з підключенням OpenDesign MCP. Агент підготує власний контекст дизайну й використовуватиме свої вбудовані інструменти редагування, тестування та погодження.",
+  'codebaseBinding.workHerePrompt': "Запит для вашого агента програмування",
 };

@@ -5439,4 +5439,7 @@ export const hu: Dict = {
   'codebaseBinding.permissionDenied': "Nincs jogosultságod a projekt csatlakoztatásához.",
   'codebaseBinding.previewing': "Mappa ellenőrzése…",
   'codebaseBinding.canonicalLocation': "Kiválasztott hely",
+  'codebaseBinding.workHereTitle': "Dolgozz itt a programozóügynököddel",
+  'codebaseBinding.workHereHint': "Másold ezt az utasítást a programozóügynököd jelenlegi, OpenDesign MCP-kapcsolattal rendelkező munkamenetébe. Az ügynök előkészíti a saját tervezési kontextusát, és a saját szerkesztő-, tesztelő- és jóváhagyási eszközeit használja.",
+  'codebaseBinding.workHerePrompt': "Utasítás a programozóügynöködnek",
 };

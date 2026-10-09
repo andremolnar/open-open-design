@@ -5439,4 +5439,7 @@ export const ru: Dict = {
   'codebaseBinding.permissionDenied': "У вас нет разрешения на подключение этого проекта.",
   'codebaseBinding.previewing': "Проверка папки…",
   'codebaseBinding.canonicalLocation': "Выбранное расположение",
+  'codebaseBinding.workHereTitle': "Работайте здесь со своим агентом программирования",
+  'codebaseBinding.workHereHint': "Скопируйте этот запрос в текущий сеанс агента программирования с подключением OpenDesign MCP. Агент подготовит собственный контекст дизайна и будет использовать свои встроенные инструменты редактирования, тестирования и согласования.",
+  'codebaseBinding.workHerePrompt': "Запрос для вашего агента программирования",
 };

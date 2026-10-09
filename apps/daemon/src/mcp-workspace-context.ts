@@ -61,6 +61,27 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const lastFailureAt = new Map<string, number>();
 
+/** Explicit host context must never degrade to Personal or headerless access. */
+export async function resolveExactMcpWorkspaceContext(
+  baseUrl: string,
+  scope: { workspaceId: string; workspaceMemberId: string },
+): Promise<McpWorkspaceContext> {
+  const response = await fetch(`${baseUrl}/api/workspace/directory`, {
+    signal: AbortSignal.timeout(DIRECTORY_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error('Cannot verify the requested workspace membership. No fallback was attempted.');
+  const data = await response.json() as WorkspaceDirectoryResponse;
+  const selected = Array.isArray(data.items) ? data.items.find((item) =>
+    item.workspaceId === scope.workspaceId && item.workspaceMemberId === scope.workspaceMemberId
+    && item.memberStatus === 'active' && item.lifecycleState === 'active') : undefined;
+  if (!selected) throw new Error('The exact workspace/member pair is unavailable or inactive. Select an authorized scope; no Personal fallback was attempted.');
+  return {
+    workspaceId: selected.workspaceId, workspaceMemberId: selected.workspaceMemberId,
+    workspaceType: selected.workspaceType,
+    headers: { 'x-od-workspace-id': selected.workspaceId, 'x-od-workspace-member-id': selected.workspaceMemberId },
+  };
+}
+
 /**
  * Resolve the signed-in workspace to scope MCP project/run calls, or null for a
  * headerless fallback (non-vela, signed-out, or a directory outage). Results are

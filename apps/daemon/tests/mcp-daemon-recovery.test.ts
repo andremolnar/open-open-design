@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createMcpDaemonTarget } from '../src/mcp.js';
+import { createMcpDaemonTarget, type McpToolCallResult } from '../src/mcp.js';
 
-function unreachable(url: string) {
+function unreachable(url: string): McpToolCallResult {
   return {
     content: [{ type: 'text' as const, text: `cannot reach the OpenDesign daemon at ${url}.` }],
     isError: true,
@@ -12,7 +12,7 @@ function unreachable(url: string) {
 describe('MCP daemon target recovery', () => {
   it('refreshes the discovered daemon URL before a tool call', async () => {
     const resolveDaemonUrl = vi.fn(async () => 'http://127.0.0.1:62002');
-    const call = vi.fn(async (url: string) => ({
+    const call = vi.fn(async (url: string): Promise<McpToolCallResult> => ({
       content: [{ type: 'text' as const, text: url }],
     }));
     const target = createMcpDaemonTarget({

@@ -582,7 +582,12 @@ export type DesignSystemAssets = {
 };
 
 const DESIGN_SYSTEM_ASSETS_CACHE_LIMIT = 128;
-const designSystemAssetsCache = new Map<string, Promise<DesignSystemAssets> | DesignSystemAssets>();
+export interface ResolvedDesignSystemAssetPackage {
+  assets: DesignSystemAssets;
+  /** Daemon-only contributing roots, selected by the same fallback as the bytes. */
+  resourceRoots: string[];
+}
+const designSystemAssetsCache = new Map<string, Promise<ResolvedDesignSystemAssetPackage> | ResolvedDesignSystemAssetPackage>();
 
 export function clearDesignSystemAssetsCacheForTests(): void {
   designSystemAssetsCache.clear();
@@ -748,8 +753,20 @@ export async function resolveDesignSystemAssets(
   userInstalledRoot: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<DesignSystemAssets> {
+  return (await resolveDesignSystemAssetPackage(designSystemId, builtInRoot, userInstalledRoot, env)).assets;
+}
+
+export async function resolveDesignSystemAssetPackage(
+  designSystemId: string,
+  builtInRoot: string,
+  userInstalledRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ResolvedDesignSystemAssetPackage> {
   if (!isDesignTokenChannelEnabled(env)) {
-    return {
+    // The flag disables prompt token injection, not the selected brand's originals.
+    const folderId = stripPrefixAndValidateId(designSystemId, designSystemId.startsWith('user:') ? 'user:' : '');
+    const root = designSystemId.startsWith('user:') ? userInstalledRoot : builtInRoot;
+    return { resourceRoots: folderId ? [path.join(root, folderId)] : [], assets: {
       usageMd: undefined,
       tokensCss: undefined,
       fixtureHtml: undefined,
@@ -758,7 +775,7 @@ export async function resolveDesignSystemAssets(
       importMode: undefined,
       craftApplies: undefined,
       craftExemptions: undefined,
-    };
+    } };
   }
 
   const fingerprint = await designSystemAssetsCacheFingerprint(
@@ -800,18 +817,24 @@ async function resolveDesignSystemAssetsUncached(
   designSystemId: string,
   builtInRoot: string,
   userInstalledRoot: string,
-): Promise<DesignSystemAssets> {
+): Promise<ResolvedDesignSystemAssetPackage> {
+  const folderId = stripPrefixAndValidateId(designSystemId, designSystemId.startsWith('user:') ? 'user:' : '');
+  if (!folderId) return { assets: {}, resourceRoots: [] };
   if (designSystemId.startsWith('user:')) {
-    return readDesignSystemAssets(userInstalledRoot, designSystemId);
+    return { assets: await readDesignSystemAssets(userInstalledRoot, designSystemId),
+      resourceRoots: [path.join(userInstalledRoot, folderId)] };
   }
 
   const builtIn = await readDesignSystemAssets(builtInRoot, designSystemId);
+  const builtInPath = path.join(builtInRoot, folderId);
   if (builtIn.tokensCss !== undefined && builtIn.fixtureHtml !== undefined) {
-    return builtIn;
+    return { assets: builtIn, resourceRoots: [builtInPath] };
   }
 
   const userInstalled = await readDesignSystemAssets(userInstalledRoot, designSystemId);
-  return withComponentsManifest(designSystemId, {
+  const contributesFallback = Object.values(userInstalled).some((value) => value !== undefined);
+  return { resourceRoots: [builtInPath, ...(contributesFallback ? [path.join(userInstalledRoot, folderId)] : [])],
+    assets: withComponentsManifest(designSystemId, {
     usageMd: builtIn.usageMd ?? userInstalled.usageMd,
     tokensCss: builtIn.tokensCss ?? userInstalled.tokensCss,
     fixtureHtml: builtIn.fixtureHtml ?? userInstalled.fixtureHtml,
@@ -821,7 +844,7 @@ async function resolveDesignSystemAssetsUncached(
     importMode: builtIn.importMode ?? userInstalled.importMode,
     craftApplies: builtIn.craftApplies ?? userInstalled.craftApplies,
     craftExemptions: builtIn.craftExemptions ?? userInstalled.craftExemptions,
-  });
+  }) };
 }
 
 function pruneDesignSystemAssetsCache(): void {

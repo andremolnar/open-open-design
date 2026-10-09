@@ -5439,4 +5439,7 @@ export const ar: Dict = {
   'codebaseBinding.permissionDenied': "ليس لديك إذن لربط هذا المشروع.",
   'codebaseBinding.previewing': "جارٍ التحقق من المجلد…",
   'codebaseBinding.canonicalLocation': "الموقع المحدد",
+  'codebaseBinding.workHereTitle': "اعمل هنا مع وكيل البرمجة الخاص بك",
+  'codebaseBinding.workHereHint': "انسخ هذا التوجيه إلى جلسة وكيل البرمجة الحالية المتصلة بـ OpenDesign MCP. سيُعدّ وكيلك سياق التصميم الخاص به ويستخدم أدواته الأصلية للتحرير والاختبار والموافقة.",
+  'codebaseBinding.workHerePrompt': "توجيه لوكيل البرمجة الخاص بك",
 };
