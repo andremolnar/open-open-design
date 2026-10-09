@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Added] Coding agents can discover authorized OpenDesign project and app connections from their current folder through MCP or `od project discover-context`, choose explicitly when several match, and prepare design guidance in the same coding session without copying project IDs first. (#6)
 - [Added] Connected projects can prepare design guidance and original image assets for the coding session already open in their source repository, track progress across restarts, and register a finished design through MCP or `od project work-here` without starting a separate OpenDesign run. (#5)
 - [Fixed] OpenCode agent runs now attach selected images as actual files rather than passing image paths as text. (#5)
 - [Added] Settings → MCP server now includes copyable global OpenCode configuration, and the daemon background-work guide explains scheduled tasks and team collaboration data flow. (#4)
