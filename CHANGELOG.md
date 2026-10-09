@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- [Added] Settings → MCP server now includes copyable global OpenCode configuration, and the daemon background-work guide explains scheduled tasks and team collaboration data flow.
-- [Fixed] Packaged MCP registrations keep working across app updates and temporary socket changes by launching through a stable installed-app path and discovering the active daemon at startup.
+- [Added] Settings → MCP server now includes copyable global OpenCode configuration, and the daemon background-work guide explains scheduled tasks and team collaboration data flow. (#4)
+- [Fixed] Packaged MCP registrations keep working across app updates and temporary socket changes by launching through a stable installed-app path and discovering the active daemon at startup. (#4)
 - [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent. (#1)
 - [Fixed] Updated the OpenCode integration for V2 sessions, models, permissions, MCP servers, tool previews, and BYOK configuration. (#1)
 - [Added] A signed macOS build can be launched directly without installing it; contributors can use `/shipit` to document, validate, and propose changes through a PR. (#1)
