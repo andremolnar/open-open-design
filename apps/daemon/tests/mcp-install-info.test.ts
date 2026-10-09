@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import express from 'express';
-import { SIDECAR_ENV } from '@open-design/sidecar-proto';
+import { MCP_BOOTSTRAP_CONTRACT, SIDECAR_ENV } from '@open-design/sidecar-proto';
+import type { SidecarStamp } from '@open-design/sidecar';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { isLocalSameOrigin } from '../src/origin-validation.js';
-import { buildMcpInstallPayload } from '../src/mcp-install-info.js';
+import { buildMcpInstallPayload, selectMcpLaunchPaths } from '../src/mcp-install-info.js';
+import { managedMcpRegistrationEnv, mergeManagedMcpRegistrationEnvironment } from '../src/mcp-managed-registration.js';
 
 // The install-info endpoint is a self-contained handler that resolves
 // absolute paths to node + cli.js so the Settings → MCP server panel
@@ -26,6 +28,7 @@ interface InstallInfoOpts {
   /** Opaque inherited sidecar client entries already selected by
    *  SidecarFactory. Tests keep the transport key deliberately generic. */
   sidecarEnv?: Record<string, string>;
+  managedStamp?: SidecarStamp;
   /** Stand-in for the daemon's resolved RUNTIME_DATA_DIR (issue #848).
    *  Pinned in the snippet env so IDE-spawned MCP processes write to
    *  the same directory the daemon already uses. */
@@ -52,7 +55,7 @@ async function readInstallInfo(res: Response): Promise<InstallInfoPayload> {
   return (await res.json()) as InstallInfoPayload;
 }
 
-function makeInstallInfoApp({ cliPath, port, env = {}, sidecarEnv = {}, dataDir }: InstallInfoOpts): InstallInfoApp {
+function makeInstallInfoApp({ cliPath, port, env = {}, sidecarEnv = {}, managedStamp, dataDir }: InstallInfoOpts): InstallInfoApp {
   const app = express();
 
   const TTL_MS = 5000;
@@ -81,7 +84,7 @@ function makeInstallInfoApp({ cliPath, port, env = {}, sidecarEnv = {}, dataDir 
     // Mirror the production handler's sidecar detection so this test
     // exercises the same path; the helper below is the same one
     // server.ts calls.
-    const inheritedSidecarEnv = { ...sidecarEnv };
+    let inheritedSidecarEnv = { ...sidecarEnv };
     const isSidecarMode = Object.keys(inheritedSidecarEnv).length > 0;
     for (const key of [
       'OD_MCP_BOOTSTRAP_COMMAND',
@@ -90,6 +93,10 @@ function makeInstallInfoApp({ cliPath, port, env = {}, sidecarEnv = {}, dataDir 
       const value = env[key];
       if (value != null && value.length > 0) inheritedSidecarEnv[key] = value;
     }
+    inheritedSidecarEnv = mergeManagedMcpRegistrationEnvironment(
+      inheritedSidecarEnv,
+      managedMcpRegistrationEnv(env, () => { if (!managedStamp) throw new Error('no managed stamp'); return managedStamp; }),
+    );
     const webPortNum = webPort == null ? Number.NaN : Number(webPort);
     const webBaseUrl = Number.isFinite(webPortNum) && webPortNum > 0
       ? `http://127.0.0.1:${webPortNum}`
@@ -129,6 +136,7 @@ async function startHarness(
   env: NodeJS.ProcessEnv,
   dataDir: string,
   sidecarEnv: Record<string, string> = {},
+  managedStamp?: SidecarStamp,
 ): Promise<Harness> {
   // Pick a free port first so the handler can compare against it for
   // isLocalSameOrigin.
@@ -139,7 +147,7 @@ async function startHarness(
       tmp.close(() => resolveListen(p));
     });
   });
-  const app = makeInstallInfoApp({ cliPath, port, env, sidecarEnv, dataDir });
+  const app = makeInstallInfoApp({ cliPath, port, env, sidecarEnv, ...(managedStamp ? { managedStamp } : {}), dataDir });
   const server: http.Server = await new Promise((resolveStart) => {
     const handle = app.listen(port, '127.0.0.1', () => resolveStart(handle));
   });
@@ -147,6 +155,15 @@ async function startHarness(
 }
 
 describe('GET /api/mcp/install-info', () => {
+  it('prefers the stable packaged bridge over the payload path only when complete', () => {
+    const env = { OD_MCP_STABLE_CLI: '/stable/cli', OD_MCP_STABLE_COMMAND: '/stable/node' };
+    expect(selectMcpLaunchPaths('/payload/cli', '/payload/node', env, (path) => path.startsWith('/stable/'))).toEqual({
+      cliPath: '/stable/cli', execPath: '/stable/node',
+    });
+    expect(selectMcpLaunchPaths('/payload/cli', '/payload/node', env, (path) => path === '/stable/node')).toEqual({
+      cliPath: '/payload/cli', execPath: '/payload/node',
+    });
+  });
   const inheritedSidecarEnv = { OD_TEST_SIDECAR_CAPABILITY: 'opaque-client-capability' };
   let tmpDir: string;
   let cliPath: string;
@@ -332,6 +349,23 @@ describe('GET /api/mcp/install-info', () => {
       });
     } finally {
       await new Promise<void>((done) => server?.close(() => done()));
+    }
+  });
+
+  it('does not persist absolute sidecar sockets in a managed install snippet', async () => {
+    const stamp = { app: 'daemon', channel: 'stable', mode: 'headless', namespace: 'local-smoke', source: 'packaged' };
+    const { port, server } = await startHarness(cliPath, {
+      OD_MCP_BOOTSTRAP_COMMAND: '/usr/bin/open',
+      OD_MCP_BOOTSTRAP_ARGS: JSON.stringify(['--headless', MCP_BOOTSTRAP_CONTRACT.MANAGED_ARG]),
+    }, dataDir, { OD_SIDECAR_CLIENT_ENDPOINT: '/old-temp/daemon.sock' }, stamp);
+    try {
+      const body = await readInstallInfo(await fetch(`http://127.0.0.1:${port}/api/mcp/install-info`));
+      expect(body.args).toEqual([cliPath, 'mcp']);
+      expect(body.env.OD_SIDECAR_CLIENT_ENDPOINT).toBeUndefined();
+      expect(JSON.parse(body.env[MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]!)).toEqual({ stamp });
+      expect(JSON.stringify(body.env)).not.toContain('/old-temp/');
+    } finally {
+      await new Promise<void>((done) => server.close(() => done()));
     }
   });
 

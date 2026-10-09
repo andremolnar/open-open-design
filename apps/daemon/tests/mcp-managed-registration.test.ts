@@ -3,30 +3,25 @@ import { describe, expect, it } from 'vitest';
 
 import { parseManagedMcpDiscovery } from '../src/mcp-bootstrap.js';
 import {
-  buildManagedMcpDiscovery,
   isCodexRegistrationOwnedBy,
   managedMcpRegistrationEnv,
+  mergeManagedMcpRegistrationEnvironment,
 } from '../src/mcp-managed-registration.js';
 
 const stamp = { app: 'daemon', channel: 'prerelease', mode: 'headless', namespace: 'release-prerelease', source: 'packaged' } as const;
-const fakeEndpoint = (s: { app: string; mode: string }) => `/ipc/${s.app}-${s.mode}.sock`;
 
 describe('managed MCP registration', () => {
-  it('names every mode of both the daemon and the desktop owner', () => {
-    expect(buildManagedMcpDiscovery(stamp, fakeEndpoint)).toEqual({
-      daemon: ['/ipc/daemon-runtime.sock', '/ipc/daemon-headless.sock'],
-      desktop: ['/ipc/desktop-runtime.sock', '/ipc/desktop-headless.sock'],
-    });
-  });
-
-  it('adds discovery only for a managed launch, in the shape the MCP process reads', () => {
+  it('stores identity rather than temporary socket paths for a managed launch', () => {
     const managedArgs = JSON.stringify(['--headless', MCP_BOOTSTRAP_CONTRACT.MANAGED_ARG]);
     const env = managedMcpRegistrationEnv({ OD_MCP_BOOTSTRAP_ARGS: managedArgs }, () => stamp);
     expect(Object.keys(env)).toEqual([MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]);
+    expect(JSON.parse(env[MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]!)).toEqual({ stamp });
     expect(parseManagedMcpDiscovery({ OD_MCP_BOOTSTRAP_ARGS: managedArgs, ...env })).not.toBeNull();
+    expect(mergeManagedMcpRegistrationEnvironment({ OD_SIDECAR_CLIENT_ENDPOINT: '/old-temp/daemon.sock', OD_MCP_BOOTSTRAP_COMMAND: '/usr/bin/open' }, env)).toEqual({ OD_MCP_BOOTSTRAP_COMMAND: '/usr/bin/open', ...env });
 
     // Registrations under an older outer are unchanged.
     expect(managedMcpRegistrationEnv({ OD_MCP_BOOTSTRAP_ARGS: '["--headless"]' }, () => stamp)).toEqual({});
+    expect(mergeManagedMcpRegistrationEnvironment({ OD_SIDECAR_CLIENT_ENDPOINT: '/legacy.sock' }, {})).toEqual({ OD_SIDECAR_CLIENT_ENDPOINT: '/legacy.sock' });
   });
 
   it('keeps the plain registration when the daemon is not sidecar-supervised', () => {

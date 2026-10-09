@@ -8184,6 +8184,7 @@ function MediaProvidersSection({
 type McpClientId =
   | 'claude'
   | 'codex'
+  | 'opencode'
   | 'cursor'
   | 'kiro'
   | 'vscode'
@@ -8431,6 +8432,23 @@ function IntegrationsSection() {
       },
       buildSnippet: (info) => `[mcp_servers.open-design]\ncommand = ${JSON.stringify(info.command)}\nargs = ${JSON.stringify(info.args)}${buildCodexEnvToml(info)}`,
       buildSnippetLang: () => 'toml',
+    },
+    {
+      id: 'opencode',
+      label: 'OpenCode',
+      buildMethod: () => t('settings.mcpMethodJson'),
+      buildInstruction: (info) => t('settings.mcpInstructionOpenCode', {
+        path: homeConfigPath(info.platform, '~/.config/opencode/opencode.json', '%USERPROFILE%\\.config\\opencode\\opencode.json'),
+      }),
+      buildSnippet: (info) => JSON.stringify({
+        mcp: { servers: { 'open-design': {
+          type: 'local',
+          command: [info.command, ...info.args],
+          disabled: false,
+          ...(info.env && Object.keys(info.env).length > 0 ? { environment: info.env } : {}),
+        } } },
+      }, null, 2),
+      buildSnippetLang: () => 'json',
     },
     {
       id: 'cursor',

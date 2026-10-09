@@ -33,6 +33,7 @@ import {
 import { releaseChannelFromNamespace, releaseChannelFromVersion } from "@open-design/release";
 
 import type { PackagedWebOutputMode } from "./config.js";
+import { publishPackagedMcpEntry } from "./mcp-entry.js";
 import type { PackagedNamespacePaths } from "./paths.js";
 import {
   prewarmPackagedFiles,
@@ -624,6 +625,7 @@ export type PackagedDaemonSpawnEnvOptions = {
   desktopHandoffEnv?: NodeJS.ProcessEnv;
   mcpBootstrapArgs?: readonly string[];
   mcpBootstrapCommand?: string | null;
+  stableMcpEntry?: { command: string; cliPath: string } | null;
   nodeCommand?: string | null;
   /**
    * PR #974 round-5 (lefarcen P2): only pin the daemon's import-folder
@@ -691,6 +693,10 @@ export function buildPackagedDaemonSpawnEnv(
     ...(options.mcpBootstrapArgs == null
       ? {}
       : { OD_MCP_BOOTSTRAP_ARGS: JSON.stringify(options.mcpBootstrapArgs) }),
+    ...(options.stableMcpEntry == null ? {} : {
+      OD_MCP_STABLE_COMMAND: options.stableMcpEntry.command,
+      OD_MCP_STABLE_CLI: options.stableMcpEntry.cliPath,
+    }),
     ...pickPackagedDesktopHandoffEnv(options.desktopHandoffEnv ?? {}),
     ...(options.telemetryRelayUrl == null || options.telemetryRelayUrl.length === 0
       ? {}
@@ -911,6 +917,16 @@ export async function startPackagedSidecars(
 
   const daemonSidecarEntry =
     options.daemonSidecarEntry ?? resolveSidecarEntry("@open-design/daemon", "sidecar");
+  const stableMcpEntry = options.daemonCliEntry != null
+    && (process.platform === 'darwin' || process.platform === 'win32')
+    ? await publishPackagedMcpEntry({
+        namespaceRoot: paths.namespaceRoot,
+        resourceRoot: paths.resourceRoot,
+        cliPath: options.daemonCliEntry,
+        nodePath: options.nodeCommand ?? options.electronNodeCommand ?? await resolvePackagedElectronNodeCommand(),
+        platform: process.platform,
+      })
+    : null;
   const webSidecarEntry =
     options.webSidecarEntry ?? resolveSidecarEntry("@open-design/web", "sidecar");
   const prewarmLog = (message: string): void => {
@@ -946,6 +962,7 @@ export async function startPackagedSidecars(
         legacyDataDir: process.env.OD_LEGACY_DATA_DIR ?? null,
         mcpBootstrapArgs: options.mcpBootstrapArgs,
         mcpBootstrapCommand: options.mcpBootstrapCommand,
+        stableMcpEntry,
         nodeCommand: options.nodeCommand,
         requireDesktopAuth: options.requireDesktopAuth,
         telemetryRelayUrl: options.telemetryRelayUrl,

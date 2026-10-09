@@ -751,6 +751,7 @@ export const ja: Dict = {
   'settings.mcpInstructionCursor': '「Install in Cursor」をクリックして承認ダイアログ付きでインストールするか、このJSONを {path} にマージしてください。',
   'settings.mcpDeeplinkInstallCursor': 'Cursor にインストール',
   'settings.mcpMethodJson': 'JSON設定',
+  'settings.mcpInstructionOpenCode': 'この JSON を {path}（OpenCode のグローバル設定）に統合し、他の設定は保持してください。OpenCode を再起動します。',
   'settings.mcpInstructionKiro': '{path} を開き、このJSONをマージしてください。ワークスペースレベルの設定には .kiro/settings/mcp.json を使用します。',
   'settings.mcpInstructionCopilot': 'コマンドパレット（{shortcut}）を開き、「MCP: Open User Configuration」を実行して、このJSONをマージしてください。ツールを表示するには、Copilot ChatがAgentモードである必要があります。',
   'settings.mcpInstructionAntigravity': 'Antigravity の場合：Agent パネルの「...」メニュー → MCP Servers → Manage MCP Servers → View raw config。この JSON をマージしてください。',

@@ -4887,6 +4887,35 @@ describe('SettingsDialog MCP server interactions', () => {
     expect(screen.getByText('Copied')).toBeTruthy();
   });
 
+  it('shows a copyable global OpenCode V2 server entry using the daemon launch target', async () => {
+    const info = {
+      ...installInfo,
+      command: '/installed/namespaces/release-stable/mcp/current/Contents/MacOS/Open Design',
+      args: ['/installed/namespaces/release-stable/mcp/current/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs', 'mcp'],
+      env: { OD_DATA_DIR: '/installed-data', ELECTRON_RUN_AS_NODE: '1' },
+    };
+    fetchMock.mockResolvedValue({ ok: true, json: async () => info });
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'codex' },
+      { initialSection: 'integrations' },
+    );
+    await waitFor(() => expect(screen.getByText(/claude mcp add-json --scope user/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /Claude Code/i }));
+    fireEvent.click(screen.getByRole('option', { name: /OpenCode/i }));
+    expect(screen.getByText(/\.config\/opencode\/opencode\.json/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy setup command' }));
+    await waitFor(() => expect(writeTextMock).toHaveBeenCalled());
+    const snippet = JSON.parse(writeTextMock.mock.calls[0]![0] as string) as {
+      mcp: { servers: Record<string, { type: string; command: string[]; environment?: Record<string, string> }> };
+    };
+    expect(snippet.mcp.servers['open-design']).toMatchObject({
+      type: 'local',
+      command: [info.command, ...info.args],
+    });
+    expect(snippet.mcp.servers['open-design']?.command.join(' ')).not.toContain('.tmp');
+    expect(snippet.mcp.servers['open-design']?.environment).toEqual(info.env);
+  });
+
   it('shows a daemon error state when install paths cannot be resolved', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network down'));
 

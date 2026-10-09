@@ -747,6 +747,7 @@ export const en: Dict = {
   'settings.mcpInstructionCli': 'Run this command in your terminal:',
   'settings.mcpMethodToml': 'TOML config',
   'settings.mcpInstructionCodex': 'Append this table to {path}. The same config is shared between the Codex CLI and the Codex IDE extension.',
+  'settings.mcpInstructionOpenCode': 'Merge this JSON into {path} (global OpenCode config). Keep your other settings; restart OpenCode to connect.',
   'settings.mcpMethodOneClick': 'One-click install',
   'settings.mcpInstructionCursor': 'Click "Install in Cursor" to install with an approval dialog, or merge this JSON into {path}.',
   'settings.mcpDeeplinkInstallCursor': 'Install in Cursor',

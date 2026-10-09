@@ -1,26 +1,14 @@
 // Extra MCP registration fields written when a managed outer launched this
 // daemon (see apps/packaged/src/managed-headless.ts). A managed desktop can
-// turn into, or be replaced by, a runtime in another sidecar mode, so the
-// registration names every mode's endpoint instead of only this daemon's.
+// turn into, or be replaced by, a runtime in another sidecar mode, so the MCP
+// process discovers both modes at launch rather than persisting this socket.
 import {
   readCurrentSidecarStamp,
-  resolveSidecarClientEndpoint,
   type SidecarStamp,
 } from '@open-design/sidecar';
-import { APP_KEYS, MCP_BOOTSTRAP_CONTRACT } from '@open-design/sidecar-proto';
+import { MCP_BOOTSTRAP_CONTRACT } from '@open-design/sidecar-proto';
 
-import { isManagedMcpBootstrapEnv, type ManagedMcpDiscovery } from './mcp-bootstrap.js';
-
-const MANAGED_OWNER_MODES = ['runtime', 'headless'] as const;
-
-export function buildManagedMcpDiscovery(
-  stamp: SidecarStamp,
-  resolveEndpoint: (stamp: SidecarStamp) => string = resolveSidecarClientEndpoint,
-): ManagedMcpDiscovery {
-  const endpoints = (app: string) =>
-    MANAGED_OWNER_MODES.map((mode) => resolveEndpoint({ ...stamp, app, mode }));
-  return { daemon: endpoints(APP_KEYS.DAEMON), desktop: endpoints(APP_KEYS.DESKTOP) };
-}
+import { isManagedMcpBootstrapEnv } from './mcp-bootstrap.js';
 
 /** Registration env to add for a managed launch; empty otherwise. */
 export function managedMcpRegistrationEnv(
@@ -29,11 +17,23 @@ export function managedMcpRegistrationEnv(
 ): Record<string, string> {
   if (!isManagedMcpBootstrapEnv(env)) return {};
   try {
-    return { [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify(buildManagedMcpDiscovery(readStamp())) };
+    // Keep the five-field sidecar identity, not the registering process's
+    // absolute temporary IPC paths. `od mcp` resolves the sockets when it runs.
+    return { [MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]: JSON.stringify({ stamp: readStamp() }) };
   } catch {
     // Not a sidecar-supervised daemon: keep the plain registration.
     return {};
   }
+}
+
+/** Managed registrations must not persist the inherited IPC capability. */
+export function mergeManagedMcpRegistrationEnvironment(
+  inherited: Record<string, string>,
+  managed: Record<string, string>,
+): Record<string, string> {
+  const result = { ...inherited };
+  if (managed[MCP_BOOTSTRAP_CONTRACT.DISCOVERY_ENV]) delete result.OD_SIDECAR_CLIENT_ENDPOINT;
+  return { ...result, ...managed };
 }
 
 function bootstrapTargetArgs(raw: string | undefined): string[] | null {
