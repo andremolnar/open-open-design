@@ -120,6 +120,26 @@ TypeScript in `od-next-strategy.ts`. The deck contract lives in the TypeScript,
 not in `ppt.md`. Check both before concluding a contract is absent on that
 side.
 
+## Connected source evidence
+
+Read-only connected-codebase evidence has one daemon renderer,
+`apps/daemon/src/prompts/source-context.ts`, backed by the shared validated
+`services/project-source-context.ts` reader. It is deliberately injected after
+strategy selection:
+
+- Legacy filesystem and BYOK OpenCode prompts append it to the composed prompt.
+- OD Next places it in the stable request-context slot consumed by the actual
+  initial prompt bundle, without changing the cache-stable recipe head.
+- Client-composed BYOK/API prompts receive the same evidence through the
+  authorized daemon proxy middleware before provider dispatch. The client
+  cannot select an arbitrary source path.
+
+A source binding adds no runtime permissions, target writes, executable steps,
+or writable linked directory. Quoted repository instructions remain bounded
+reference data. Unbound projects receive no evidence block; unavailable bindings
+produce an explicit unavailable notice. The complete flow and manual experiments
+are in [Use a connected codebase as design context](codebase-context.md).
+
 ## Worked example: #7568, then #7651
 
 These two PRs are the same author, three days apart, and together they are the

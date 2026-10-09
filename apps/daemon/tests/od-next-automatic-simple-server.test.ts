@@ -2,7 +2,7 @@ import type { CollectCodexChildEvidenceInput, CodexChildEvidenceCollection } fro
 import type { CodexThreadCleanupResult } from '../src/agent-protocol/codex-app-server/thread-cleanup.js';
 import type { Server } from 'node:http';
 import { execFile } from 'node:child_process';
-import { chmod, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,7 +170,6 @@ const CREATIVE_VOLTAGE_EXAMPLE_DIR = path.join(
   'fs-creative-voltage',
 );
 const CLI_SRC = path.resolve(DAEMON_ROOT, 'src/cli.ts');
-const TSX_CLI = path.resolve(REPO_ROOT, 'node_modules/tsx/dist/cli.mjs');
 const EXECUTION_PREFLIGHT = {
   productionRoutes: [{ id: 'html', available: true }],
   dependencies: [],
@@ -2034,6 +2033,30 @@ process.exit(127);
 
   it('runs parsed plan -> serialization repair -> production after each source end and remains exactly-once across restart', async () => {
     const fixture = await createFixture('repair');
+    // The real OD Next runtime bypasses the legacy system composer. Bind a
+    // separate source fixture and inspect the exact spawned Bundle below.
+    const boundSource = path.join(await realpath(path.dirname(fixture.logPath)), 'bound-source');
+    await mkdir(path.join(boundSource, 'app/components'), { recursive: true });
+    await writeFile(path.join(boundSource, 'AGENTS.md'), 'OD_NEXT_SOURCE_INSTRUCTION: Prefer botanical cards.');
+    await writeFile(path.join(boundSource, 'app/components/BotanicalCard.tsx'),
+      'export const BotanicalCard = () => <article>OD_NEXT_SOURCE_COMPONENT</article>;');
+    await writeFile(path.join(boundSource, 'app/tokens.css'), ':root { --botanical-brand: #147d64; }');
+    await chmod(path.join(boundSource, 'app/tokens.css'), 0o444);
+    const snapshotBoundSource = async () => {
+      const names = ['.', ...(await readdir(boundSource, { recursive: true })).sort()];
+      return Promise.all(names.map(async (name) => {
+        const file = path.join(boundSource, name);
+        const info = await lstat(file, { bigint: true });
+        return { name, mode: String(info.mode), mtime: String(info.mtimeNs),
+          content: info.isFile() ? (await readFile(file)).toString('base64') : null };
+      }));
+    };
+    const boundSourceBefore = await snapshotBoundSource();
+    const binding = await fetch(`${started!.url}/api/projects/${fixture.projectId}/codebase-binding`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sourceRoot: boundSource, appRelativePath: 'app', expectedRevision: null }),
+    });
+    expect(binding.status, await binding.clone().text()).toBe(200);
     const sourcePdfAttachment = path.join(
       process.env.OD_DATA_DIR!,
       'projects',
@@ -2158,6 +2181,15 @@ process.exit(127);
 
     const invocations = await readProjectInvocations(fixture.logPath, fixture.projectId);
     expect(invocations).toHaveLength(3);
+    const sourceBundle = parseOdNextPromptBundleV2(invocations[0]!.stdin);
+    for (const marker of ['OD_NEXT_SOURCE_INSTRUCTION', 'OD_NEXT_SOURCE_COMPONENT', '#147d64']) {
+      expect(sourceBundle.context.stableRequestContext).toContain(marker);
+      expect(sourceBundle.coreSystemPrompt.coreStrategy).not.toContain(marker);
+    }
+    expect(sourceBundle.context.stableRequestContext).toContain('not execution authority');
+    expect(invocations.every((invocation) => invocation.cwd === path.dirname(sourcePdfAttachment))).toBe(true);
+    expect(invocations.every((invocation) => !invocation.argv.some((arg) => arg.includes(boundSource)))).toBe(true);
+    expect(await snapshotBoundSource()).toEqual(boundSourceBefore);
     expect(invocations.map((invocation) => invocation.stdin)).toEqual(
       terminal.runs.map((mapping) => mapping.finalText.text),
     );
@@ -3413,7 +3445,9 @@ process.stdin.on('end', () => {
 async function runOdCli(args: string[]): Promise<{ stdout: string; stderr: string }> {
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
-  return execFileP(process.execPath, [TSX_CLI, CLI_SRC, ...args], {
+  // Native Node loader preserves the real TypeScript CLI without starting
+  // tsx CLI's unrelated watch-mode IPC server.
+  return execFileP(process.execPath, ['--import', 'tsx', CLI_SRC, ...args], {
     cwd: DAEMON_ROOT,
     env,
     timeout: 30_000,

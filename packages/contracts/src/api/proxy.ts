@@ -30,6 +30,8 @@ export interface ProxyStreamRequest extends ReasoningExecutionRequestFields {
   apiKey: string;
   model: string;
   systemPrompt?: string;
+  /** Saved local project identity; source evidence is read only after project authorization. */
+  projectId?: string;
   messages: ProxyMessage[];
   // Caps the upstream completion length. Defaults to 8192 when unset so
   // pre-existing clients keep their old behavior.

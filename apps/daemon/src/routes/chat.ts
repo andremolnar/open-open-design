@@ -39,6 +39,7 @@ import { googleStreamGenerateContentUrl } from '../integrations/google-models.js
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from '../reasoning-egress.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
+import { proxySourceContextMiddleware } from './proxy-source-context.js';
 
 // Allowlist for the `/feedback` route. Mirrors the
 // ChatMessageFeedbackReasonCode union in packages/contracts/src/api/chat.ts.
@@ -60,7 +61,7 @@ const FEEDBACK_REASON_ALLOWLIST: ReadonlySet<string> = new Set([
   'other',
 ]);
 
-export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry' | 'appConfig'> {
+export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry' | 'appConfig' | 'sourceContext'> {
   authorizeProjectRequest: AuthorizeProjectRequest;
 }
 
@@ -982,6 +983,18 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       })),
     },
   ];
+
+  // BYOK/API prompts are composed by the client, but local source evidence
+  // must still come from the saved daemon binding and the real request's
+  // project authority. This shared seam reaches every supported protocol.
+  app.post('/api/proxy/:provider/stream', (req, res, next) => {
+    if (rejectProxyPluginContext(req.body || {}, res)) return;
+    return proxySourceContextMiddleware({
+      authorizeProjectRequest: ctx.authorizeProjectRequest,
+      readPrompt: (projectId, query) => ctx.sourceContext.readPrompt(projectId, query),
+      sendApiError,
+    })(req, res, next);
+  });
 
   app.post('/api/proxy/anthropic/stream', async (req, res) => {
     /** @type {Partial<ProxyStreamRequest>} */

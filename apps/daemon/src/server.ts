@@ -917,6 +917,9 @@ import { registerMediaRoutes } from './routes/media.js';
 import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes, createEnforceWorkspaceProjectMutation } from './routes/project/index.js';
 import { registerProjectChatArtifactRoutes } from './routes/project/chat-artifacts.js';
 import { registerProjectCodebaseBindingRoutes } from './routes/project/codebase-binding.js';
+import { registerProjectSourceContextRoutes } from './routes/project/source-context.js';
+import { readProjectSourceContext } from './services/project-source-context.js';
+import { appendProjectSourceContext, renderProjectSourceContext } from './prompts/source-context.js';
 import { createChatArtifactBlobStore } from './chat-artifacts/blob-store.js';
 import { resolveChatArtifactQuota } from './chat-artifacts/quota.js';
 import {
@@ -975,6 +978,7 @@ import {
 } from './collab/workspace-resource-mutation.js';
 import {
   createAuthorizeProjectRequest,
+  enforceLocalProjectDataPlaneRequest,
 } from './collab/project-request-authority.js';
 import { withLastKnownWorkspaceContext } from './collab/workspace-context.js';
 import {
@@ -8391,6 +8395,30 @@ export async function startServer({
       projectIsUnmaterializedSharedPlaceholder(projectId),
     sendApiError,
   });
+  const sourceContext = {
+    // Authority is established by the caller before this read: chat/run
+    // admission or the proxy/API project gate. Only persisted bindings supply
+    // filesystem paths; request text contributes bounded relevance ranking.
+    readPrompt: async (projectId: string, query?: string) => {
+      const project = getProject(db, projectId);
+      if (!project) return null;
+      return renderProjectSourceContext(await readProjectSourceContext(db, project, {
+        projectsRoot: PROJECTS_DIR,
+        runtimeDataRoot: RUNTIME_DATA_DIR_CANONICAL,
+      }, typeof query === 'string' ? { query: query.slice(0, 2_000) } : {}));
+    },
+    listAuthorizedProjects: async (req) => {
+      const authorized = [];
+      for (const project of listProjects(db)) {
+        if (revokedTeamProjectMirrors.has(project.id)) continue;
+        if (await enforceLocalProjectDataPlaneRequest({
+          req, db, projectId: project.id, options: { mode: 'read' },
+          getWorkspaceProject, getWorkspaceProjectByProjectId,
+        })) authorized.push(project);
+      }
+      return authorized;
+    },
+  };
   // Legacy registrars still receive the historical bound mutation-gate shape,
   // but production delegates it to the same central authorizer as newer route
   // modules. This keeps placeholder stamps authoritative across Figma import,
@@ -8959,6 +8987,15 @@ export async function startServer({
     projectStore: projectStoreDeps,
     auth: authDeps,
     authorizeProjectRequest,
+  });
+
+  registerProjectSourceContextRoutes(app, {
+    db,
+    http: httpDeps,
+    paths: pathDeps,
+    projectStore: projectStoreDeps,
+    authorizeProjectRequest,
+    sourceContext,
   });
 
   // Whether the caller may mutate (edit / publish-toggle / delete) a design
@@ -9836,6 +9873,7 @@ export async function startServer({
     odNextSyntheticCanary = false,
     odNextAutomaticAdmission = false,
     runtimeCapabilitySnapshot,
+    sourceContextQuery,
   }) => {
     const project =
       typeof projectId === 'string' && projectId
@@ -9854,6 +9892,9 @@ export async function startServer({
         ? projectWorkspaceBinding.createdByWorkspaceMemberId.trim()
         : '';
     const metadata = project?.metadata;
+    const sourceContextPrompt = project
+      ? await sourceContext.readPrompt(project.id, sourceContextQuery) ?? ''
+      : '';
     const localCatalogScope = (value) => {
       const workspaceId = typeof value?.workspaceId === 'string'
         ? value.workspaceId.trim()
@@ -10708,6 +10749,7 @@ export async function startServer({
         strategy_task_type: odNextStrategyRecipe.taskType,
         strategy_runtime_capability_facts: odNextStrategyRecipe.planningFacts,
         project_and_design_context: {
+          sourceContextPrompt,
           metadata,
           template,
           exampleReference: odNextExampleReference,
@@ -10724,9 +10766,22 @@ export async function startServer({
         user_and_project_instructions: { userInstructions, projectInstructions },
       });
     }
-    const prompt = odNextStrategyRecipe
-      ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
-      : composeSystemPrompt(systemPromptInputs);
+    // This is deliberately after strategy selection. OD Next bypasses the
+    // legacy system composer and freezes a separate stable request-context
+    // slot; both it and legacy/BYOK OpenCode consume the same evidence block.
+    const sourceAwarePrompts = appendProjectSourceContext({
+      prompt: odNextStrategyRecipe
+        ? composeOdNextStrategyCorePromptV2(odNextStrategyRecipe)
+        : composeSystemPrompt(systemPromptInputs),
+      odNextStableContextPrompt: odNextStableRequestContext
+        ? composeOdNextStrategyStableRequestContextV2(
+            odNextStableRequestContext,
+            odNextStrategyRecipe?.executionProfile ?? 'filesystem',
+          )
+        : '',
+      isOdNext: Boolean(odNextStrategyRecipe),
+      sourceContextPrompt,
+    });
     // OD Next sends a canonical XML tree, not this Markdown string. The tree's
     // cache-stable head, its per-task identity, and the runtime-owned planning
     // facts are three separate products of the same verified recipe, so they are
@@ -10747,16 +10802,10 @@ export async function startServer({
     // the same panel-eligibility decision down to the spawn-path
     // orchestrator gate so prompt and orchestrator stay in lockstep.
     return {
-      prompt,
+      ...sourceAwarePrompts,
       odNextBundleHead,
       odNextRecipeIdentity,
       odNextRuntimeFacts,
-      odNextStableContextPrompt: odNextStableRequestContext
-        ? composeOdNextStrategyStableRequestContextV2(
-            odNextStableRequestContext,
-            odNextStrategyRecipe?.executionProfile ?? 'filesystem',
-          )
-        : '',
       activeSkillDir,
       activeSkillDirs: odNextStrategyRecipe ? [] : activeSkillDirs,
       critiqueShouldRun: odNextStrategyRecipe ? false : critiqueShouldRun,
@@ -10792,7 +10841,7 @@ export async function startServer({
       // Diagnostic only. The caller merges its own stable inputs
       // (runtimeToolPrompt, the client system prompt) in before hashing, so the
       // section map covers the whole fingerprint rather than just this half.
-      stableSectionInputs: systemPromptInputs,
+      stableSectionInputs: { ...systemPromptInputs, sourceContextPrompt },
     };
   };
 
@@ -11478,6 +11527,7 @@ export async function startServer({
       : await composeDaemonSystemPrompt({
         agentId,
         projectId,
+        sourceContextQuery: extractUserAuthoredSignalText(currentPrompt ?? message),
         skillId,
         skillIds,
         designSystemId,
@@ -17964,6 +18014,7 @@ export async function startServer({
   routineService.start();
 
   assertServerContextSatisfiesRoutes({
+    sourceContext,
     db,
     design,
     http: httpDeps,
@@ -18042,6 +18093,7 @@ export async function startServer({
     design,
     http: httpDeps,
     authorizeProjectRequest,
+    sourceContext,
     paths: pathDeps,
     chat: { prepareOdNextInitialPromptBundle, startChatRun },
     agents: agentDeps,

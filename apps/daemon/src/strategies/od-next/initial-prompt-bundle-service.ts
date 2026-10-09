@@ -332,6 +332,7 @@ export function createOdNextInitialPromptBundleService(
     } = await deps.composeDaemonSystemPrompt({
       agentId,
       projectId,
+      sourceContextQuery: userPrompt,
       skillId,
       skillIds,
       designSystemId,
