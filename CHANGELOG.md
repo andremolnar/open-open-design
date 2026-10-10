@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Changed] MCP guidance now distinguishes previews authored in the current coding session from delegated OpenDesign generation. Saving a preview into a connected project needs no Cloud sign-in; available local agent CLIs remain an option for delegated runs.
+- [Fixed] OpenCode MCP connections no longer expire after 30 idle minutes, and MCP clients can list resource templates without a protocol error.
+- [Fixed] Explicitly recovered local-only Personal projects remain visible without sign-in instead of being silently claimed by a later Personal-workspace read. Existing project files and assets stay in place.
 - [Added] Coding agents can discover authorized OpenDesign project and app connections from their current folder through MCP or `od project discover-context`, choose explicitly when several match, and prepare design guidance in the same coding session without copying project IDs first. (#6)
 - [Added] Connected projects can prepare design guidance and original image assets for the coding session already open in their source repository, track progress across restarts, and register a finished design through MCP or `od project work-here` without starting a separate OpenDesign run. (#5)
 - [Fixed] OpenCode agent runs now attach selected images as actual files rather than passing image paths as text. (#5)

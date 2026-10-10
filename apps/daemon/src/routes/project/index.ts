@@ -105,6 +105,8 @@ import { isSafeId } from '../../projects.js';
 import {
   ensureTeamProjectCommentConversations,
   getFirstProjectConversation,
+  isExplicitlyLocalProject,
+  shouldAdoptUnboundProject,
   SYNC_KEEPS_UPDATED_AT,
 } from '../../db.js';
 import {
@@ -2946,6 +2948,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     const asserted = workspaceProjectContextFromRequest(req);
     if (asserted === null || asserted === 'missing') return;
     if (getWorkspaceProjectByProjectId(db, projectId)) return;
+    if (isExplicitlyLocalProject(db, projectId)) return;
     if (!home) return;
     // The resolver and parser must agree on the exact local attribution pair.
     if (
@@ -3002,7 +3005,8 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   ) {
     for (const id of projectIds) {
       const project = getProject(db, id);
-      if (ctx.workspaceType === 'personal' && project && projectVisibleForLocations(project, locations)) {
+      if (ctx.workspaceType === 'personal' && project && !getWorkspaceProjectByProjectId(db, id)
+        && !isExplicitlyLocalProject(db, id) && projectVisibleForLocations(project, locations)) {
         ensureWorkspaceProjection(project, ctx, 'personal');
       }
     }
@@ -3049,7 +3053,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   ) {
     if (ctx.workspaceType !== 'personal') return;
     for (const project of listProjects(db).filter((item: any) => projectVisibleForLocations(item, locations))) {
-      if (getWorkspaceProjectByProjectId(db, project.id)) continue;
+      if (!shouldAdoptUnboundProject(db, project.id)) continue;
       ensureWorkspaceProjection(project, ctx, 'personal');
     }
   }

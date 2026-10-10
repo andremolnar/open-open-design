@@ -870,6 +870,11 @@ describe('local OpenDesign MCP brief app', () => {
 
     expect(userFacingCopy).toContain('OpenDesign Cloud');
     expect(userFacingCopy).toContain('Local Codex');
+    expect(MCP_SERVER_INSTRUCTIONS).toContain('current host session');
+    expect(MCP_SERVER_INSTRUCTIONS).toContain('does not require OpenDesign Cloud sign-in');
+    expect(MCP_SERVER_INSTRUCTIONS).toContain('does not imply a local agent CLI is installed');
+    expect(MCP_SERVER_INSTRUCTIONS).toContain('preview files only');
+    expect(MCP_SERVER_INSTRUCTIONS).toContain('explicit project');
     expect(userFacingCopy).not.toContain('Secure BYOK');
     expect(userFacingCopy).not.toMatch(/\b(?:Vela|AMR)\b/u);
     expect(userFacingCopy).not.toMatch(/agent\s*:\s*["']?[a-z]/iu);

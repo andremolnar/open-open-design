@@ -131,6 +131,14 @@ function migrate(db: SqliteDb): void {
     CREATE INDEX IF NOT EXISTS idx_workspace_projects_workspace_visibility
       ON workspace_projects(workspace_id, visibility, updated_at DESC);
 
+    -- Explicitly detached local projects stay unbound even if a user later
+    -- opens a Personal workspace. This is not an authentication identity.
+    CREATE TABLE IF NOT EXISTS explicit_local_projects (
+      project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      previous_workspace_id TEXT NOT NULL,
+      detached_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS team_project_materializations (
       workspace_id TEXT NOT NULL,
       resource_team_id TEXT NOT NULL,
@@ -1110,6 +1118,44 @@ export function listUnboundProjects(db: SqliteDb) {
     )
     .all() as DbRow[];
   return rows.map(normalizeProject);
+}
+
+export function isExplicitlyLocalProject(db: SqliteDb, projectId: string): boolean {
+  return db.prepare('SELECT 1 FROM explicit_local_projects WHERE project_id = ?').get(projectId) !== undefined;
+}
+
+export function shouldAdoptUnboundProject(db: SqliteDb, projectId: string): boolean {
+  return !getWorkspaceProjectByProjectId(db, projectId) && !isExplicitlyLocalProject(db, projectId);
+}
+
+/**
+ * One-time recovery of an exact local-only Personal project into headerless
+ * ownership. The marker prevents later Personal-workspace reads from silently
+ * adopting it again. Team, synced and published projects are never detached.
+ * No project, conversation, artifact, source binding or file row is deleted.
+ */
+export function detachLocalOnlyPersonalProject(db: SqliteDb, projectId: string, workspaceId: string): boolean {
+  return db.transaction(() => {
+    const eligible = db.prepare(`
+      SELECT 1 FROM workspace_projects
+       WHERE project_id = ? AND workspace_id = ?
+         AND visibility = 'personal' AND resource_state = 'active'
+         AND sync_state = 'local_only' AND resource_hub_resource_id IS NULL
+         AND cloud_tombstoned_at IS NULL
+    `).get(projectId, workspaceId);
+    if (!eligible) return false;
+    db.prepare('INSERT INTO explicit_local_projects (project_id, previous_workspace_id, detached_at) VALUES (?, ?, ?)')
+      .run(projectId, workspaceId, Date.now());
+    const removed = db.prepare(`
+      DELETE FROM workspace_projects
+       WHERE project_id = ? AND workspace_id = ?
+         AND visibility = 'personal' AND resource_state = 'active'
+         AND sync_state = 'local_only' AND resource_hub_resource_id IS NULL
+         AND cloud_tombstoned_at IS NULL
+    `).run(projectId, workspaceId);
+    if (removed.changes !== 1) throw new Error('local project ownership changed during recovery');
+    return true;
+  })();
 }
 
 export function getWorkspaceProject(db: SqliteDb, workspaceId: string, projectId: string) {

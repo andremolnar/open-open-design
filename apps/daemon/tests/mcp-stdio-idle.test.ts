@@ -5,8 +5,8 @@ import {
 } from '../src/mcp.js';
 
 describe('MCP stdio idle exit timeout', () => {
-  it('defaults to 30 minutes', () => {
-    expect(_resolveMcpStdioIdleExitMs({})).toBe(30 * 60 * 1_000);
+  it('keeps a live client connection open until the client closes stdin', () => {
+    expect(_resolveMcpStdioIdleExitMs({})).toBe(0);
   });
 
   it('normalizes an environment override', () => {
@@ -26,11 +26,11 @@ describe('MCP stdio idle exit timeout', () => {
     ).toBe(0);
   });
 
-  it('falls back to the default for invalid values', () => {
+  it('falls back to no idle exit for invalid values', () => {
     for (const value of ['', '   ', '-1', 'not-a-number']) {
       expect(
         _resolveMcpStdioIdleExitMs({ OD_MCP_STDIO_IDLE_EXIT_MS: value }),
-      ).toBe(30 * 60 * 1_000);
+      ).toBe(0);
     }
   });
 });

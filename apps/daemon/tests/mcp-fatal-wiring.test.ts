@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   listenersDuringConnect: 0,
+  resourceTemplatesSchema: { method: 'resources/templates/list' },
+  handlers: new Map<unknown, () => Promise<unknown>>(),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/server/index.js", () => ({
   Server: class {
-    setRequestHandler() {}
+    setRequestHandler(schema: unknown, handler: () => Promise<unknown>) {
+      state.handlers.set(schema, handler);
+    }
 
     getClientVersion() {
       return undefined;
@@ -26,6 +30,7 @@ vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
 
 vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
   CallToolRequestSchema: {},
+  ListResourceTemplatesRequestSchema: state.resourceTemplatesSchema,
   ListResourcesRequestSchema: {},
   ListToolsRequestSchema: {},
   ReadResourceRequestSchema: {},
@@ -34,6 +39,7 @@ vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
 describe("runMcpStdio fatal handler wiring", () => {
   afterEach(() => {
     vi.resetModules();
+    state.handlers.clear();
   });
 
   it("installs handlers before transport startup and removes them on startup failure", async () => {
@@ -46,6 +52,7 @@ describe("runMcpStdio fatal handler wiring", () => {
     ).rejects.toThrow("transport initialization failed");
 
     expect(state.listenersDuringConnect).toBe(before + 1);
+    expect(await state.handlers.get(state.resourceTemplatesSchema)?.()).toEqual({ resourceTemplates: [] });
     expect(process.listeners("uncaughtException").length).toBe(before);
     expect(process.listeners("unhandledRejection").length).toBe(
       beforeRejection,

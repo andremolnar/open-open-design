@@ -6,6 +6,18 @@ bytes and a durable workflow record through the existing MCP connection. Your
 current agent owns its plan, edits, tests, permissions and progress. No second
 coding Run is started. Existing `start_run` delegated generation remains available.
 
+The MCP connection is a bridge into the **current** coding host, not proof that
+OpenDesign can launch that host as a separate CLI. If a user wants preview files
+only in a connected OpenDesign project (and no repository changes), the host can
+read the project's design context, author the preview in this session, and save
+it with `create_artifact` (or update an existing file with `write_file`) using
+the explicit project ID. This path needs neither OpenDesign Cloud sign-in nor a
+second local agent installation; it is host-authored, not an OpenDesign Run.
+Do not silently substitute it for a delegated Run that the user explicitly
+requested or that is already running. For delegated generation, `list_agents`
+reports which local CLIs OpenDesign can actually launch (including OpenCode
+when available); Cloud sign-in applies only when the user chooses Cloud.
+
 ## Start from the current host directory
 
 You do not need to copy IDs from OpenDesign for an existing saved connection.
