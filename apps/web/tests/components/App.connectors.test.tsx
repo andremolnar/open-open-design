@@ -389,7 +389,7 @@ describe('App connectors settings flows', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save connectors key' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save connectors key' }));
 
     await waitFor(() => {
       expect(mockedSyncComposioConfigToDaemon).toHaveBeenCalledWith(
@@ -437,7 +437,7 @@ describe('App connectors settings flows', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear connectors key' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear connectors key' }));
 
     await waitFor(() => {
       expect(mockedSyncComposioConfigToDaemon).toHaveBeenCalledWith({

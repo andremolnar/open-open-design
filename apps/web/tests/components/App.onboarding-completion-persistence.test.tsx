@@ -47,15 +47,10 @@ const routerState = vi.hoisted(() => {
 
 const entryViewCapture = vi.hoisted(() => ({
   firstAgentChange: null as null | ((agentId: string) => void),
-  firstCompleteOnboarding: null as null | (() => void),
   firstRefreshAgents: null as null | ((
     options?: { throwOnError?: boolean; agentCliEnv?: AppConfig['agentCliEnv'] },
   ) => unknown),
   activeSignOut: null as null | (() => void | Promise<void>),
-}));
-
-const settingsCapture = vi.hoisted(() => ({
-  resetOnboarding: null as null | ((next: AppConfig) => void),
 }));
 
 vi.mock('../../src/router', async () => {
@@ -80,20 +75,17 @@ vi.mock('../../src/components/EntryView', () => ({
   EntryView: ({
     config,
     onAgentChange,
-    onCompleteOnboarding,
     onRefreshAgents,
     onSignedOut,
   }: {
     config: AppConfig;
     onAgentChange: (agentId: string) => void;
-    onCompleteOnboarding: () => void;
     onRefreshAgents: (
       options?: { throwOnError?: boolean; agentCliEnv?: AppConfig['agentCliEnv'] },
     ) => unknown;
     onSignedOut: () => void | Promise<void>;
   }) => {
     entryViewCapture.firstAgentChange ??= onAgentChange;
-    entryViewCapture.firstCompleteOnboarding ??= onCompleteOnboarding;
     entryViewCapture.firstRefreshAgents ??= onRefreshAgents;
     entryViewCapture.activeSignOut = onSignedOut;
     return (
@@ -120,20 +112,11 @@ vi.mock('../../src/components/pet/pets', () => ({
 }));
 
 vi.mock('../../src/components/SettingsDialog', () => ({
-  SettingsDialog: ({
-    initial,
-    onResetOnboarding,
-  }: {
-    initial: AppConfig;
-    onResetOnboarding: (next: AppConfig) => void;
-  }) => {
-    settingsCapture.resetOnboarding = onResetOnboarding;
-    return (
+  SettingsDialog: ({ initial }: { initial: AppConfig }) => (
       <div data-testid="settings-onboarding-completed">
         {String(initial.onboardingCompleted)}
       </div>
-    );
-  },
+  ),
 }));
 
 vi.mock('../../src/providers/registry', async () => {
@@ -258,10 +241,8 @@ describe('App onboarding completion persistence', () => {
   beforeEach(() => {
     routerState.current = { kind: 'home', view: 'home' };
     entryViewCapture.firstAgentChange = null;
-    entryViewCapture.firstCompleteOnboarding = null;
     entryViewCapture.firstRefreshAgents = null;
     entryViewCapture.activeSignOut = null;
-    settingsCapture.resetOnboarding = null;
     mockedDaemonIsLive.mockResolvedValue(true);
     mockedFetchAgentsStream.mockResolvedValue([]);
     mockedFetchSkills.mockResolvedValue([]);
@@ -329,7 +310,7 @@ describe('App onboarding completion persistence', () => {
     } as AppConfig;
 
     expect(resetExecutionConfigAfterSignOut(current)).toMatchObject({
-      onboardingCompleted: false,
+      onboardingCompleted: true,
       mode: 'daemon',
       agentId: null,
       agentModels: {},
@@ -369,7 +350,12 @@ describe('App onboarding completion persistence', () => {
     });
   });
 
-  it('persists the Cloud reset without discarding BYOK and returns to onboarding', async () => {
+  it('does not rewrite an old incomplete setup preference on sign-out', () => {
+    const current = { ...returningUserConfig(), onboardingCompleted: false };
+    expect(resetExecutionConfigAfterSignOut(current).onboardingCompleted).toBe(false);
+  });
+
+  it('preserves BYOK on Cloud sign-out and returns to Home', async () => {
     mockedLoadConfig.mockReturnValue({
       ...returningUserConfig(),
       mode: 'api',
@@ -397,13 +383,13 @@ describe('App onboarding completion persistence', () => {
       await entryViewCapture.activeSignOut?.();
     });
 
-    expect(screen.getByTestId('onboarding-completed').textContent).toBe('false');
+    expect(screen.getByTestId('onboarding-completed').textContent).toBe('true');
     expect(screen.getByTestId('agent-id').textContent).toBe('none');
     expect(screen.getByTestId('api-key').textContent).toBe('persisted-key');
     expect(screen.getByTestId('api-model').textContent).toBe('gpt-5');
     expect(mockedSyncConfigToDaemon).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        onboardingCompleted: false,
+        onboardingCompleted: true,
         mode: 'daemon',
         agentId: null,
         apiKey: 'persisted-key',
@@ -417,9 +403,9 @@ describe('App onboarding completion persistence', () => {
           },
         },
       }),
-      { allowOnboardingReset: true },
     );
-    expect(await navigatedToOnboarding()).toBe(true);
+    expect(await navigatedToOnboarding()).toBe(false);
+    expect(routerState.current).toEqual({ kind: 'home', view: 'home' });
   });
 
   it('keeps a completed user out of onboarding when the daemon copy still says false', async () => {
@@ -442,6 +428,24 @@ describe('App onboarding completion persistence', () => {
       ([cfg]) => (cfg as AppConfig | undefined)?.onboardingCompleted === false,
     );
     expect(wroteRollback).toBe(false);
+  });
+
+  it('opens Home after initialization even when both saved copies say onboarding is incomplete', async () => {
+    mockedLoadConfig.mockReturnValue(firstRunConfig());
+    const daemonConfig = deferred<{ onboardingCompleted: false }>();
+    mockedFetchDaemonConfig.mockReturnValue(daemonConfig.promise);
+
+    render(<App />);
+    expect(screen.queryByTestId('agent-id')).toBeNull();
+
+    await act(async () => {
+      daemonConfig.resolve({ onboardingCompleted: false });
+      await daemonConfig.promise;
+    });
+
+    await waitFor(() => expect(screen.getByTestId('agent-id').textContent).toBe('amr'));
+    expect(await navigatedToOnboarding()).toBe(false);
+    expect(routerState.current).toEqual({ kind: 'home', view: 'home' });
   });
 
   it('only sends onboarding false through the explicit reset channel', async () => {
@@ -509,44 +513,6 @@ describe('App onboarding completion persistence', () => {
         onboardingCompleted: true,
         agentId: 'claude-code',
       }),
-    );
-  });
-
-  it('owns explicit reset in App and can persist completion again', async () => {
-    const completed = returningUserConfig();
-    routerState.current = { kind: 'home', view: 'settings' };
-    mockedLoadConfig.mockReturnValue(completed);
-    mockedFetchDaemonConfig.mockResolvedValue({ onboardingCompleted: true });
-
-    render(<App />);
-
-    await waitFor(() => {
-      expect(settingsCapture.resetOnboarding).toEqual(expect.any(Function));
-      expect(screen.getByTestId('settings-onboarding-completed').textContent).toBe('true');
-    });
-
-    act(() => {
-      settingsCapture.resetOnboarding?.({
-        ...completed,
-        onboardingCompleted: false,
-      });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('onboarding-completed').textContent).toBe('false');
-    });
-    expect(mockedSyncConfigToDaemon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ onboardingCompleted: false }),
-      { allowOnboardingReset: true },
-    );
-
-    act(() => {
-      entryViewCapture.firstCompleteOnboarding?.();
-    });
-
-    expect(screen.getByTestId('onboarding-completed').textContent).toBe('true');
-    expect(mockedSyncConfigToDaemon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ onboardingCompleted: true }),
     );
   });
 

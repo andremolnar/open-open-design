@@ -83,7 +83,6 @@ describe('router entry sub-views', () => {
   it('round-trips entry sub-views through buildPath', () => {
     for (const route of [
       { kind: 'home', view: 'home' } as Route,
-      { kind: 'home', view: 'onboarding' } as Route,
       { kind: 'home', view: 'projects' } as Route,
       { kind: 'home', view: 'tasks' } as Route,
       { kind: 'home', view: 'plugins' } as Route,
@@ -94,8 +93,8 @@ describe('router entry sub-views', () => {
     }
   });
 
-  it('parses /onboarding as the global onboarding panel', () => {
-    expect(parseRoute('/onboarding')).toEqual({ kind: 'home', view: 'onboarding' });
-    expect(buildPath({ kind: 'home', view: 'onboarding' })).toBe('/onboarding');
+  it('opens a legacy /onboarding bookmark on Home instead of the retired panel', () => {
+    expect(parseRoute('/onboarding')).toEqual({ kind: 'home', view: 'home' });
+    expect(buildPath({ kind: 'home', view: 'onboarding' })).toBe('/');
   });
 });

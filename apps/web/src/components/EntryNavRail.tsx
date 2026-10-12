@@ -61,7 +61,6 @@ import {
   formatVelaBalanceUsd,
   velaLogout,
 } from '../providers/daemon';
-import { resetCloudSignInTipDismissal } from './CloudSignInTip';
 import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
 import { Icon } from './Icon';
@@ -268,8 +267,6 @@ interface Props {
   onOpenSettings?: (section?: EntrySettingsSection) => void;
   /** Open the members / invite slot (B's InviteDialog). */
   onInvite?: () => void;
-  /** Start the cloud sign-in / team flow from the local-state callout. */
-  onSignInCloud?: () => void;
   /** Clear app-owned model-source state after the daemon confirms sign-out. */
   onSignedOut?: () => void | Promise<void>;
   /**
@@ -1844,11 +1841,6 @@ export function EntryTopRightCluster({
                       void velaLogout().then(async (result) => {
                         if (!result.ok) return;
                         await onSignedOut?.();
-                        // recvqbkcLqIFH7: a stale "dismissed" flag on the
-                        // footer's CloudSignInTip must not survive a real
-                        // sign-out, or the rail's only sign-in entry point
-                        // silently disappears with nothing left in its place.
-                        resetCloudSignInTipDismissal();
                         notifyAmrLoginStatusChanged();
                         notifyWorkspaceContextRefresh();
                         notifyWorkspaceBillingRefresh();
@@ -2743,7 +2735,7 @@ export function EntryNavRail({
           row (see `EntryTopRightCluster`), so the footer only renders when it
           has a notice to show — an empty shell here read as a dead white
           strip under the account row. Signed out renders the local twin of
-          that dock down here, under the sign-in card. */}
+           that dock down here. */}
       {context ? (
         footerNotice ? <div className="entry-nav-rail__footer">{footerNotice}</div> : null
       ) : (
@@ -2755,9 +2747,8 @@ export function EntryNavRail({
               message-centre bell. The identity here is the local mode itself
               (there is no account to name), and opening it lands in Settings,
               where the local CLI / BYOK configuration lives. It sits UNDER the
-              sign-in card so the identity row stays the rail's last line on
-              both branches, and the card keeps its own slot as the one
-              sign-in entry. */}
+               social links so the identity row stays the rail's last line on
+               both branches. */}
           <div
             className="entry-nav-rail__account-dock entry-nav-rail__account-dock--local"
             data-testid="entry-nav-local-account-dock"

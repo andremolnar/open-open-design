@@ -94,7 +94,6 @@ import {
   type SettingsSection,
   type SettingsHighlight,
 } from './components/SettingsDialog';
-import { PrivacyConsentModal } from './components/PrivacyConsentModal';
 import { TestCampaignModal } from './components/TestCampaignModal';
 import {
   clearHomeComposerAttachments,
@@ -339,34 +338,6 @@ const AMR_AGENT_ID = 'amr';
 const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
 const AGENT_FOCUS_REFRESH_THROTTLE_MS = 10_000;
 
-/**
- * Whether this launch should hand the user to the setup flow.
- *
- * Two conditions, both about the *user*, neither about where they happen to be
- * in the app: setup is still explicitly incomplete (on either the local or the
- * daemon copy — `mergeDaemonConfig` ratchets the two before this runs), and
- * they did not arrive through an explicit deep link that onboarding must not
- * hijack (the collab demo and the community gallery are shareable URLs).
- *
- * Deliberately a pure predicate over a resolved config: the redirect belongs to
- * the one-shot boot pass, and expressing it as a function of "who the user is"
- * rather than "what just happened" keeps it from being re-decided mid-session.
- */
-export function shouldRouteToFirstRunOnboarding(
-  config: AppConfig,
-  pathname: string,
-): boolean {
-  if (config.onboardingCompleted === true) return false;
-  if (
-    pathname.startsWith('/projects/')
-    || pathname.startsWith('/collab-demo')
-    || pathname.startsWith('/community')
-  ) {
-    return false;
-  }
-  return true;
-}
-
 function workspaceProjectListViewForRoute(route: Route): WorkspaceProjectListView {
   if (route.kind === 'home' && route.view === 'all-projects') return 'all';
   if (route.kind === 'home' && route.view === 'drafts') return 'drafts';
@@ -453,13 +424,11 @@ function clearStaleAmrModelChoiceOnProfileChange(
 /**
  * Active Cloud sign-out is an account boundary for Cloud-owned execution
  * state. Local BYOK credentials and provider choices belong to this install,
- * not the signed-in Cloud account, so keep them available when onboarding asks
- * the user to choose an execution path again.
+ * not the signed-in Cloud account, so keep them available on Home and in Settings.
  */
 export function resetExecutionConfigAfterSignOut(config: AppConfig): AppConfig {
   return {
     ...config,
-    onboardingCompleted: false,
     mode: DEFAULT_CONFIG.mode,
     agentId: null,
     agentModels: {},
@@ -569,14 +538,6 @@ export function isAutosaveDraftOnlyChange(next: AppConfig, last: AppConfig): boo
     JSON.stringify(buildPersistedConfig(next, next))
     === JSON.stringify(buildPersistedConfig(last, last))
   );
-}
-
-export function resolveSettingsCloseConfig(
-  rendered: AppConfig,
-  latestPersisted: AppConfig,
-): AppConfig {
-  const base = latestPersisted === rendered ? rendered : latestPersisted;
-  return base.onboardingCompleted ? base : { ...base, onboardingCompleted: true };
 }
 
 function mergeAmrModelsIntoAgents(
@@ -1921,21 +1882,6 @@ function AppInner() {
     if (route.kind === 'project') suspendThumbnailLoads();
     else resumeThumbnailLoads();
   }, [route.kind]);
-  // Gate the privacy banner on three things:
-  //   1. Daemon config has hydrated (privacyDecisionAt is daemon-owned).
-  //   2. The user has not yet made a privacy decision.
-  //   3. Onboarding is complete (Skip and design-system creation both flip
-  //      onboardingCompleted to true; see handleCompleteOnboarding wiring).
-  // Once onboarding is done the banner is allowed on any route — including
-  // the project view the design-system finish path drops the user into, so
-  // they can read and acknowledge the disclosure while the first generation
-  // is running. Settings is irrelevant to visibility; the banner sits above
-  // the modal-backdrop layer in index.css so opening Settings does not hide
-  // it.
-  const showPrivacyConsent =
-    daemonConfigLoaded &&
-    config.privacyDecisionAt == null &&
-    config.onboardingCompleted === true;
   useEffect(() => {
     const body = activeProjectId
       ? { projectId: activeProjectId, fileName: activeFileName }
@@ -2044,45 +1990,16 @@ function AppInner() {
     if (status) applyAmrLoginStatus(status, { restartOnSignIn: true });
   }, [applyAmrLoginStatus]);
 
-  useEffect(() => {
-    const usesOpenDesignCloud =
-      config.mode === 'daemon'
-      && config.agentId === AMR_AGENT_ID;
-    const cloudIdentityRejected =
-      workspaceContextState.failure === 'reauth-required'
-      || (
-        usesOpenDesignCloud
-        && (
-          amrLoginStatus?.loggedIn === false
-          || amrLoginStatus?.sessionState === 'reauth_required'
-        )
-      );
-    if (!cloudIdentityRejected) return;
-    if (route.kind === 'home' && route.view === 'onboarding') return;
-    navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-  }, [
-    amrLoginStatus,
-    config.agentId,
-    config.mode,
-    route,
-    workspaceContextState.failure,
-  ]);
-
   // Bootstrap — detect daemon, then fan out independent fetches so each
   // entry-view tab can render the moment its own data lands. Earlier this
   // was one Promise.all behind a global "Loading workspace…" placeholder,
   // which made the slowest endpoint (typically `/api/agents` on cold start)
   // gate every tab including the ones that don't need agents at all.
   //
-  // Boot is a ONE-SHOT: every dependency below is a stable callback, so this
-  // runs once per app launch and never again. That is load-bearing, not
-  // incidental — this pass owns the first-run onboarding routing decision and
-  // rewrites the merged config back to localStorage + the daemon. Re-running it
-  // on navigation replays both: a user is re-judged against a config read that
-  // may lag their own completion, and gets bounced into the first-run flow they
-  // already finished. Anything route- or workspace-derived that boot needs must
-  // be read through a ref (see `workspaceProjectViewRef`), and anything that
-  // must react to those changes belongs in its own effect.
+  // Boot is a ONE-SHOT: it merges and persists resolved config once so
+  // navigation cannot replay a stale daemon read over newer local choices.
+  // Route- or workspace-derived inputs must be read through refs (see
+  // `workspaceProjectViewRef`); reactive work belongs in a separate effect.
   useEffect(() => {
     let cancelled = false;
     let effectAgentStreamAbort: AbortController | null = null;
@@ -2304,16 +2221,6 @@ function AppInner() {
         latestPersistedConfigRef.current = next;
         setConfig(next);
 
-        // Only route installations with explicitly incomplete setup through
-        // onboarding; a fresh local install starts at Home.
-        // The onboarding panel and the privacy banner have independent
-        // lifecycles: onboarding keys off `onboardingCompleted`, the
-        // banner keys off `privacyDecisionAt`. They may coexist on the
-        // first launch; the banner sits above the modal layer so it
-        // stays actionable regardless of the active view.
-        if (shouldRouteToFirstRunOnboarding(next, window.location.pathname)) {
-          navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-        }
         setDaemonConfigLoaded(true);
         // Only a non-null GET payload means we actually observed daemon prefs.
         setDaemonAppConfigReady(daemonConfig != null);
@@ -2366,18 +2273,10 @@ function AppInner() {
   // probe — by the time this runs, daemonConfig has already overlaid the
   // user's previous choice, so we only fill an empty slot.
   //
-  // First-run onboarding is the one time we must NOT do this: the onboarding
-  // flow is the sole authority for the initial agent pick (AMR is the
-  // recommended default there), and AMR (vela) detection is asynchronous. If
-  // this fallback fires during onboarding while AMR is still being detected it
-  // snaps the slot to the registry-first *detected* agent (Claude) and
-  // persists it to the daemon, which then races and clobbers the user's AMR
-  // selection on the next launch. Gate on onboardingCompleted so this only
-  // backfills an empty slot. Cloud requires a separate account sign-in, so it
-  // must never be selected implicitly for a new Home-first installation.
+  // A legacy incomplete-setup flag must not prevent Home from choosing an
+  // available local CLI. Cloud still requires an explicit account selection.
   useEffect(() => {
     if (!daemonConfigLoaded || agentsLoading) return;
-    if (config.onboardingCompleted !== true) return;
     if (config.agentId) return;
     const firstAvailable = agents.find((a) => a.available && a.id !== AMR_AGENT_ID);
     if (!firstAvailable) return;
@@ -2393,7 +2292,6 @@ function AppInner() {
     agentsLoading,
     agents,
     config.agentId,
-    config.onboardingCompleted,
   ]);
 
   // Auto-pick the default design system the same way — only after daemon
@@ -2773,23 +2671,6 @@ function AppInner() {
   const handleSettingsDraftChange = useCallback((draft: AppConfig) => {
     settingsDraftConfigRef.current = draft;
   }, []);
-
-  const handlePrivacyConsentChoice = useCallback((share: boolean) => {
-    const base = settingsDraftConfigRef.current ?? latestPersistedConfigRef.current;
-    const installationId = share
-      ? base.installationId ?? generateInstallationIdSafe()
-      : null;
-    void handleConfigPersist({
-      ...base,
-      installationId,
-      privacyDecisionAt: Date.now(),
-      telemetry: {
-        ...(base.telemetry ?? {}),
-        metrics: share,
-        content: share,
-      },
-    });
-  }, [handleConfigPersist]);
 
   /**
    * Explicit Composio API-key save. Called from the section-local
@@ -5019,16 +4900,6 @@ function AppInner() {
     navigate({ kind: 'home', view: 'integrations' });
   }, []);
 
-  const handleCompleteOnboarding = useCallback(() => {
-    const current = latestPersistedConfigRef.current;
-    if (current.onboardingCompleted) return;
-    const next: AppConfig = { ...current, onboardingCompleted: true };
-    latestPersistedConfigRef.current = next;
-    saveConfig(next);
-    void syncConfigToDaemon(next);
-    setConfig(next);
-  }, []);
-
   // Cmd+, (mac) / Ctrl+, (win/linux) opens Settings. Capture phase so we
   // beat the browser's default Preferences dialog. Platform-gated so
   // meta/ctrl don't conflict across OS.
@@ -5151,18 +5022,8 @@ function AppInner() {
   );
 
   const handleCloseSettings = () => {
-    // Closing Settings is still the canonical "I'm done" gesture now that
-    // there is no global Save button. The same close path is shared by the
-    // legacy modal and the full-page route. We mark onboardingCompleted on
-    // close so the welcome modal stops re-prompting on every refresh,
-    // regardless of whether the user changed anything during the session.
-    const next = resolveSettingsCloseConfig(config, latestPersistedConfigRef.current);
-    if (!next.onboardingCompleted || !config.onboardingCompleted) {
-      latestPersistedConfigRef.current = next;
-      saveConfig(next);
-      void syncConfigToDaemon(next);
-      setConfig(next);
-    }
+    // Settings autosaves its edits; closing it must not rewrite unrelated
+    // legacy setup state or overwrite an in-flight persisted draft.
     setSettingsOpen(false);
     settingsDraftConfigRef.current = null;
     setSettingsHighlight(null);
@@ -5182,17 +5043,6 @@ function AppInner() {
     }
   };
 
-  const handleResetOnboarding = useCallback((next: AppConfig) => {
-    latestPersistedConfigRef.current = next;
-    saveConfig(next);
-    void syncConfigToDaemon(next, { allowOnboardingReset: true });
-    setConfig(next);
-    setSettingsOpen(false);
-    settingsDraftConfigRef.current = null;
-    setSettingsHighlight(null);
-    navigate({ kind: 'home', view: 'onboarding' });
-  }, []);
-
   const handleActiveCloudSignOut = useCallback(async () => {
     const next = resetExecutionConfigAfterSignOut(latestPersistedConfigRef.current);
     latestPersistedConfigRef.current = next;
@@ -5202,8 +5052,8 @@ function AppInner() {
     setSettingsOpen(false);
     settingsDraftConfigRef.current = null;
     setSettingsHighlight(null);
-    navigate({ kind: 'home', view: 'onboarding' });
-    await syncConfigToDaemon(next, { allowOnboardingReset: true });
+    navigate({ kind: 'home', view: 'home' });
+    await syncConfigToDaemon(next);
   }, []);
 
   const renderSettingsSurface = (presentation: 'modal' | 'page') => (
@@ -5228,7 +5078,6 @@ function AppInner() {
       onDraftChange={handleSettingsDraftChange}
       onPersistComposioKey={handleConfigPersistComposioKey}
       onClose={handleCloseSettings}
-      onResetOnboarding={handleResetOnboarding}
       onAmrSignedOut={handleActiveCloudSignOut}
       onRefreshAgents={refreshAgents}
       onAmrLoginStatusChange={handleAmrLoginStatusChange}
@@ -5267,12 +5116,7 @@ function AppInner() {
     return () => window.clearTimeout(timer);
   }, [pendingCreationProjectId]);
   let appMain: ReactNode;
-  const pendingFirstRunOnboardingRoute =
-    route.kind === 'home' &&
-    route.view === 'home' &&
-    config.onboardingCompleted !== true &&
-    !daemonConfigLoaded;
-  if (pendingFirstRunOnboardingRoute) {
+  if (route.kind === 'home' && route.view === 'home' && !daemonConfigLoaded) {
     appMain = (
       <div className="entry-shell entry-shell--no-header">
         <CenteredLoader label={t('entry.loadingWorkspace')} />
@@ -5664,7 +5508,6 @@ function AppInner() {
         onDesignSystemsRefresh={refreshDesignSystems}
         onPersistComposioKey={handleConfigPersistComposioKey}
         onOpenSettings={openSettings}
-        onCompleteOnboarding={handleCompleteOnboarding}
         onSignedOut={handleActiveCloudSignOut}
         onAmrLoginStatusChange={handleAmrLoginStatusChange}
         artifactUpgradeSlot={
@@ -5722,7 +5565,7 @@ function AppInner() {
               ? activeProject.workspaceId ?? null
               : undefined
           }
-          onboardingCompleted={config.onboardingCompleted === true}
+          onboardingCompleted
           identityScopeKey={workspaceTabsIdentityScopeKey}
           workspaceContext={workspaceContext}
           onRenameProject={handleRenameProject}
@@ -5870,11 +5713,4 @@ function AppInner() {
       ) : null}
     </>
   );
-}
-
-function generateInstallationIdSafe(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `inst-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

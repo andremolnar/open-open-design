@@ -217,7 +217,7 @@ test('[P0] @critical AMR insufficient-balance failures hand the turn to the upgr
     .toBeTruthy();
 });
 
-test('[P0] @critical AMR auth failures return to the existing sign-in gate without auto-retry', async ({ page }) => {
+test('[P0] @critical AMR auth failures leave the project open without auto-retry', async ({ page }) => {
   await stubCatalogsEmpty(page);
   await stubRuntimeAgents(page);
   let loggedIn = true;
@@ -263,13 +263,13 @@ test('[P0] @critical AMR auth failures return to the existing sign-in gate witho
   loggedIn = false;
   await sendPrompt(page, 'AMR auth failure recovery smoke');
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/onboarding$/, { timeout: T.long });
-  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/projects/${amr.projectId}`), { timeout: T.long });
+  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toHaveCount(0);
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   expect(loginRequested).toBe(false);
 });
 
-test('[P0] @critical AMR model catalog invalid-key failures return to sign-in without auto-retry', async ({ page }) => {
+test('[P0] @critical AMR model catalog invalid-key failures leave the project open without auto-retry', async ({ page }) => {
   await stubCatalogsEmpty(page);
   await stubRuntimeAgents(page);
   let loggedIn = true;
@@ -360,13 +360,13 @@ test('[P0] @critical AMR model catalog invalid-key failures return to sign-in wi
   await gotoProject(page, projectId);
   loggedIn = false;
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/onboarding$/, { timeout: T.long });
-  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`), { timeout: T.long });
+  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toHaveCount(0);
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   expect(loginRequested).toBe(false);
 });
 
-test('[P0] @critical signed-out Cloud switching keeps the existing sign-in gate without auto-retry', async ({ page }) => {
+test('[P0] @critical signed-out Cloud switching leaves the project open without auto-retry', async ({ page }) => {
   await stubCatalogsEmpty(page);
   await stubRuntimeAgents(page);
   let loggedIn = false;
@@ -459,10 +459,10 @@ test('[P0] @critical signed-out Cloud switching keeps the existing sign-in gate 
   ]);
   await card.getByRole('button', { name: 'Switch to OpenDesign Cloud', exact: true }).click();
 
-  // OPEND-3205 removes the Settings detour, not the existing authentication
-  // gate. Keep the signed-out fixture and require explicit sign-in, with no run.
-  await expect(page).toHaveURL(/\/onboarding$/, { timeout: T.medium });
-  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toBeVisible();
+  // Switching Cloud execution must leave the local project visible even if
+  // Cloud rejects authentication; the operation stays blocked, with no run.
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`), { timeout: T.medium });
+  await expect(page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i })).toHaveCount(0);
   await expect
     .poll(async () => {
       const raw = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
@@ -471,7 +471,7 @@ test('[P0] @critical signed-out Cloud switching keeps the existing sign-in gate 
     .toBe('amr');
   expect(loginRequested).toBe(false);
   await runRequests.expectNone();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
   runRequests.dispose?.();
 });
 

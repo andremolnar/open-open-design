@@ -351,7 +351,7 @@ describe('App AMR polling', () => {
     expect(mockedFetchAmrModels).toHaveBeenCalledTimes(2);
   });
 
-  it('returns every authenticated surface to onboarding when Cloud auth definitively expires', async () => {
+  it('keeps an open project visible when Cloud auth definitively expires', async () => {
     mockedLoadConfig.mockReturnValue({
       ...baseConfig,
       mode: 'daemon',
@@ -375,12 +375,12 @@ describe('App AMR polling', () => {
 
     render(<App />);
 
-    await waitFor(() => {
-      expect(mockedNavigate).toHaveBeenCalledWith(
-        { kind: 'home', view: 'onboarding' },
-        { replace: true },
-      );
-    });
+    await waitFor(() => expect(mockedFetchVelaLoginStatus).toHaveBeenCalled());
+    expect(useRouteMock()).toMatchObject({ kind: 'project', projectId: 'project-with-expired-auth' });
+    expect(mockedNavigate).not.toHaveBeenCalledWith(
+      { kind: 'home', view: 'onboarding' },
+      { replace: true },
+    );
   });
 
   it('starts AMR preset polling before the agent probe resolves', { timeout: 10_000 }, async () => {

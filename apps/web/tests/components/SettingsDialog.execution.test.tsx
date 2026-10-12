@@ -387,7 +387,6 @@ function renderSettingsDialog(
       onSilentUpdatePreferenceChange={onSilentUpdatePreferenceChange}
       onPersistComposioKey={onPersistComposioKey}
       onClose={onClose}
-      onResetOnboarding={options.onResetOnboarding}
       onRefreshAgents={onRefreshAgents}
     />
   );
@@ -5753,49 +5752,13 @@ describe('SettingsDialog about interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('drops a pending autosave when explicit onboarding reset unmounts Settings', () => {
-    vi.useFakeTimers();
-    const onResetOnboarding = vi.fn();
-    const view = renderSettingsDialog(
-      {
-        mode: 'daemon',
-        agentId: 'codex',
-        onboardingCompleted: true,
-        // Seeded on so the one click below is a real state change.
-        notifications: {
-          soundEnabled: true,
-          successSoundId: 'chime',
-          failureSoundId: 'two-tone-down',
-          desktopEnabled: false,
-        },
-      },
-      {
-        initialSection: 'notifications',
-        onResetOnboarding,
-      },
+  it('does not offer to restart the retired onboarding flow', () => {
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'codex', onboardingCompleted: false },
+      { initialSection: 'about' },
     );
 
-    // The subject is the pending-autosave drop, not which control queued it.
-    // Theme selection is gone, so the completion-sound toggle stands in as the
-    // one-click persisted edit that leaves a debounced save in flight.
-    fireEvent.click(
-      within(screen.getByRole('group', { name: 'Completion sound' })).getByRole('button', {
-        name: 'inactive',
-      }),
-    );
-    expect(screen.getByText('Saving…')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /About/i }));
-    fireEvent.click(screen.getByRole('button', { name: en['settings.resetOnboardingButton'] }));
-    view.unmount();
-
-    expect(view.onPersist).not.toHaveBeenCalled();
-    expect(onResetOnboarding).toHaveBeenCalledWith(
-      expect.objectContaining({
-        onboardingCompleted: false,
-        notifications: expect.objectContaining({ soundEnabled: false }),
-      }),
-    );
+    expect(screen.queryByRole('button', { name: en['settings.resetOnboardingButton'] })).toBeNull();
   });
 
   it('renders app version and runtime details when version info is available', () => {

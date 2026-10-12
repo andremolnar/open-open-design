@@ -3,9 +3,7 @@
 // Product removed the theme setting outright: the workspace surfaces have no
 // dark tokens, so offering dark mode only produced a broken-looking app. Two
 // surfaces used to write `config.theme` — the Settings → General appearance
-// segmented control and the onboarding welcome page's sun/moon toggle. These
-// specs pin both as gone, so a later refactor cannot quietly reintroduce a
-// path back into dark mode.
+// segmented control and the retired onboarding welcome page's sun/moon toggle.
 
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -104,7 +102,7 @@ describe('Settings → General (theme setting removed)', () => {
   });
 });
 
-describe('Onboarding welcome (theme toggle removed)', () => {
+describe('Retired onboarding welcome', () => {
   function baseConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     return {
       mode: 'daemon',
@@ -161,10 +159,10 @@ describe('Onboarding welcome (theme toggle removed)', () => {
     );
   }
 
-  it('renders no sun/moon theme toggle on the welcome pane', () => {
+  it('does not render a welcome pane or sun/moon theme toggle', () => {
     const { container } = renderOnboarding();
 
-    expect(container.querySelector('.onboarding-cloud__pane')).not.toBeNull();
+    expect(container.querySelector('.onboarding-cloud__pane')).toBeNull();
     expect(container.querySelector('.onboarding-cloud__theme')).toBeNull();
   });
 

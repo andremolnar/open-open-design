@@ -222,33 +222,22 @@ describe('App first-run agent auto-select', () => {
     });
   });
 
-  it('does not auto-pick a default agent while first-run onboarding is in progress', async () => {
+  it('auto-picks a local agent even when a legacy onboarding flag is incomplete', async () => {
     const { syncConfigToDaemon } = await import('../../src/state/config');
     const mockedSync = vi.mocked(syncConfigToDaemon);
     mockedLoadConfig.mockReturnValue(firstRunConfig());
-    // Daemon has nothing persisted yet (fresh install): no agentId, onboarding
-    // not completed.
+    // A saved incomplete flag must not prevent choosing a working local CLI.
     mockedFetchDaemonConfig.mockResolvedValue({});
 
     render(<App />);
 
-    // Once the daemon config + the (Claude-only, AMR-still-detecting) agent
-    // list have both landed, the App-level auto-select effect is eligible to
-    // run. During first-run onboarding it must stay its hand — the onboarding
-    // flow owns the first agent pick (AMR is the recommended default) — so the
-    // agent slot stays empty rather than snapping to Claude and racing the
-    // onboarding's own AMR selection.
     await waitFor(() => {
-      expect(screen.getByTestId('onboarding-completed').textContent).toBe('false');
+      expect(screen.getByTestId('agent-id').textContent).toBe('claude');
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.getByTestId('agent-id').textContent).toBe('none');
-    // And it must not have persisted a Claude default to the daemon, which is
-    // what later clobbers the user's AMR pick on the next launch.
     const wroteClaude = mockedSync.mock.calls.some(
       ([cfg]) => (cfg as AppConfig | undefined)?.agentId === 'claude',
     );
-    expect(wroteClaude).toBe(false);
+    expect(wroteClaude).toBe(true);
   });
 
   it('auto-picks the first available agent once onboarding is complete', async () => {

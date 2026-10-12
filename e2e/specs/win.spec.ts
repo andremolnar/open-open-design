@@ -307,11 +307,12 @@ const packagedOnboardingExpression = `
   (() => {
     const onboardingShell = document.querySelector('.entry-shell--onboarding');
     const onboardingModal = document.querySelector('.entry-onboarding-modal');
-    // Identity is the first gate; runtime selection follows Cloud sign-in.
+    const home = document.querySelector('[data-testid="entry-nav-home"]');
     const cloudSignIn = document.querySelector('.onboarding-cloud__primary');
 
     return {
       cloudSignInVisible: cloudSignIn instanceof HTMLElement,
+      homeVisible: home instanceof HTMLElement && home.getClientRects().length > 0,
       href: location.href,
       onboardingVisible: onboardingShell instanceof HTMLElement && onboardingModal instanceof HTMLElement,
       text: onboardingModal?.textContent?.trim().slice(0, 2000) ?? null,
@@ -545,6 +546,7 @@ type UpdaterClickEvalValue = {
 
 type PackagedOnboardingEvalValue = {
   cloudSignInVisible: boolean;
+  homeVisible: boolean;
   href: string;
   onboardingVisible: boolean;
   text: string | null;
@@ -635,14 +637,8 @@ winDescribe('packaged windows runtime smoke', () => {
         );
       }
 
-      // Phase 1 — the genuine first run. A packaged install nobody has signed
-      // into is real product behaviour, not a broken state: since
-      // `shouldRouteToFirstRunOnboarding` keys purely on `onboardingCompleted`,
-      // the cloud sign-in landing is its correct terminal surface, and it is
-      // accepted only when it actually rendered its sign-in CTA and both runtime
-      // links. Core-only on purpose — every release workflow defaults there, and
-      // the full profile needs its controlled updater environment from first
-      // launch, which a plain start before the fixture is wired would bypass.
+      // Phase 1 — a genuine first run with no account must reach Home. Core-only
+      // so the full updater profile can establish its controlled feed first.
       if (verifyCoreOnly) {
         await resetPackagedRuntimeDataRoot();
         const firstRunStart = await measureSmokeStep(timings, 'start unseeded first run', async () =>
@@ -665,7 +661,7 @@ winDescribe('packaged windows runtime smoke', () => {
             }),
           );
           expect(firstRunPhase.onboardingCompleted).toBe(false);
-          expect(firstRunPhase.appShell).toBe('onboarding-landing');
+          expect(firstRunPhase.appShell).toBe('home');
           firstRunAppShell = firstRunPhase.appShell;
         }
         const firstRunStop = await measureSmokeStep(timings, 'stop unseeded first run', async () =>
@@ -1343,7 +1339,7 @@ winDescribe('packaged windows runtime smoke', () => {
   }, 720_000);
 });
 
-winOnboardingDescribe('packaged windows onboarding AMR smoke', () => {
+winOnboardingDescribe('packaged windows fresh-install Home smoke', () => {
   let installed = false;
   let started = false;
 
@@ -1373,12 +1369,8 @@ winOnboardingDescribe('packaged windows onboarding AMR smoke', () => {
 
       const inspect = await measureSmokeStep(timings, 'wait healthy inspect eval', async () => waitForHealthyDesktop());
       expect(inspect.status?.state).toBe('running');
-      // A fresh install boots at `od://app/` and the SPA immediately redirects to the dedicated
-      // onboarding route (`od://app/onboarding`, since the #4513 cloud sign-in redesign). Whether
-      // the desktop is reported healthy just before or just after that redirect is a race, so the
-      // healthy URL/href may be either — match the prefix leniently exactly as the mac smoke and
-      // the onboarding-landing assertion below do, instead of pinning the bare root (which flaked
-      // ~3 of 4 nightly Windows builds when the redirect won the race).
+      // Startup may report healthy before Home has painted; wait for the rail
+      // below rather than treating an uninitialized renderer as ready.
       expect(inspect.status?.url).toMatch(/^(od:\/\/app\/|http:\/\/127\.0\.0\.1:\d+\/)/);
       const health = assertHealthEvalValue(inspect.eval?.value);
       expect(health.href).toMatch(/^(od:\/\/app\/|http:\/\/127\.0\.0\.1:\d+\/)/);
@@ -1386,29 +1378,24 @@ winOnboardingDescribe('packaged windows onboarding AMR smoke', () => {
       expect(health.health.ok).toBe(true);
 
       const initial = await waitForPackagedOnboarding((snapshot) =>
-        snapshot.onboardingVisible && snapshot.cloudSignInVisible,
-        'fresh packaged Windows onboarding Cloud identity gate',
+        snapshot.homeVisible,
+        'fresh packaged Windows Home',
       );
-      // Onboarding lives on a dedicated route since the #4513 cloud sign-in
-      // redesign, so the href is `od://app/onboarding` (packaged) — not the
-      // bare app root. Match the prefix the same lenient way the mac smoke
-      // does instead of pinning the exact root path. Before the user-data
-      // reset fix the app booted to Home and never reached this line, which
-      // is why the stale exact-match assertion went unnoticed.
       expect(initial.href).toMatch(/^(od:\/\/app\/|http:\/\/127\.0\.0\.1:\d+\/)/);
-      expect(initial.cloudSignInVisible).toBe(true);
+      expect(initial.cloudSignInVisible).toBe(false);
+      expect(initial.onboardingVisible).toBe(false);
 
-      const onboardingScreenshotPath = join(toolsPackDir, 'screenshots', `${namespace}-onboarding.png`);
+      const onboardingScreenshotPath = join(toolsPackDir, 'screenshots', `${namespace}-fresh-home.png`);
       await mkdir(dirname(onboardingScreenshotPath), { recursive: true });
       const screenshot = await runToolsPackJson<WinInspectResult>('inspect', ['--path', onboardingScreenshotPath]);
       expect(screenshot.screenshot?.path).toBe(onboardingScreenshotPath);
       expect(await fileSizeBytes(onboardingScreenshotPath)).toBeGreaterThan(0);
-      await report.report.save('screenshots/open-design-win-onboarding-smoke.png', await readFile(onboardingScreenshotPath));
-      await report.report.json('onboarding-summary.json', {
+      await report.report.save('screenshots/open-design-win-fresh-home-smoke.png', await readFile(onboardingScreenshotPath));
+      await report.report.json('fresh-home-summary.json', {
         health,
         initial,
         namespace,
-        screenshot: 'screenshots/open-design-win-onboarding-smoke.png',
+        screenshot: 'screenshots/open-design-win-fresh-home-smoke.png',
         start: {
           executablePath: start.executablePath,
           logPath: start.logPath,
@@ -2637,6 +2624,7 @@ function asHealthEvalValue(value: unknown): HealthEvalValue | null {
 function asPackagedOnboardingEvalValue(value: unknown): PackagedOnboardingEvalValue | null {
   if (!isRecord(value)) return null;
   if (typeof value.cloudSignInVisible !== 'boolean') return null;
+  if (typeof value.homeVisible !== 'boolean') return null;
   if (typeof value.href !== 'string') return null;
   if (typeof value.onboardingVisible !== 'boolean') return null;
   if (value.text != null && typeof value.text !== 'string') return null;

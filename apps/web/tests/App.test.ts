@@ -9,12 +9,9 @@ import {
   projectViewAuthorizationLifetimeKey,
   projectRouteSurfaceState,
   resolveDeepLinkedTeamSharedProject,
-  resolveSettingsCloseConfig,
-  shouldRouteToFirstRunOnboarding,
   shouldSyncMediaProvidersOnSave,
 } from '../src/App';
 import type { AppConfig, Project } from '../src/types';
-import { DEFAULT_CONFIG } from '../src/state/config';
 import type {
   WorkspaceCollabContext,
   WorkspaceProjectSummary,
@@ -73,20 +70,6 @@ const baseConfig: AppConfig = {
   skillId: null,
   designSystemId: null,
 };
-
-describe('shouldRouteToFirstRunOnboarding', () => {
-  it('opens Home directly for a new local installation', () => {
-    expect(DEFAULT_CONFIG.onboardingCompleted).toBe(true);
-    expect(shouldRouteToFirstRunOnboarding(DEFAULT_CONFIG, '/')).toBe(false);
-  });
-
-  it('never hijacks an explicit project deep link while daemon config is hydrating', () => {
-    const unfinished = { ...baseConfig, onboardingCompleted: false };
-
-    expect(shouldRouteToFirstRunOnboarding(unfinished, '/projects/project-a')).toBe(false);
-    expect(shouldRouteToFirstRunOnboarding(unfinished, '/')).toBe(true);
-  });
-});
 
 describe('hydrateReadyTeamProject', () => {
   const project: Project = {
@@ -373,28 +356,6 @@ describe('isAutosaveDraftOnlyChange', () => {
 
   it('returns true for an identical snapshot (no-op autosave tick)', () => {
     expect(isAutosaveDraftOnlyChange(savedComposio, savedComposio)).toBe(true);
-  });
-});
-
-describe('resolveSettingsCloseConfig', () => {
-  it('marks onboarding complete without discarding the latest persisted draft', () => {
-    expect(
-      resolveSettingsCloseConfig(
-        {
-          ...baseConfig,
-          onboardingCompleted: false,
-          orbit: { enabled: false, time: '09:00', templateSkillId: 'stale-template' },
-        },
-        {
-          ...baseConfig,
-          onboardingCompleted: false,
-          orbit: { enabled: true, time: '11:30', templateSkillId: 'fresh-template' },
-        },
-      ),
-    ).toMatchObject({
-      onboardingCompleted: true,
-      orbit: { enabled: true, time: '11:30', templateSkillId: 'fresh-template' },
-    });
   });
 });
 

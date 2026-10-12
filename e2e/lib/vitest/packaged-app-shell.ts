@@ -88,10 +88,8 @@ export function asPackagedAppShellSnapshot(value: unknown): PackagedAppShellSnap
 }
 
 /**
- * A surface the packaged app can legitimately come to rest on.
- *
- * `home` is the signed-in/seeded main shell. `onboarding-landing` is the cloud
- * sign-in landing a first run stops at.
+ * A packaged renderer must reach Home. The legacy onboarding surface is
+ * recognized only to report it as an error, never as a successful launch.
  */
 export type PackagedAppShellState = 'home' | 'onboarding-landing';
 
@@ -348,37 +346,14 @@ export type PackagedAppShellPolicyInput = {
 
 
 /**
- * Which terminal states this run may settle on.
- *
- * Derived from the daemon's own `onboardingCompleted`, never from the smoke
- * profile, so a run's setup and its accepted terminal state cannot disagree.
- * The smoke seeds `onboardingCompleted: true` before start and independently
- * confirms that the daemon retains it. The auth-first entry shell may still
- * route a signed-out core run to the cloud sign-in landing; that is an identity
- * gate, not evidence that onboarding state was lost. A genuine first run may
- * stop on the same surface after the daemon explicitly reports `false`.
- *
- * `coreProfile` still narrows it: the full profile goes on to drive the entry
- * rail, which `clickUpdaterRailExpression` refuses while onboarding is up, so
- * it needs home either way.
+ * Both fresh and seeded installs must reach Home regardless of saved setup
+ * state or Cloud authentication. Keep the input for the independent daemon
+ * data-root/seed check, but never accept a sign-in landing as ready.
  */
 export function packagedAppShellPolicy(
-  input: PackagedAppShellPolicyInput,
+  _input: PackagedAppShellPolicyInput,
 ): { readonly acceptOnboardingLanding: boolean } {
-  if (input.coreProfile !== true) return { acceptOnboardingLanding: false };
-  // A completed-user run earns auth-first permission only when both the seed
-  // and the daemon reading are explicit `true`. `assertSeededOnboardingRetained`
-  // turns the `true -> false` cold-launch regression into a named failure before
-  // this policy is applied.
-  if (input.seededOnboardingCompleted === true) {
-    return { acceptOnboardingLanding: input.daemonOnboardingCompleted === true };
-  }
-  // A first-run landing likewise requires two explicit facts. Closed checks
-  // keep malformed values from falling through to the permissive branch.
-  return {
-    acceptOnboardingLanding:
-      input.seededOnboardingCompleted === false && input.daemonOnboardingCompleted === false,
-  };
+  return { acceptOnboardingLanding: false };
 }
 
 /**
@@ -461,11 +436,8 @@ export function assertSeededOnboardingRetained(input: {
 /**
  * The two launch scenarios the packaged app legitimately has.
  *
- * Both are real product behaviour, not a contradiction. A first run reaches
- * the cloud sign-in landing because setup has not completed; a completed but
- * signed-out core run can reach the same landing because identity is now the
- * entry gate. The daemon config reading distinguishes the two and the retained
- * seed proves a protocol cold launch did not switch data roots.
+ * Both must reach Home. Their daemon config readings differ only so a seeded
+ * completed-user cold launch can detect a switched data root.
  */
 export type PackagedLaunchScenario = 'completed-user' | 'first-run';
 
@@ -514,8 +486,8 @@ export async function runPackagedAppShellPhase(options: {
 /**
  * Whether the renderer has reached a surface the caller can proceed from.
  *
- * `acceptOnboardingLanding` belongs to the caller because the answer depends on
- * what the smoke does next, not on what the app is allowed to show.
+ * The production policy never accepts the legacy sign-in landing; the option
+ * remains to exercise probe behavior against historical fixture snapshots.
  */
 export function packagedAppShellSettled(
   value: unknown,
@@ -538,7 +510,7 @@ export function packagedAppShellFailureReason(
   const snapshot = asPackagedAppShellSnapshot(value);
   if (snapshot == null) return 'the packaged renderer returned no app-shell snapshot';
   if (packagedAppShellState(value) === 'onboarding-landing' && !options.acceptOnboardingLanding) {
-    return 'the packaged renderer stopped on the onboarding cloud sign-in landing, but this smoke profile has to drive the entry rail and needs home';
+    return 'the packaged renderer stopped on the retired onboarding cloud sign-in landing and needs home';
   }
   if (snapshot.onboardingVisible) {
     return 'the onboarding shell mounted but its cloud sign-in landing did not render (no sign-in CTA, or fewer than two runtime links)';

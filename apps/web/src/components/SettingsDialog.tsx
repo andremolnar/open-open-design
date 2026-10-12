@@ -495,7 +495,6 @@ interface Props {
   composioConfigLoading?: boolean;
   onClose: () => void;
   /** Hand the explicit onboarding reset back to App, the config state owner. */
-  onResetOnboarding?: (next: AppConfig) => void;
   onRefreshAgents: (
     options?: AgentRefreshOptions,
   ) => AgentInfo[] | Promise<AgentInfo[] | void> | void;
@@ -1512,7 +1511,6 @@ export function SettingsDialog({
   onPersistComposioKey,
   composioConfigLoading = false,
   onClose,
-  onResetOnboarding,
   onRefreshAgents,
   onAmrLoginStatusChange,
   onAmrSignedOut,
@@ -3221,7 +3219,6 @@ export function SettingsDialog({
   const autosaveSavedTimerRef = useRef<number | null>(null);
   const autosaveRetryTimerRef = useRef<number | null>(null);
   const autosavePendingFlushRef = useRef(false);
-  const explicitOnboardingResetRef = useRef(false);
   const byokPreflightTrackingRef = useRef<string | null>(null);
   const committedClearedByokProviderKeyRef = useRef<string | null>(null);
   const autosaveLatestRef = useRef<AppConfig>(cfg);
@@ -3237,26 +3234,6 @@ export function SettingsDialog({
   const [autosaveCommitTick, setAutosaveCommitTick] = useState(0);
   const [autosaveRetryTick, setAutosaveRetryTick] = useState(0);
   autosaveLatestRef.current = cfg;
-
-  // App owns the config transition and persistence. Settings only supplies
-  // its latest draft with the explicit reset intent. Cancel a queued autosave
-  // before handing off: the dialog unmounts immediately, and its normal
-  // pending-draft flush must not replay the pre-reset `true` snapshot.
-  const handleResetOnboarding = useCallback(() => {
-    if (!onResetOnboarding) return;
-    explicitOnboardingResetRef.current = true;
-    autosavePendingFlushRef.current = false;
-    if (autosaveTimerRef.current != null) {
-      window.clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-    if (autosaveRetryTimerRef.current != null) {
-      window.clearTimeout(autosaveRetryTimerRef.current);
-      autosaveRetryTimerRef.current = null;
-    }
-    claimAutosaveStatus('idle');
-    onResetOnboarding({ ...cfg, onboardingCompleted: false });
-  }, [cfg, claimAutosaveStatus, onResetOnboarding]);
 
   useEffect(() => {
     if (autosaveSkipFirstRef.current) {
@@ -3413,10 +3390,7 @@ export function SettingsDialog({
   // timer to avoid setState after unmount.
   useEffect(() => {
     return () => {
-      if (
-        autosavePendingFlushRef.current
-        && !explicitOnboardingResetRef.current
-      ) {
+      if (autosavePendingFlushRef.current) {
         const mediaProvidersVersion = mediaProvidersChangeVersionRef.current;
         // Best-effort flush; if it rejects, localStorage already has
         // the latest copy from the synchronous saveConfig call inside
@@ -6230,15 +6204,6 @@ export function SettingsDialog({
                   <p className="hint">{t('diagnostics.exportHint')}</p>
                 </div>
                 <ExportDiagnosticsRow />
-              </div>
-              <div className="settings-about-diagnostics">
-                <div className="settings-about-diagnostics-text">
-                  <h4>{t('settings.resetOnboarding')}</h4>
-                  <p className="hint">{t('settings.resetOnboardingDesc')}</p>
-                </div>
-                <Button onClick={handleResetOnboarding}>
-                  {t('settings.resetOnboardingButton')}
-                </Button>
               </div>
             </section>
           ) : null}

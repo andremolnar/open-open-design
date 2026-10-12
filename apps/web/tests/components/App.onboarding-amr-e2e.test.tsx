@@ -1,20 +1,12 @@
 // @vitest-environment jsdom
 //
-// High-fidelity integration test for the onboarding -> home agent-selection
-// bug: the user picks (or accepts the recommended default) OpenDesign AMR
-// during first-run onboarding, but the home agent picker comes back showing
-// Claude Code. Unlike the component-level EntryShell tests (which mock
-// `onAgentChange` so it never updates config), this mounts the REAL `App`
-// with the REAL router and REAL EntryView/onboarding UI, so the App-level
-// config lifecycle + auto-select interact exactly as in production. Network
-// boundaries and CMS content hosts are mocked; AMR (vela) detection is made to lag
-// the first agent probe — the exact window in which the bug surfaces.
+// Mount the real App and router with a legacy incomplete setup and old bookmark.
+// Neither may resurrect Welcome or block the Home surface after hydration.
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../../src/App';
-import { navigate } from '../../src/router';
 import type { AppConfig } from '../../src/types';
 import { loadConfig, fetchDaemonConfig } from '../../src/state/config';
 import {
@@ -262,58 +254,14 @@ afterEach(() => {
   analyticsMocks.track.mockReset();
 });
 
-describe('detached offer surface', () => {
-  it('never mounts production offer hosts during sign-in or on Home', async () => {
+describe('direct entry after legacy onboarding', () => {
+  it('renders Home rather than Welcome for a saved incomplete setup and a legacy bookmark', async () => {
     window.history.replaceState(null, '', '/onboarding');
     render(<App />);
-    await screen.findByRole('button', { name: /Continue \(signed in\)/i });
-    expect(screen.queryByRole('dialog', { name: 'Production campaign witness' })).toBeNull();
-    await act(async () => navigate({ kind: 'home', view: 'home' }));
-    await screen.findByRole('dialog', { name: 'Test campaign witness' });
+    await screen.findByTestId('home-hero-input');
+    expect(screen.queryByRole('heading', { name: 'Welcome to OpenDesign' })).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Production campaign witness' })).toBeNull();
     expect(screen.queryByTestId('production-campaign-badge-witness')).toBeNull();
     expect(screen.queryByTestId('production-campaign-hover-witness')).toBeNull();
-  });
-});
-
-describe('onboarding -> home AMR selection (end to end)', () => {
-  // Known PR #6475 race: when AMR detection trails the first agent probe, the
-  // Home switcher can still settle on the registry-first `default` agent after
-  // Hosted completes. Keep the end-to-end witness active without blocking the
-  // E2E-only update; Vitest will fail this test if the bug starts passing so
-  // the expected-failure marker cannot silently outlive the production fix.
-  it.fails('lands on the home agent picker with AMR selected after accepting the AMR default', async () => {
-    render(<App />);
-
-    // Bootstrap routes a first-run user into onboarding. AMR detection lags
-    // the first agent probe, so wait for the cloud sign-in CTA to resolve to
-    // the signed-in state before advancing past the Connect step.
-    const runtimeContinue = await screen.findByRole(
-      'button',
-      { name: /Continue \(signed in\)/i },
-      { timeout: 10000 },
-    );
-    await waitFor(() => {
-      expect((runtimeContinue as HTMLButtonElement).disabled).toBe(false);
-    });
-    fireEvent.click(runtimeContinue);
-
-    // The streamlined flow lands on the model-source chooser. Hosted is the
-    // default and completes onboarding directly; the removed About-you,
-    // Newsletter, and design-system steps must not be part of this witness.
-    const hostedSource = await screen.findByRole('radio', {
-      name: /OpenDesign Hosted/i,
-    });
-    expect(hostedSource.getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(await screen.findByRole('button', { name: /^Continue$/i }));
-
-    // Now on home: the inline model switcher chip must reflect AMR, not the
-    // Claude default the App-level auto-select used to snap to while AMR was
-    // still being detected.
-    const chip = await screen.findByTestId('inline-model-switcher-chip');
-    await waitFor(() => {
-      expect(chip.getAttribute('aria-label') ?? '').toContain('AMR');
-    });
-    expect(chip.getAttribute('aria-label') ?? '').not.toContain('Claude');
   });
 });

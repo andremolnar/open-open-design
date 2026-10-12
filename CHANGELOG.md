@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - [Removed] This repository no longer runs GitHub Actions for validation, release publishing, scheduled refreshes, or automatic updates to pull requests. Contributors and release operators must run checks and publication explicitly; manual packaging and release tools remain available.
+- [Changed] Home now opens directly for both fresh and returning local users, even when an old setup flag is incomplete or Cloud sign-in has expired. Old onboarding links return to Home; signing out leaves local projects and settings accessible instead of reopening the welcome screen.
 - [Changed] MCP guidance now distinguishes previews authored in the current coding session from delegated OpenDesign generation. Saving a preview into a connected project needs no Cloud sign-in; available local agent CLIs remain an option for delegated runs.
 - [Fixed] OpenCode MCP connections no longer expire after 30 idle minutes, and MCP clients can list resource templates without a protocol error.
 - [Fixed] Explicitly recovered local-only Personal projects remain visible without sign-in instead of being silently claimed by a later Personal-workspace read. Existing project files and assets stay in place.

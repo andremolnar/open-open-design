@@ -121,7 +121,7 @@ describe('packaged app-shell probe', () => {
     expect(packagedAppShellExpression).toContain('.onboarding-cloud__primary');
   });
 
-  it('tracks the identity gate rendered by the current onboarding shell', async () => {
+  it('treats the old identity gate as an error rather than a rendered entry surface', async () => {
     const [entryShellSource, macSpecSource, winSpecSource] = await Promise.all([
       readFile(new URL('../../../apps/web/src/components/EntryShell.tsx', import.meta.url), 'utf8'),
       readFile(new URL('../../specs/mac.spec.ts', import.meta.url), 'utf8'),
@@ -129,7 +129,7 @@ describe('packaged app-shell probe', () => {
     ]);
     const identityProbe = "querySelector('.onboarding-cloud__primary')";
 
-    expect(entryShellSource).toContain('className="onboarding-cloud__primary"');
+    expect(entryShellSource).not.toContain('className="onboarding-cloud__primary"');
     expect(packagedAppShellExpression).toContain('.onboarding-cloud__primary');
     expect(macSpecSource).toContain(identityProbe);
     expect(winSpecSource).toContain(identityProbe);
@@ -175,18 +175,15 @@ describe('packaged app-shell terminal state', () => {
     expect(packagedAppShellSettled(snapshot, { acceptOnboardingLanding: true })).toBe(true);
   });
 
-  // The bug this file exists for. A packaged first run that nobody signs in to
-  // comes to rest on the cloud sign-in landing — `connectStepRuntimeReady` in
-  // EntryShell.tsx will not advance without a signed-in cloud account, an
-  // installed local CLI, or a verified BYOK key, none of which a release runner
-  // has. Treating that as "not settled" made the Windows smoke wait 45s for a
-  // home shell that can never arrive, which is why the 0.18.0 stable cut had to
-  // fall back to `win_x64_smoke_mode: skip`.
-  it('settles on the cloud sign-in landing when the profile only needs a rendered surface', () => {
+  it('recognizes but rejects the retired cloud sign-in landing', () => {
     const snapshot = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
 
     expect(packagedAppShellState(snapshot)).toBe('onboarding-landing');
-    expect(packagedAppShellSettled(snapshot, { acceptOnboardingLanding: true })).toBe(true);
+    expect(packagedAppShellSettled(snapshot, packagedAppShellPolicy({
+      coreProfile: true,
+      daemonOnboardingCompleted: false,
+      seededOnboardingCompleted: false,
+    }))).toBe(false);
   });
 
   it('still requires home when the profile has to drive the entry rail', () => {
@@ -238,11 +235,10 @@ describe('packaged app-shell terminal state', () => {
 
 // The postcondition PerishCode's review on #6481 asked to keep: a run that
 // seeds onboarding as completed must still notice when a cold launch loses it.
-// Auth-first means a retained completed user may legitimately see the same
-// cloud sign-in landing as a first run, so the seed check and surface policy
-// must stay separate.
+// The seed check and surface policy stay separate: retaining configuration is
+// necessary, but neither a fresh nor returning user should see the old gate.
 describe('packaged app-shell policy', () => {
-  it('accepts the auth-first landing when a seeded core run retained onboarding completion', () => {
+  it('rejects the retired landing even when the completed-user seed is retained', () => {
     const landing = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
     const policy = packagedAppShellPolicy({
       coreProfile: true,
@@ -250,8 +246,8 @@ describe('packaged app-shell policy', () => {
       seededOnboardingCompleted: true,
     });
 
-    expect(policy).toEqual({ acceptOnboardingLanding: true });
-    expect(packagedAppShellSettled(landing, policy)).toBe(true);
+    expect(policy).toEqual({ acceptOnboardingLanding: false });
+    expect(packagedAppShellSettled(landing, policy)).toBe(false);
   });
 
   it('requires home when the scenario does not establish auth-first permission', () => {
@@ -263,10 +259,10 @@ describe('packaged app-shell policy', () => {
     ).toEqual({ acceptOnboardingLanding: false });
   });
 
-  it('accepts the landing only when the daemon reports onboarding is not completed', () => {
+  it('requires Home even when the daemon reports incomplete onboarding', () => {
     expect(
       packagedAppShellPolicy({ coreProfile: true, daemonOnboardingCompleted: false, seededOnboardingCompleted: false }),
-    ).toEqual({ acceptOnboardingLanding: true });
+    ).toEqual({ acceptOnboardingLanding: false });
   });
 
   it('does not infer completed-user auth permission without a seed', () => {
@@ -368,11 +364,11 @@ describe('packaged app-shell policy', () => {
     ).not.toThrow();
   });
 
-  it('lets an unseeded run settle on the landing', () => {
+  it('does not let an unseeded run settle on the retired landing', () => {
     const landing = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
     const policy = packagedAppShellPolicy({ coreProfile: true, daemonOnboardingCompleted: false, seededOnboardingCompleted: false });
 
-    expect(packagedAppShellSettled(landing, policy)).toBe(true);
+    expect(packagedAppShellSettled(landing, policy)).toBe(false);
   });
 
   it('still requires a real surface when onboarding is not completed', () => {
@@ -553,20 +549,20 @@ describe('packaged launch scenarios', () => {
     return { now: () => t, sleep: async (ms: number) => { t += ms; } };
   };
 
-  it('settles a genuine first run on the cloud sign-in landing', async () => {
+  it('settles a genuine first run on Home', async () => {
     const clock = virtualClock();
-    const landing = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
+    const home = probe(renderFixture(HOME_SHELL));
 
     const result = await runPackagedAppShellPhase({
       coreProfile: true,
       now: clock.now,
-      observe: async () => landing,
+      observe: async () => home,
       readOnboardingConfig: async () => ({ kind: 'reading', ok: true, onboardingCompleted: false, status: 200 }),
       scenario: 'first-run',
       sleep: clock.sleep,
     });
 
-    expect(result).toEqual({ appShell: 'onboarding-landing', onboardingCompleted: false });
+    expect(result).toEqual({ appShell: 'home', onboardingCompleted: false });
   });
 
   it('settles a completed user on home', async () => {
@@ -585,20 +581,18 @@ describe('packaged launch scenarios', () => {
     expect(result).toEqual({ appShell: 'home', onboardingCompleted: true });
   });
 
-  it('settles a retained completed user on the core auth-first landing', async () => {
+  it('rejects the old gate even for a retained completed user', async () => {
     const clock = virtualClock();
     const landing = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
 
-    const result = await runPackagedAppShellPhase({
+    await expect(runPackagedAppShellPhase({
       coreProfile: true,
       now: clock.now,
       observe: async () => landing,
       readOnboardingConfig: async () => ({ kind: 'reading', ok: true, onboardingCompleted: true, status: 200 }),
       scenario: 'completed-user',
       sleep: clock.sleep,
-    });
-
-    expect(result).toEqual({ appShell: 'onboarding-landing', onboardingCompleted: true });
+    })).rejects.toThrow(/needs home/);
   });
 
   it('fails a completed user whose seeded state was lost across the relaunch', async () => {
@@ -650,21 +644,21 @@ describe('real fresh-install app-config response', () => {
     return { now: () => t, sleep: async (ms: number) => { t += ms; } };
   };
 
-  it('settles a first run whose daemon never wrote the key', async () => {
+  it('opens Home when a first-run daemon never wrote the key', async () => {
     const clock = virtualClock();
-    const landing = probe(renderFixture(CLOUD_SIGN_IN_LANDING));
+    const home = probe(renderFixture(HOME_SHELL));
 
     const result = await runPackagedAppShellPhase({
       coreProfile: true,
       now: clock.now,
-      observe: async () => landing,
+      observe: async () => home,
       readOnboardingConfig: async () =>
         evaluatePackagedOnboardingConfigProbe(fakeConfigFetch({ body: FRESH_INSTALL_BODY })),
       scenario: 'first-run',
       sleep: clock.sleep,
     });
 
-    expect(result).toEqual({ appShell: 'onboarding-landing', onboardingCompleted: false });
+    expect(result).toEqual({ appShell: 'home', onboardingCompleted: false });
   });
 
   it('still fails a completed user whose key went missing', async () => {

@@ -8,92 +8,9 @@ import {
   gotoVisualHome,
   mockSignedInVelaAccount,
   scrollVisualLocatorIntoStableView,
-  VISUAL_AMR_AGENT,
-  VISUAL_CLI_AGENTS,
   waitForVisualFonts,
   waitForVisualProjects,
 } from '@/playwright/visual';
-
-test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
-  test.setTimeout(T.xlong);
-
-  await configureVisualPage(page, {
-    projects: [],
-    agents: [VISUAL_AMR_AGENT, ...VISUAL_CLI_AGENTS],
-    velaLoggedIn: false,
-    config: {
-      onboardingCompleted: false,
-    },
-  });
-
-  await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
-  // Cloud stays primary while identity-independent Local Agent and BYOK setup
-  // remain available directly from the signed-out landing.
-  await expect(
-    page.getByRole('heading', { name: /Welcome to OpenDesign|欢迎使用 OpenDesign/i }),
-  ).toBeVisible({ timeout: T.medium });
-  await expect(
-    page.getByRole('button', { name: /Sign in \/ Sign up|登录 \/ 注册/i }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Local AI|本地 AI/i }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /API Key|API 密钥/i }),
-  ).toBeVisible();
-  await waitForVisualFonts(page);
-
-  await captureVisual(page, 'visual-onboarding-cloud');
-});
-
-// The step past sign-in had no baseline at all, so the one surface whose whole
-// job is to line up a two-column grid of detected CLIs was invisible to the
-// visual suite. `visual-avatar-local-agent-list` covers the avatar menu's agent
-// list — a different component — and stayed 0px through an alignment change to
-// this one.
-test('[P2] captures the onboarding Local Agent CLI list surface', async ({ page }) => {
-  test.setTimeout(T.xlong);
-
-  await configureVisualPage(page, {
-    projects: [],
-    agents: [VISUAL_AMR_AGENT, ...VISUAL_CLI_AGENTS],
-    config: {
-      onboardingCompleted: false,
-    },
-  });
-  await mockSignedInVelaAccount(page);
-
-  await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
-
-  await page
-    .getByRole('button', { name: /Continue \(signed in\)|继续（已登录）/i })
-    .click();
-  await expect(
-    page.getByRole('heading', { name: /Choose your model source|选择模型来源/i }),
-  ).toBeVisible({ timeout: T.medium });
-  await page.getByRole('radio', { name: /Local Agent|本地 Agent/i }).click();
-  await page.getByRole('button', { name: /^(Continue|继续)$/ }).click();
-
-  const panel = page.locator('.onboarding-view__setup-panel');
-  await expect(panel).toBeVisible({ timeout: T.medium });
-  const chips = page.locator('.onboarding-view__agent-chip');
-  // More than one chip is the point: a single card cannot show whether the
-  // column shares an alignment line.
-  await expect(chips.first()).toBeVisible();
-  expect(await chips.count()).toBeGreaterThan(1);
-  // The panel validates the selected agent on its own, so its status line is
-  // part of the surface being archived. Let that settle first, or the capture
-  // races the transient "testing" copy.
-  await expect(panel.locator('.onboarding-view__test-status.is-success')).toBeVisible({
-    timeout: T.medium,
-  });
-  await waitForVisualFonts(page);
-
-  await captureVisual(page, 'visual-onboarding-local-agent');
-  await captureVisualTarget(page, 'visual-onboarding-local-agent-panel', panel);
-});
 
 test('[P2] captures the visual home harness', async ({ page }) => {
   await configureVisualPage(page, { projects: [] });

@@ -216,11 +216,12 @@ const packagedOnboardingExpression = `
   (() => {
     const onboardingShell = document.querySelector('.entry-shell--onboarding');
     const onboardingModal = document.querySelector('.entry-onboarding-modal');
-    // Identity is the first gate; runtime selection follows Cloud sign-in.
+    const home = document.querySelector('[data-testid="entry-nav-home"]');
     const cloudSignIn = document.querySelector('.onboarding-cloud__primary');
 
     return {
       cloudSignInVisible: cloudSignIn instanceof HTMLElement,
+      homeVisible: home instanceof HTMLElement && home.getClientRects().length > 0,
       href: location.href,
       onboardingVisible: onboardingShell instanceof HTMLElement && onboardingModal instanceof HTMLElement,
       text: onboardingModal?.textContent?.trim().slice(0, 2000) ?? null,
@@ -417,6 +418,7 @@ type UpdaterRecoverySummary = {
 
 type PackagedOnboardingEvalValue = {
   cloudSignInVisible: boolean;
+  homeVisible: boolean;
   href: string;
   onboardingVisible: boolean;
   text: string | null;
@@ -1205,11 +1207,11 @@ macDescribe('packaged mac runtime smoke', () => {
   }, 360_000);
 });
 
-macOnboardingDescribe('packaged mac onboarding AMR smoke', () => {
+macOnboardingDescribe('packaged mac fresh-install Home smoke', () => {
   let installedAppPath: string | null = null;
   let started = false;
 
-  test('[P0] @electron-smoke starts a fresh packaged app on the Cloud identity gate', async () => {
+  test('[P0] @electron-smoke starts a fresh packaged app on Home without a sign-in gate', async () => {
     const report = await createPackagedSmokeReport('mac');
     let passed = false;
     try {
@@ -1235,23 +1237,24 @@ macOnboardingDescribe('packaged mac onboarding AMR smoke', () => {
       expect(health.health.ok).toBe(true);
 
       const initial = await waitForPackagedOnboarding((snapshot) =>
-        snapshot.onboardingVisible && snapshot.cloudSignInVisible,
-        'fresh packaged onboarding Cloud identity gate',
+        snapshot.homeVisible,
+        'fresh packaged Home',
       );
       expect(initial.href).toMatch(/^(od:\/\/app\/|http:\/\/127\.0\.0\.1:\d+\/)/);
-      expect(initial.cloudSignInVisible).toBe(true);
+      expect(initial.cloudSignInVisible).toBe(false);
+      expect(initial.onboardingVisible).toBe(false);
 
-      const onboardingScreenshotPath = join(toolsPackDir, 'screenshots', `${namespace}-onboarding.png`);
+      const onboardingScreenshotPath = join(toolsPackDir, 'screenshots', `${namespace}-fresh-home.png`);
       await mkdir(dirname(onboardingScreenshotPath), { recursive: true });
       const screenshot = await runToolsPackJson<MacInspectResult>('inspect', ['--path', onboardingScreenshotPath]);
       expect(screenshot.screenshot?.path).toBe(onboardingScreenshotPath);
       expect(await fileSizeBytes(onboardingScreenshotPath)).toBeGreaterThan(0);
-      await report.report.save('screenshots/open-design-mac-onboarding-smoke.png', await readFile(onboardingScreenshotPath));
-      await report.report.json('onboarding-summary.json', {
+      await report.report.save('screenshots/open-design-mac-fresh-home-smoke.png', await readFile(onboardingScreenshotPath));
+      await report.report.json('fresh-home-summary.json', {
         health,
         initial,
         namespace,
-        screenshot: 'screenshots/open-design-mac-onboarding-smoke.png',
+        screenshot: 'screenshots/open-design-mac-fresh-home-smoke.png',
         start: {
           appPath: start.appPath,
           executablePath: start.executablePath,
@@ -2904,6 +2907,7 @@ function asHealthEvalValue(value: unknown): HealthEvalValue | null {
 function asPackagedOnboardingEvalValue(value: unknown): PackagedOnboardingEvalValue | null {
   if (!isRecord(value)) return null;
   if (typeof value.cloudSignInVisible !== 'boolean') return null;
+  if (typeof value.homeVisible !== 'boolean') return null;
   if (typeof value.href !== 'string') return null;
   if (typeof value.onboardingVisible !== 'boolean') return null;
   if (value.text != null && typeof value.text !== 'string') return null;

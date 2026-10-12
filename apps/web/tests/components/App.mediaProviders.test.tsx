@@ -242,7 +242,7 @@ describe('App media provider sync flows', () => {
     });
 
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Open media settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open media settings' }));
 
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Settings dialog' })).toBeTruthy();

@@ -650,7 +650,7 @@ describe('EntryShell AMR workspace precheck race', () => {
     expect(screen.getByTestId('entry-rail-account-recovery-tip')).toBeTruthy();
   });
 
-  it('returns a definitively expired Cloud session to the existing sign-in gate', async () => {
+  it('keeps Home accessible after a definitive Cloud session expiry', async () => {
     window.history.replaceState(null, '', '/');
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -706,14 +706,80 @@ describe('EntryShell AMR workspace precheck race', () => {
       </I18nProvider>,
     );
 
-    expect(
-      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
-    ).toBeTruthy();
-    expect(window.location.pathname).toBe('/onboarding');
+    expect(await screen.findByTestId('home-hero-input')).toBeTruthy();
+    expect(window.location.pathname).toBe('/');
+    expect(screen.queryByRole('heading', { name: 'Welcome to OpenDesign' })).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
-  it('returns a submit-time auth rejection to sign-in without losing the Home draft', async () => {
+  it('lets a local CLI submit despite a rejected unrelated Cloud session', async () => {
+    window.history.replaceState(null, '', '/');
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/workspace/directory')) {
+        return new Response(JSON.stringify({ error: 'unauthenticated' }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/api/plugins')) return jsonResponse({ plugins: [] });
+      if (url.endsWith('/api/mcp/servers')) return jsonResponse({ servers: [] });
+      if (url.endsWith('/api/community/discord')) return jsonResponse({ stale: true });
+      if (url.endsWith('/api/github/open-design')) return jsonResponse({ stale: true });
+      return jsonResponse({});
+    }) as typeof fetch;
+    const onCreateProject = vi.fn().mockResolvedValue(true);
+    const onOpenSettings = vi.fn();
+
+    render(
+      <I18nProvider initial="en">
+        <EntryShellWithGateHost
+          skills={[]}
+          designTemplates={[]}
+          designSystems={[]}
+          projects={[]}
+          templates={[]}
+          promptTemplates={[]}
+          defaultDesignSystemId={null}
+          connectors={[]}
+          connectorsLoading={false}
+          config={{ ...amrConfig(), agentId: 'codex' }}
+          agents={[{ id: 'codex', name: 'Codex', bin: 'codex', available: true }]}
+          amrLoggedIn={false}
+          amrSessionState="reauth_required"
+          daemonLive
+          onModeChange={vi.fn()}
+          onAgentChange={vi.fn()}
+          onAgentModelChange={vi.fn()}
+          onApiProtocolChange={vi.fn()}
+          onApiModelChange={vi.fn()}
+          onConfigPersist={vi.fn()}
+          onRefreshAgents={vi.fn()}
+          onCreateProject={onCreateProject}
+          onCreatePluginShareProject={vi.fn()}
+          onImportClaudeDesign={vi.fn()}
+          onOpenProject={vi.fn()}
+          onOpenLiveArtifact={vi.fn()}
+          onDeleteProject={vi.fn()}
+          onRenameProject={vi.fn()}
+          onChangeDefaultDesignSystem={vi.fn()}
+          onPersistComposioKey={vi.fn()}
+          onOpenSettings={onOpenSettings}
+        />
+      </I18nProvider>,
+    );
+
+    await screen.findByTestId('home-hero-input');
+    setHomeHeroPrompt('Build with the local agent');
+    const submitButton = await screen.findByTestId('home-hero-submit');
+    await waitFor(() => expect((submitButton as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
+    expect(onOpenSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps Home after a submit-time auth rejection without losing its draft', async () => {
     window.history.replaceState(null, '', '/');
     const workspace = teamContext('workspace-auth', 'member-auth');
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -750,6 +816,7 @@ describe('EntryShell AMR workspace precheck race', () => {
       false,
       'request-expired',
     ));
+    const onOpenSettings = vi.fn();
 
     render(
       <I18nProvider initial="en">
@@ -784,7 +851,7 @@ describe('EntryShell AMR workspace precheck race', () => {
           onRenameProject={vi.fn()}
           onChangeDefaultDesignSystem={vi.fn()}
           onPersistComposioKey={vi.fn()}
-          onOpenSettings={vi.fn()}
+          onOpenSettings={onOpenSettings}
           onCompleteOnboarding={vi.fn()}
         />
       </I18nProvider>,
@@ -797,10 +864,9 @@ describe('EntryShell AMR workspace precheck race', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(window.location.pathname).toBe('/onboarding'));
-    expect(
-      await screen.findByRole('heading', { name: 'Welcome to OpenDesign' }),
-    ).toBeTruthy();
+    await waitFor(() => expect(onOpenSettings).toHaveBeenCalled());
+    expect(window.location.pathname).toBe('/');
+    expect(screen.queryByRole('heading', { name: 'Welcome to OpenDesign' })).toBeNull();
     expect(window.localStorage.getItem('open-design:home-composer:prompt')).toBe(
       'Keep this draft through Cloud reauthentication',
     );
