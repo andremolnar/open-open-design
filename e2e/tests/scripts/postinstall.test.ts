@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,7 +9,6 @@ import { describe, expect, it } from "vitest";
 const e2eRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const workspaceRoot = dirname(e2eRoot);
 const postinstallPath = join(workspaceRoot, "scripts", "postinstall.mjs");
-const workflowPostinstallPath = join(workspaceRoot, ".github", "scripts", "postinstall.py");
 
 type JsonObject = Record<string, unknown>;
 
@@ -141,39 +139,6 @@ function createSandbox(): string {
   return sandbox;
 }
 
-function canonicalValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (typeof value === "object" && value != null) {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue((value as JsonObject)[key])]));
-  }
-  return value;
-}
-
-function writeExternalPlan(sandbox: string, targets: string[]): string {
-  const canonical = {
-    schemaVersion: 2,
-    installProfile: "workspace",
-    requestedTargets: targets,
-    resolvedTargets: targets,
-    requirements: { materializeDomToPptx: true, probeNativeDependencies: true },
-  };
-  const unsigned = {
-    ...canonical,
-    id: "fixture/postinstall",
-    intent: "fixture",
-    cacheTools: false,
-    entries: {
-      dependencies: { materializeDomToPptx: true, probeNativeDependencies: true, resolvedTargets: [], concurrency: 1 },
-      build: { materializeDomToPptx: false, probeNativeDependencies: false, resolvedTargets: targets, concurrency: 1 },
-      all: { materializeDomToPptx: true, probeNativeDependencies: true, resolvedTargets: targets, concurrency: 1 },
-    },
-  };
-  const digest = createHash("sha256").update(JSON.stringify(canonicalValue(canonical))).digest("hex");
-  const path = join(sandbox, "postinstall-plan.json");
-  writeFileSync(path, `${JSON.stringify({ ...unsigned, digest })}\n`);
-  return path;
-}
-
 function writeTarget(
   sandbox: string,
   target: string,
@@ -255,204 +220,6 @@ function eventIndex(events: StubEvent[], event: StubEvent["event"], target: stri
 }
 
 describe("postinstall script contract", () => {
-  it("[P2] validates workflow intents and produces a frozen target closure", () => {
-    const output = join(tmpdir(), `od-postinstall-plan-${process.pid}.json`);
-    try {
-      const validation = spawnSync("python3", [workflowPostinstallPath, "validate"], {
-        cwd: workspaceRoot,
-        encoding: "utf8",
-        env: { ...process.env, OPEN_DESIGN_POSTINSTALL_TARGETS: '["tools/pack"]' },
-      });
-      expect(validation.status, validation.stderr).toBe(0);
-      const planned = spawnSync("python3", [
-        workflowPostinstallPath,
-        "plan",
-        "--intent", "shared-javascript",
-        "--cache-tools", "true",
-        "--output", output,
-      ], { cwd: workspaceRoot, encoding: "utf8" });
-      expect(planned.status, planned.stderr).toBe(0);
-      const plan = JSON.parse(readFileSync(output, "utf8")) as JsonObject;
-      expect(plan.intent).toBe("shared-javascript");
-      expect(plan.installProfile).toBe("workspace");
-      expect(plan.requestedTargets).toEqual(["tools/pack"]);
-      expect(plan.resolvedTargets).toEqual(expect.arrayContaining(["packages/release", "tools/pack"]));
-      expect(typeof plan.digest).toBe("string");
-
-      const semanticDigest = plan.digest;
-      const alternateExecution = spawnSync("python3", [
-        workflowPostinstallPath,
-        "plan",
-        "--intent", "shared-javascript",
-        "--cache-tools", "false",
-        "--concurrency", "7",
-        "--output", output,
-      ], {
-        cwd: workspaceRoot,
-        encoding: "utf8",
-        env: { ...process.env, GITHUB_WORKFLOW: "alternate", GITHUB_JOB: "alternate" },
-      });
-      expect(alternateExecution.status, alternateExecution.stderr).toBe(0);
-      const alternatePlan = JSON.parse(readFileSync(output, "utf8")) as JsonObject;
-      expect(alternatePlan.digest).toBe(semanticDigest);
-      expect(alternatePlan.id).toBe("alternate/alternate/shared-javascript");
-      expect(alternatePlan.cacheTools).toBe(false);
-      expect((alternatePlan.entries as JsonObject).all).toEqual(expect.objectContaining({ concurrency: 7 }));
-
-      const exactInstallProfiles: Record<string, string> = {
-        "release-control": "release-tools",
-        "release-publish": "release-tools",
-        "release-validation": "release-validation",
-      };
-      for (const [intent, installProfile] of Object.entries(exactInstallProfiles)) {
-        const result = spawnSync("python3", [
-          workflowPostinstallPath,
-          "plan",
-          "--intent", intent,
-          "--output", output,
-        ], { cwd: workspaceRoot, encoding: "utf8" });
-        expect(result.status, result.stderr).toBe(0);
-        expect(JSON.parse(readFileSync(output, "utf8")).installProfile).toBe(installProfile);
-      }
-
-      const exactWorkflowTargets: Record<string, string[] | "all"> = {
-        "release-smoke": ["tools/pack", "tools/serve"],
-        "ci-workspace-unit": "all",
-        "ci-windows-tools-pack": "all",
-        "ci-daemon": "all",
-        "ci-e2e": "all",
-        "ci-ui": "all",
-        "ci-web": "all",
-      };
-      for (const [intent, requestedTargets] of Object.entries(exactWorkflowTargets)) {
-        const result = spawnSync("python3", [
-          workflowPostinstallPath,
-          "plan",
-          "--intent", intent,
-          "--output", output,
-        ], { cwd: workspaceRoot, encoding: "utf8" });
-        expect(result.status, result.stderr).toBe(0);
-        const plannedTargets = JSON.parse(readFileSync(output, "utf8")).requestedTargets;
-        if (requestedTargets === "all") expect(plannedTargets).toEqual(postinstallBuildTargetList());
-        else expect(plannedTargets).toEqual(requestedTargets);
-      }
-    } finally {
-      rmSync(output, { force: true });
-    }
-  });
-
-  it("[P2] executes a frozen workflow plan and emits a bound receipt", () => {
-    const sandbox = createSandbox();
-    try {
-      writeTarget(sandbox, "packages/release", { name: "@open-design/release" });
-      writeTarget(sandbox, "tools/pack", {
-        name: "@open-design/tools-pack", dependencies: { "@open-design/release": "workspace:*" },
-      });
-      const log = writePnpmStub(sandbox);
-      const planPath = writeExternalPlan(sandbox, ["packages/release", "tools/pack"]);
-      const receiptPath = join(sandbox, "postinstall-receipts.jsonl");
-      const result = runFixturePostinstall(sandbox, {
-        OPEN_DESIGN_POSTINSTALL_ENTRY: "all",
-        OPEN_DESIGN_POSTINSTALL_PLAN_PATH: planPath,
-        OPEN_DESIGN_POSTINSTALL_RECEIPT_PATH: receiptPath,
-        OPEN_DESIGN_POSTINSTALL_TARGETS: '["apps/daemon"]',
-      });
-      expect(result.status, String(result.stderr)).toBe(0);
-      expect(readStubEvents(log).filter((event) => event.event === "start").map((event) => event.target))
-        .toEqual(["packages/release", "tools/pack"]);
-      const receipts = readFileSync(receiptPath, "utf8").trim().split(/\r?\n/).map((line) => JSON.parse(line) as JsonObject);
-      expect(receipts).toHaveLength(1);
-      expect(receipts[0]).toMatchObject({
-        entry: "all",
-        executedTargets: ["packages/release", "tools/pack"],
-        planId: "fixture/postinstall",
-        schemaVersion: 2,
-        status: "success",
-      });
-      const resultPath = join(sandbox, "postinstall-result.json");
-      const consumed = spawnSync("python3", [
-        workflowPostinstallPath,
-        "consume",
-        "--plan", planPath,
-        "--receipts", receiptPath,
-        "--tools-cache-hit", "false",
-        "--output", resultPath,
-      ], { cwd: workspaceRoot, encoding: "utf8" });
-      expect(consumed.status, consumed.stderr).toBe(0);
-      expect(JSON.parse(readFileSync(resultPath, "utf8"))).toMatchObject({
-        executedTargets: ["packages/release", "tools/pack"],
-        planId: "fixture/postinstall",
-        restoredTargets: [],
-        status: "success",
-      });
-
-      writeFileSync(receiptPath, `${JSON.stringify({ ...receipts[0], planDigest: "tampered" })}\n`);
-      const rejected = spawnSync("python3", [
-        workflowPostinstallPath,
-        "consume",
-        "--plan", planPath,
-        "--receipts", receiptPath,
-        "--tools-cache-hit", "false",
-        "--output", resultPath,
-      ], { cwd: workspaceRoot, encoding: "utf8" });
-      expect(rejected.status).toBe(2);
-      expect(rejected.stderr).toContain("receipt does not belong to the frozen plan");
-    } finally {
-      rmSync(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  it("[P2] keys dependency preparation separately from tool compilation and business source", () => {
-    const sandbox = createSandbox();
-    try {
-      writeTarget(sandbox, "packages/release", { name: "@open-design/release" });
-      writeTarget(sandbox, "tools/pack", {
-        name: "@open-design/tools-pack", dependencies: { "@open-design/release": "workspace:*" },
-      });
-      writeTarget(sandbox, "apps/daemon", { name: "@open-design/daemon" });
-      for (const path of [
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "scripts/postinstall.mjs",
-        ".github/config/postinstall.json",
-        ".github/scripts/postinstall.py",
-        ".github/actions/setup-workspace/action.yml",
-      ]) {
-        mkdirSync(dirname(join(sandbox, path)), { recursive: true });
-        const source = join(workspaceRoot, path);
-        writeFileSync(join(sandbox, path), existsSync(source) ? readFileSync(source) : "{}\n");
-      }
-      mkdirSync(join(sandbox, ".github/scripts"), { recursive: true });
-      writeFileSync(join(sandbox, ".github/scripts/workspace.py"), readFileSync(join(workspaceRoot, ".github/scripts/workspace.py")));
-      for (const path of ["tools/pack/src/index.ts", "apps/daemon/src/index.ts"]) {
-        mkdirSync(dirname(join(sandbox, path)), { recursive: true });
-        writeFileSync(join(sandbox, path), "export {};\n");
-      }
-      expect(spawnSync("git", ["init", "--quiet"], { cwd: sandbox }).status).toBe(0);
-      expect(spawnSync("git", ["add", "."], { cwd: sandbox }).status).toBe(0);
-      const describe = () => {
-        const result = spawnSync("python3", ["-c", "import json,runpy; from pathlib import Path; print(json.dumps(runpy.run_path('.github/scripts/workspace.py')['describe'](Path.cwd())))"], {
-          cwd: sandbox, encoding: "utf8", env: { ...process.env, OPEN_DESIGN_POSTINSTALL_TARGETS: '["tools/pack"]' },
-        });
-        expect(result.status, result.stderr).toBe(0);
-        return JSON.parse(result.stdout) as { key: string; paths: string[]; "dependencies-key": string };
-      };
-      const initial = describe();
-      expect(initial.paths).toEqual(["packages/release/dist", "tools/pack/dist"]);
-      writeFileSync(join(sandbox, "apps/daemon/src/index.ts"), "export const changed = true;\n");
-      expect(describe()).toEqual(initial);
-      writeFileSync(join(sandbox, "tools/pack/src/index.ts"), "export const changed = true;\n");
-      const toolChange = describe();
-      expect(toolChange.key).not.toBe(initial.key);
-      expect(toolChange["dependencies-key"]).toBe(initial["dependencies-key"]);
-      writeFileSync(join(sandbox, "pnpm-lock.yaml"), "lockfileVersion: 9\n");
-      expect(describe()["dependencies-key"]).not.toBe(initial["dependencies-key"]);
-    } finally {
-      rmSync(sandbox, { recursive: true, force: true });
-    }
-  });
-
   it("[P2] separates dependency preparation, closure description and tool compilation", () => {
     const sandbox = createSandbox();
     try {

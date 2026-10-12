@@ -681,7 +681,6 @@ gh pr create --fill
   <img alt="OpenDesign — repository metrics" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
-위의 SVG는 [`lowlighter/metrics`](https://github.com/lowlighter/metrics)를 사용해 [`.github/workflows/metrics.yml`](../../.github/workflows/metrics.yml)에 의해 매일 다시 생성됩니다.
 
 ---
 

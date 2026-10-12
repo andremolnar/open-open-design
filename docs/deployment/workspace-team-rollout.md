@@ -1,3 +1,9 @@
+# Historical deployment plan (GitHub Actions removed)
+
+This plan mentions workflow entrypoints that no longer exist in this repository.
+It is retained for background only; do not use its workflow instructions to
+deploy, validate, or release the current project.
+
 # Workspace Team 上线 Runbook
 
 本手册用于把 Workspace Team 从 Vela `feature-test` 推进到 `test`，最终再发布到 production。它同时覆盖 Vela DB/API/Link/Web/CLI 和 OpenDesign 桌面包；任何一层没有明确版本和验收证据，都不能把整体标记为已上线。

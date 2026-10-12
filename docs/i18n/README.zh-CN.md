@@ -691,7 +691,6 @@ gh pr create --fill
   <img alt="OpenDesign——仓库指标" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
-上方 SVG 由 [`.github/workflows/metrics.yml`](../../.github/workflows/metrics.yml) 使用 [`lowlighter/metrics`](https://github.com/lowlighter/metrics) 每日重新生成。
 
 ---
 

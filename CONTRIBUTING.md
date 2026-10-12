@@ -249,7 +249,7 @@ Beyond that:
   `apps/daemon/src/`. New `.js`, `.mjs`, or `.cjs` files need an explicit
   generated, vendored, or compatibility reason and must pass `pnpm guard`.
 - **No new top-level dependencies** without a paragraph in the PR description on what we get vs. what bytes we ship. The dep list in [`package.json`](package.json) is small on purpose.
-- **Run `pnpm typecheck`** before pushing. CI runs it; failing it earns a "please fix" comment.
+- **Run `pnpm typecheck`** before pushing. No repository-owned GitHub Actions job runs it for you.
 
 ---
 

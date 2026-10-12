@@ -13,9 +13,9 @@
  *   3. Blend distinct-users + runs into one [0,1] score and rewrite the
  *      generated file.
  *
- * Run weekly by .github/workflows/refresh-plugin-popularity.yml, which opens a
- * PR with the regenerated file. The transform is deterministic and creds-free;
- * only the fetch needs a PostHog personal API key, injected as a repo secret.
+ * Run manually when popularity needs refreshing; review and commit the generated
+ * file. The transform is deterministic and creds-free; only the fetch needs a
+ * locally supplied PostHog personal API key. Never commit the key.
  *
  *   pnpm exec tsx scripts/refresh-plugin-popularity.ts            # dry run
  *   pnpm exec tsx scripts/refresh-plugin-popularity.ts --write    # rewrite file
@@ -214,7 +214,7 @@ function render(
 //     tail templates keep their curated/visual fallback order
 //
 // Regenerate with: pnpm exec tsx scripts/refresh-plugin-popularity.ts --write
-// Refreshed weekly by .github/workflows/refresh-plugin-popularity.yml.
+// Refresh manually and review the generated snapshot before committing.
 // See pluginPopularity.RUNBOOK.md here.
 
 export interface PluginPopularityMeta {

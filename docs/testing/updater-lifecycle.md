@@ -83,7 +83,7 @@ spec (`e2e/specs/mac.spec.ts` / `win.spec.ts` via `release-smoke.ts`),
 | --- | --- | --- |
 | metadata.json composition + CAS latest publish | U | tools-serve `release-metadata-publish.test.ts` |
 | Launcher version floor channel policy (vars pairs, stable fallback, validation) | U | tools-release `launcher-version-floor.test.ts`; publish integration |
-| Workflow env passthrough (no YAML fallback) | U | tools-pack `release-workflows.test.ts` floor passthrough test |
+| Manual environment input | operator | Pass and inspect channel floor values explicitly; no workflow forwards them. |
 | verify-metadata / summary-metadata wiring | U | publish integration test |
 | Fixture bridge (control knobs, port pinning) | U | e2e `tests/updater-fixture.test.ts`; tools-serve fixture tests |
 

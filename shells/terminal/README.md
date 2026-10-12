@@ -141,15 +141,12 @@ metadata, writes the installed manifest, and produces a complete offline
 `tar.gz`/`zip`. The request/receipt schemas make these scripts callable by an
 external orchestrator without teaching that orchestrator the installed layout.
 
-`.github/workflows/release-exact.yml` is an independent validation and release
-line; it is not part of `ci.yml`. Its separate convergence declaration may
-restore a byte-verified, release-neutral target scene. A hit never promotes the
-cached directory directly: native distribution still copies the scene and adds
-release documents, then `.github/scripts/pack.py` creates signed content and
-Shell sidecars and `.github/scripts/release.py` performs immutable publication
-before the channel-scoped latest CAS. Convergence therefore knows only Git
-inputs, execution class and an opaque scene product; channel, version, trust,
-minimum Shell version and artifact URL remain promotion concerns.
+There is no repository-owned release workflow. An external orchestrator can
+call the native distribution scripts to copy the scene and add release
+documents, then `tools/release/scripts/exact/pack.py` to create signed content
+and Shell sidecars and `tools/release/scripts/exact/release.py` for immutable
+publication before the channel-scoped latest CAS. The caller owns validation
+and must not treat a cached scene as already promoted.
 
 PR B deliberately publishes and accepts only `darwin-arm64`. The PowerShell
 carrier and its isolated contract suite remain Electron/PR C preparation; they

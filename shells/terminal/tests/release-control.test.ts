@@ -26,7 +26,7 @@ async function runPython(script: string, request: string, receipt: string, env: 
   }
 }
 
-const runRelease = (request: string, receipt: string) => runPython(".github/scripts/release.py", request, receipt);
+const runRelease = (request: string, receipt: string) => runPython("tools/release/scripts/exact/release.py", request, receipt);
 
 async function describeFile(file: string) {
   const body = await readFile(file);
@@ -55,7 +55,7 @@ describe("exact phased release control", () => {
     await writeFile(join(root, "runtime-stop.json"), JSON.stringify({ outcome: "ready", result: { state: "stopped", sidecar: { remainingPids: [] } } }));
 
     const result = await execFileAsync("python3", [
-      ".github/scripts/release/installed_acceptance.py", "--root", root, "--installed-root", installedRoot,
+      "tools/release/scripts/exact/installed_acceptance.py", "--root", root, "--installed-root", installedRoot,
       "--shell-type", "terminal", "--target", "darwin-arm64",
     ], { cwd: resolve(import.meta.dirname, "../../.."), encoding: "utf8" });
     expect(result.stderr).toBe("");
@@ -65,7 +65,7 @@ describe("exact phased release control", () => {
 
     await writeFile(join(installedRoot, "install-manifest.sha256"), `${"0".repeat(64)}  install-manifest.json\n`);
     await expect(execFileAsync("python3", [
-      ".github/scripts/release/installed_acceptance.py", "--root", root, "--installed-root", installedRoot,
+      "tools/release/scripts/exact/installed_acceptance.py", "--root", root, "--installed-root", installedRoot,
       "--shell-type", "terminal", "--target", "darwin-arm64",
     ], { cwd: resolve(import.meta.dirname, "../../.."), encoding: "utf8" })).rejects.toMatchObject({ stderr: expect.stringContaining("manifest digest mismatch") });
   });
@@ -116,8 +116,8 @@ describe("exact phased release control", () => {
     const requestB = join(root, "prepare-b.json");
     await writePrepareRequest(requestA, prepareA);
     await writePrepareRequest(requestB, prepareB);
-    await expect(runPython(".github/scripts/pack.py", requestA, join(prepareA, "receipt.json"), signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
-    await expect(runPython(".github/scripts/pack.py", requestB, join(prepareB, "receipt.json"), signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
+    await expect(runPython("tools/release/scripts/exact/pack.py", requestA, join(prepareA, "receipt.json"), signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
+    await expect(runPython("tools/release/scripts/exact/pack.py", requestB, join(prepareB, "receipt.json"), signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
     expect(await readFile(join(prepareA, "documents/content-metadata.json"))).toEqual(await readFile(join(prepareB, "documents/content-metadata.json")));
 
     const contribution = join(root, "contribution.json");
@@ -139,7 +139,7 @@ describe("exact phased release control", () => {
       contributions: [],
       outputDirectory: join(root, "final"),
     }));
-    const rejected = await runPython(".github/scripts/pack.py", finalizeRequest, join(root, "rejected.json"), signingEnv);
+    const rejected = await runPython("tools/release/scripts/exact/pack.py", finalizeRequest, join(root, "rejected.json"), signingEnv);
     expect(rejected.status).not.toBe(0);
     expect(rejected.stderr).toContain("requires Shell contributions");
     await writeFile(finalizeRequest, JSON.stringify({
@@ -150,7 +150,7 @@ describe("exact phased release control", () => {
       outputDirectory: join(root, "final"),
     }));
     const finalReceipt = join(root, "final/receipt.json");
-    await expect(runPython(".github/scripts/pack.py", finalizeRequest, finalReceipt, signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
+    await expect(runPython("tools/release/scripts/exact/pack.py", finalizeRequest, finalReceipt, signingEnv)).resolves.toMatchObject({ status: 0, stderr: "" });
     expect(JSON.parse(await readFile(finalReceipt, "utf8"))).toMatchObject({
       schemaVersion: 2,
       operation: "exact.pack",

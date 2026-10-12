@@ -1,6 +1,6 @@
 # E2E 状态
 
-这份文档记录 `e2e/` 当前的自动化测试分层、自动执行入口，以及我们有意保留的已知缺口。
+这份文档记录 `e2e/` 的测试分层及一次历史覆盖审计。原有 GitHub Actions 执行入口已移除；以下历史结果不代表当前自动门禁。测试需按命令显式运行。
 
 安装与更新器全生命周期的「节点 → 归属测试」覆盖图谱单独维护在
 [`../updater-lifecycle.md`](../updater-lifecycle.md)；改动 updater 相关代码时以那份图谱定位归属测试。
@@ -23,11 +23,7 @@
 
 当前策略是明确的：继续增强 `extended` 的信号，但不把 `critical` 变成一个越来越慢的大杂烩。
 
-合并门禁按 P0 domain 拆分运行；完整 Functional UI 套件由
-`release-prerelease.yml` 在 prerelease 元数据解析出精确构建 commit 后调用，
-并作为各平台打包与发布前的阻断门禁。也可以通过
-`.github/workflows/ui-extended-main.yml` 的 `workflow_dispatch` 手动选择
-`p0`、`p0p1` 或 `full`。
+没有仓库内 GitHub Actions 门禁或发布前自动测试；选择下面的本地命令运行。
 
 以 `origin/main@044324b9a` 合入当前分支后的状态为审计基线，Functional Playwright
 清单为 **411 tests / 44 files**：P0 166、P1 220、P2 25。数字只用于说明本轮审计
@@ -130,16 +126,9 @@ Playwright 资源场景现在支持显式 contract：
   - 确认 quick-switcher 场景保留预期的 per-project file sets
   - 确认 mixed artifact / file workspace 在 reload 后仍然完整
 
-### 7. Prerelease 精确提交与包体信号
+### 7. 发布验证
 
-`release-prerelease.yml` 现在会在 `metadata.outputs.commit` 上重新运行完整
-E2E Vitest，各平台打包和最终 publish 都依赖该门禁。这避免了广义
-daemon/API 回归只在 PR 的某个早期 SHA 跑过，但未在实际 prerelease commit 上复验。
-
-打包后 smoke 已覆盖 macOS arm64、macOS Intel、Windows x64 和可选的
-Linux x64 AppImage。Smoke 保持 advisory，不会因单一包体回归失败阻断产物发布；
-macOS arm64 和 Windows x64 的失败会在飞书下载卡中显示，macOS Intel 和
-Linux x64 的结果仅保留在 GitHub Actions job summary 和上传报告中。
+发布操作必须显式运行相关 E2E 与包体验证；仓库不会自动执行或上传报告。
 
 ### 8. 长耗时 media run 生命周期
 

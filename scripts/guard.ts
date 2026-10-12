@@ -22,7 +22,6 @@ import {
 } from "./check-tokens-fixture-sync.ts";
 import { checkCraftReferences } from "./lint-craft-references.ts";
 import { checkWhatsNewDocument } from "./check-whats-new-document.ts";
-import { checkWhatsNewPublishWorkflow } from "./check-whats-new-publish-workflow.ts";
 import { collectCssHardcodedColorMatches, cssWideAndSpecialColorKeywords, realNamedColors } from "./style-policy.ts";
 import { checkScriptsLibraryArchitecture } from "./lib/guard/architecture.ts";
 import { runGuardChecks, type GuardCheck, type GuardContext } from "./lib/guard/core.ts";
@@ -97,18 +96,9 @@ const residualAllowedExactPaths = new Set([
   // PostCSS loads Tailwind through a web-local .mjs compatibility config entry.
   "apps/web/postcss.config.mjs",
   "scripts/bake-html-ppt-examples.mjs",
-  // CI-only plugin-preview renderer. Kept .mjs and run directly by Node so its
-  // runtime deps (puppeteer-core + a headless Chrome + ffmpeg) are provided by
-  // the CI environment and never pulled into the daemon/web TS build or bundle.
+  // Standalone plugin-preview renderer. Kept .mjs for direct Node execution
+  // without adding its browser/ffmpeg dependencies to the daemon or web bundle.
   "scripts/bake-plugin-previews.mjs",
-  // Manifest diff guard + its node:test coverage. Run directly by Node from the
-  // bake workflows (no TS build step there) to decide whether a `previews` entry
-  // actually changed, ignoring the per-run `generatedAt` timestamp.
-  "scripts/plugin-previews-diff.mjs",
-  "scripts/plugin-previews-diff.test.mjs",
-  // CI-only R2 garbage collector for orphaned preview clips + its node:test.
-  "scripts/plugin-previews-gc.mjs",
-  "scripts/plugin-previews-gc.test.mjs",
   "scripts/scaffold-html-ppt-skills.mjs",
   "scripts/sync-hyperframes-skill.mjs",
   "scripts/verify-media-models.mjs",
@@ -1532,7 +1522,6 @@ const checks: GuardCheck[] = [
   { name: "style policy", run: checkStylePolicy },
   { name: "craft references", run: checkCraftReferences },
   { name: "what's new document", run: ({ repoRoot: root }) => checkWhatsNewDocument(root) },
-  { name: "what's new publish workflow", run: ({ repoRoot: root }) => checkWhatsNewPublishWorkflow(root) },
   { name: "HTML plugin preview contracts", run: ({ repoRoot: root }) => checkHtmlPluginPreviewContracts(root) },
   { name: "plugin preview manifest", run: checkPluginPreviewManifest },
   { name: "design system manifests", run: checkDesignSystemManifests },

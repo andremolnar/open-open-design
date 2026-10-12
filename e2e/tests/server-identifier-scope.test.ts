@@ -40,7 +40,7 @@ import { describe, expect, it } from 'vitest';
  * incidental:
  *
  * - Any change under `apps/daemon/src/` matches the `certain-daemon-core` rule
- *   in `.github/config/scopes.json`, whose effects include `ui_p0_validation_required`;
+ *   across daemon and web behavior;
  *   `run_e2e_vitest` is `isFull || web_tests_required ||
  *   ui_p0_validation_required`. So a `server.ts`-only change arms the `E2E
  *   Vitest` lane even at the merge queue's `certain` threshold — the strictest

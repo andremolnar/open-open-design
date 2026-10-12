@@ -7,12 +7,12 @@ import {
 } from '../../src/tools-connectors-cli.js';
 
 describe('shouldSkipRepoPath', () => {
-  it('skips editor / CI / agent-tooling directories', () => {
+  it('skips editor / repository-metadata / agent-tooling directories', () => {
     expect(shouldSkipRepoPath('.vscode/settings.json')).toBe(true);
     expect(shouldSkipRepoPath('.zed/tasks.json')).toBe(true);
     expect(shouldSkipRepoPath('.zenflow/tasks/cleanup/spec.md')).toBe(true);
     expect(shouldSkipRepoPath('.idea/workspace.xml')).toBe(true);
-    expect(shouldSkipRepoPath('.github/workflows/ci.yml')).toBe(true);
+    expect(shouldSkipRepoPath('.github/ISSUE_TEMPLATE/bug-report.yml')).toBe(true);
   });
 
   it('keeps real source directories', () => {

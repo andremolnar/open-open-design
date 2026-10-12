@@ -2066,7 +2066,7 @@ git commit -m "feat(observability): Grafana dashboard for Critique Theater"
 
 - [ ] **Step 2: Run** `pnpm size-limit`. Confirm pass below budget.
 
-- [ ] **Step 3: Add CI step** in `.github/workflows/<existing>.yml` that fails on regression.
+- [ ] **Step 3: Record the measured budget result.** No repository-owned CI step runs it automatically.
 
 - [ ] **Step 4: Commit.**
 

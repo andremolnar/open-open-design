@@ -21,4 +21,4 @@ dependencies and Vitest/TypeScript tests; it is not the distributed runtime.
   that port only through the public `@open-design/sidecar` boundary. Terminal's fixture updater must exercise the
   complete Electron-facing provider contract, including progress, foreign-reference
   blocking, defer, and forced stop/install handoff; it is not a user-facing updater.
-- Do not depend on `.github/scripts`, `tools/pack`, or `tools/release`.
+- Do not depend on `tools/pack` or `tools/release`.

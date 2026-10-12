@@ -726,7 +726,7 @@ Thanks to everyone who has taken part — code, docs, feedback, a sharp issue, a
   <img alt="OpenDesign — repository metrics" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
-The SVG above is regenerated daily by [`.github/workflows/metrics.yml`](.github/workflows/metrics.yml) using [`lowlighter/metrics`](https://github.com/lowlighter/metrics).
+The image above is hosted separately; this repository does not refresh it automatically.
 
 ---
 

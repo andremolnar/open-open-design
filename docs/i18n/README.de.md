@@ -682,7 +682,6 @@ Dank an alle, die teilgenommen haben — Code, Doku, Feedback, ein scharfsinnige
   <img alt="OpenDesign — repository metrics" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
-Das obige SVG wird täglich von [`.github/workflows/metrics.yml`](../../.github/workflows/metrics.yml) mit [`lowlighter/metrics`](https://github.com/lowlighter/metrics) neu generiert.
 
 ---
 

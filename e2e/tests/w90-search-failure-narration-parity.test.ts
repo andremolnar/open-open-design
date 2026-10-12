@@ -22,7 +22,7 @@
  *   · apps/daemon/tests/prompts/host-failure-narration.test.ts(W84 类守卫)
  *     的 SCAN_ROOTS 只扫 apps/daemon/src/prompts、packages/contracts/src/prompts、
  *     design-templates、skills —— 看不见 apps/web/src/components;而且它住在
- *     apps/daemon/tests 里,按 .github/config/scopes.json,只改 apps/web 的 PR
+ *     apps/daemon/tests 里，单独运行 web 测试不足以覆盖此行为。
  *     根本不会触发 daemon_tests_required,那份守卫连跑都不会跑。
  *   · apps/daemon/tests/prompts/media-contract-mirror.test.ts(镜像判据的
  *     打法来源)守的是 daemon ↔ packages/contracts,同样在 daemon 侧。

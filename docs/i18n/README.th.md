@@ -685,7 +685,6 @@ Contribution flow สำหรับ agent, code style และ PR bar แบ�
   <img alt="OpenDesign — repository metrics" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
-SVG ด้านบน regenerate ทุกวันโดย [`.github/workflows/metrics.yml`](../../.github/workflows/metrics.yml) ด้วย [`lowlighter/metrics`](https://github.com/lowlighter/metrics).
 
 ---
 

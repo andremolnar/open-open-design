@@ -152,6 +152,6 @@ export async function checkScriptsLibraryArchitecture(context: GuardContext): Pr
     for (const error of errors) console.error(`- ${error}`);
     return false;
   }
-  console.log("Scripts library architecture check passed: workflow control and guard internals stay layered.");
+  console.log("Scripts library architecture check passed: guard internals stay layered.");
   return true;
 }

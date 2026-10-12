@@ -18,7 +18,7 @@
 //     tail templates keep their curated/visual fallback order
 //
 // Regenerate with: pnpm exec tsx scripts/refresh-plugin-popularity.ts --write
-// Refreshed weekly by .github/workflows/refresh-plugin-popularity.yml.
+// Refresh manually and review the generated snapshot before committing.
 // See pluginPopularity.RUNBOOK.md here.
 
 export interface PluginPopularityMeta {

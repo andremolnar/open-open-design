@@ -5,12 +5,8 @@ cache under `--cache-dir` that stores packaged build artifacts as
 content-addressed nodes. Read it before changing any node key, adding a node,
 or changing what a node writes.
 
-It records **current state only**, not change history — same convention as
-`specs/current/ci.md`.
-
-Out of scope: the GitHub Actions cache that wraps this store. That layer is
-owned by `.github/`; it restores and saves the store as an opaque directory and
-carries no correctness obligation (see **Why coarse restore is safe** below).
+It records **current state only**, not change history. This cache is a local
+packaging facility; the repository has no GitHub Actions cache wrapper.
 
 ## Cache model
 
@@ -150,7 +146,7 @@ when changing the payload split.
 
 ## Confidence tiers
 
-Borrowed from `specs/current/ci.md`.
+Confidence describes whether the cache key accounts for the node's inputs.
 
 - **`certain`** — the key provably covers the node's full input closure, and a
   witness test demonstrates it (see below). Only `certain` nodes may

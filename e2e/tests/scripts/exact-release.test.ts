@@ -23,12 +23,6 @@ async function runPython(script: string, ...args: string[]) {
 }
 
 describe('exact release scripts', () => {
-  it('derives publication time from the immutable source commit', async () => {
-    const workflow = await readFile(resolve('../.github/workflows/release-exact.yml'), 'utf8');
-    expect(workflow).toContain("subprocess.check_output(['git', 'show', '--no-patch', '--format=%cI', os.environ['SOURCE_SHA']]");
-    expect(workflow).not.toContain('datetime.now');
-  });
-
   it('rejects a reused Terminal scene for a different standalone version', async () => {
     const root = await mkdtemp(join(tmpdir(), 'exact-pack-version-'));
     roots.push(root);
@@ -47,7 +41,7 @@ describe('exact release scripts', () => {
       sceneDirectory: scene,
       targets: [{ target: 'darwin-arm64' }, { target: 'win32-x64' }],
     }));
-    const result = await runPython('.github/scripts/pack.py', '--request', request, '--receipt', join(root, 'receipt.json'));
+    const result = await runPython('tools/release/scripts/exact/pack.py', '--request', request, '--receipt', join(root, 'receipt.json'));
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('requested standaloneVersion differs from Terminal scene');
   });
@@ -93,8 +87,8 @@ describe('exact release scripts', () => {
       }));
       const request = join(root, 'release.json');
       await writeFile(request, JSON.stringify({ schemaVersion: 1, operation: 'exact.release', packReceipt: pack, endpointUrl: `http://127.0.0.1:${address.port}`, bucket: 'fixture' }));
-      const first = await runPython('.github/scripts/release.py', '--request', request, '--receipt', join(root, 'first.json'));
-      const second = await runPython('.github/scripts/release.py', '--request', request, '--receipt', join(root, 'second.json'));
+      const first = await runPython('tools/release/scripts/exact/release.py', '--request', request, '--receipt', join(root, 'first.json'));
+      const second = await runPython('tools/release/scripts/exact/release.py', '--request', request, '--receipt', join(root, 'second.json'));
       expect(first.stderr).toBe('');
       expect(first.status).toBe(0);
       expect(second.stderr).toBe('');
