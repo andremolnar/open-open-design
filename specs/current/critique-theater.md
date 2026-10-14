@@ -560,7 +560,7 @@ Every item is a CI gate. Missing documentation fails the build.
 - `docs/architecture.md`, adds the `apps/daemon/src/critique/` module diagram.
 - `docs/skills-protocol.md`, adds `od.critique.policy` field documentation and extension points.
 - `docs/agent-adapters.md`, adds the conformance test contract every adapter must satisfy.
-- `docs/roadmap.md`, adds future panelist extensions (Perf, i18n, Motion, Cost) as future work, not committed scope.
+- Future panelist extensions (Perf, i18n, Motion, Cost) were discussed upstream; they are not a commitment for this fork.
 - `apps/daemon/src/critique/AGENTS.md`, module-level guide per the existing `AGENTS.md` convention.
 - `apps/web/src/components/Theater/AGENTS.md`, same.
 - `README.md`, single line in the "What you get" table: Critique Theater, every artifact panel-tempered, scored, replayable.

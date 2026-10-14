@@ -1,6 +1,6 @@
 # RFC: Agent-ready OpenDesign — one assistant that can drive the whole app
 
-**Status:** Draft (umbrella design for review; only slice 1 ships code in the first PR)
+**Status:** Historical upstream draft, not a delivery roadmap or accepted design for this fork.
 **Author:** @leonaburime-ucla
 **Related:** #5398 (make OpenDesign agent-ready)
 

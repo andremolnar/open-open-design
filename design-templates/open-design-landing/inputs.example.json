@@ -347,7 +347,7 @@
         { "label": "Quickstart",     "href": "https://github.com/nexu-io/open-design/blob/main/QUICKSTART.md" },
         { "label": "Architecture",   "href": "https://github.com/nexu-io/open-design/blob/main/docs/architecture.md" },
         { "label": "Skill Protocol", "href": "https://github.com/nexu-io/open-design/blob/main/docs/skills-protocol.md" },
-        { "label": "Roadmap",        "href": "https://github.com/nexu-io/open-design/blob/main/docs/roadmap.md" }
+        { "label": "Fork direction", "href": "https://github.com/andremolnar/open-open-design/blob/main/README.md#direction-of-this-fork" }
       ]}
     ],
     "mega": [

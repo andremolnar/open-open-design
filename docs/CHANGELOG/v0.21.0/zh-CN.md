@@ -3,6 +3,8 @@ title: Open Design 0.21.0 — Reliable, Start to Finish
 description: 从 Agent 连接、实时 HTML 预览到 App 重新启动，Open Design 0.21.0 让整个创作体验更加可靠；遇到问题时，也更容易恢复。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 ### 🌟 Codename: *Reliable, Start to Finish*
 
 🛡️ **42 个 PR · 13 位贡献者 · 4 天** — **从 Agent 连接、实时 HTML 预览到 App

@@ -1,5 +1,7 @@
 # OpenDesign Web Clipper — Store Listing & ASO Pack
 
+> **Inherited upstream draft:** This is store-submission copy for the original project's extension, not a store listing, release, support channel, or publishing plan for this fork. Do not copy it into a store submission for this fork without independently reviewing ownership and claims. Current fork information is in the [README](../../README.md).
+
 Single source of truth for the extension's store submissions. Copy fields
 verbatim into the Chrome Web Store / Edge Partner Center / Firefox AMO dashboards.
 All copy is keyword-tuned for discoverability (ASO) without keyword stuffing.

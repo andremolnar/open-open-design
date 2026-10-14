@@ -4,11 +4,11 @@ This file is the single source of truth for agents entering this repository. Rea
 
 ## Core documentation index
 
-- Product and onboarding: `README.md`, `docs/i18n/README.zh-CN.md`, `QUICKSTART.md`.
-- Contribution and environment: `CONTRIBUTING.md`, `docs/i18n/CONTRIBUTING.zh-CN.md`.
+- Product and onboarding: `README.md`, `QUICKSTART.md` (inherited translated guides under `docs/i18n/` currently redirect to these fork-specific sources).
+- Contribution and environment: `CONTRIBUTING.md`, `MAINTAINERS.md` (the inherited translated contribution guides currently redirect to these fork-specific sources).
 - Architecture and protocols: `docs/architecture.md`, `docs/skills-protocol.md`, `docs/agent-adapters.md`, `docs/modes.md`.
-- Historical product baseline: `docs/spec.md`, `docs/roadmap.md` (both explicitly archived; do not treat their dated decisions as current behavior).
-- References and current plans: `docs/references.md`, `docs/code-review-guidelines.md`, `specs/current/maintainability-roadmap.md`, `specs/current/chat-panel-next.md` (ChatPanel 重构:基线、任务进度规格、决策记录、踩过的坑 — 改 chat 渲染管线/工具调用展示/执行记录前必读), `specs/current/chat-panel-next-plan.md` (交付计划与纠偏节点).
+- Historical product baseline: `docs/spec.md` (archived; do not treat its dated decisions as current behavior). The upstream product roadmap is not this fork's plan; current public direction lives in `README.md`.
+- References and technical planning notes (inherited plans are not fork commitments): `docs/references.md`, `docs/code-review-guidelines.md`, `specs/current/maintainability-roadmap.md`, `specs/current/chat-panel-next.md` (ChatPanel 重构:基线、任务进度规格、决策记录、踩过的坑 — 改 chat 渲染管线/工具调用展示/执行记录前必读), `specs/current/chat-panel-next-plan.md` (交付计划与纠偏节点).
 - Directory-level agent guidance: `.github/AGENTS.md`, `apps/AGENTS.md`, `packages/AGENTS.md`, `tools/AGENTS.md`, `e2e/AGENTS.md`, `apps/web/src/components/chat/AGENTS.md` (chat 组件分层、`--chat-*` 样式接缝、降级形态与测试规约).
 - Packaged auto-update architecture and high-confidence local harness: read `tools/pack/AGENTS.md` section "Packaged auto-update architecture and harness" before touching packaged updater code, release-channel identity, installer behavior, or updater UI.
 - Packaged build cache contract: `tools/pack/CACHE.md` (determinant rules, materialization-time parameters, confidence grading — required before changing any build-cache node key).
@@ -73,7 +73,7 @@ daemon data directory, recommended data directory, shared data directory,
 deployment mount, or example data directory. If existing code exposes a legacy
 fallback, treat it as implementation detail or a known escape candidate, not as
 a documentation pattern to copy. If a change needs a data-path rule that is not
-covered here, request a core-maintainer decision in the PR instead of inventing
+covered here, request the fork maintainer's decision in the PR instead of inventing
 a new convention.
 
 The daemon has one active data-root truth source:
@@ -135,7 +135,7 @@ Known escape candidates that must not be reused:
 
 Do not extend these escape patterns. When a fix is obvious, route the path
 through `RUNTIME_DATA_DIR` or an explicit data-root argument. When it is not
-obvious, block the PR and request core-maintainer guidance.
+obvious, block the PR and request guidance from the fork maintainer.
 
 ## Root command boundary
 
@@ -207,7 +207,7 @@ Every user-facing capability must be reachable through both the web UI **and** t
 - Pick the matching review lane: default code/tests, contract and protocol changes, design-system additions, skill additions, or craft additions.
 - Before reviewing changes under `apps/`, `packages/`, `tools/`, or `e2e/`, read that directory's `AGENTS.md` and apply its local boundaries.
 - Blocking review feedback should focus on correctness, security/secrets, data integrity, repository boundary violations, contract/migration breakage, missing required validation, or high-risk maintainability issues.
-- Only maintainers may close a PR instead of requesting changes, and only when the change is not salvageable on the existing branch (wrong target product, foreign test harness, DOM/API assumptions absent from this repo, or scripts that conflict with lifecycle rules).
+- Only the fork maintainer may close a PR instead of requesting changes, and only when the change is not salvageable on the existing branch (wrong target product, foreign test harness, DOM/API assumptions absent from this repo, or scripts that conflict with lifecycle rules).
 
 ## PR-duty tooling
 

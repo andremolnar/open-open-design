@@ -3,6 +3,8 @@ title: OpenDesign 0.15.0
 description: Cost Less. Ship Faster. OD's DeepSeek Moment.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 # OpenDesign 0.15.0 — Cost Less. Ship Faster. OD’s DeepSeek Moment
 
 OpenDesign 0.15.0 optimizes the Design System Prompt to make everyday design tasks faster and more efficient. In representative evaluation runs, time to first token was **49.5% shorter**, end-to-end duration was **21.2% shorter**, and average input-token use was **25.1% lower**. The broader creative workflow is smoother too—from building and presenting decks, to cloning public websites from a URL, to understanding and recovering from failed tasks.

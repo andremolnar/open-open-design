@@ -1,5 +1,7 @@
 # Docker deployment
 
+> **Fork notice:** The Compose defaults and inherited release examples point to the original project's image, not this fork. There is no published container release of this fork. Build and identify your own image and pass it as `OPEN_DESIGN_IMAGE` to use fork-specific behavior. The [source quickstart](../README.md#start-without-an-opendesign-account) is the documented way to run this fork.
+
 This deployment ships OpenDesign as a single Alpine-based runtime image. The
 daemon serves both the API and the built Next.js static export, so there is no
 separate nginx container.
@@ -27,12 +29,12 @@ Before starting:
 Then pull and start the service:
 
 ```bash
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest docker compose pull
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest docker compose up -d --no-build
+OPEN_DESIGN_IMAGE=<your-own-fork-image> docker compose pull
+OPEN_DESIGN_IMAGE=<your-own-fork-image> docker compose up -d --no-build
 ```
 
-Use `ghcr.io/nexu-io/od:latest` for the latest stable image, or
-`ghcr.io/nexu-io/od:<version>` to pin a supported release.
+If you instead choose `ghcr.io/nexu-io/od:latest` or a versioned upstream tag,
+you are running the original project's build, not this fork.
 
 Open `http://127.0.0.1:7456`. When Docker's bridge makes the browser appear as a
 non-loopback peer, the browser displays its native sign-in dialog. Enter
@@ -41,12 +43,9 @@ password. The browser reuses those credentials for same-origin API requests;
 CLI clients and reverse proxies can continue to send
 `Authorization: Bearer <OD_API_TOKEN>`.
 
-The published `ghcr.io/nexu-io/od` package must be public for anonymous
-`docker pull`, Docker Compose, and Dokploy installs to work. If GHCR returns an
-authentication or access-denied error for this image, an organization maintainer
-must open GitHub -> Packages -> `od` -> Package settings and change visibility
-to Public. GitHub treats that as a one-way visibility change for container
-packages, so confirm the package is intended to stay public before switching it.
+The original project's `ghcr.io/nexu-io/od` package is administered upstream,
+not by this fork. If it is private, use a container image you own and can access
+instead of requesting a package-visibility change from this repository.
 
 Defaults:
 

@@ -2141,7 +2141,7 @@ docs/critique-theater.md
   7. FAQ
      - Why five panelists, why fixed?
      - Why is my adapter marked degraded for 24h?
-     - Can I add my own panelist? (link to v2 roadmap entry)
+     - Can I add my own panelist? (historical v2 proposal, not a fork commitment)
 ```
 
 The README adds a single line under the existing "What you get" table linking to the new doc; no new section in the README itself. `apps/daemon/src/critique/AGENTS.md` and `apps/web/src/components/Theater/AGENTS.md` give engineering-side guidance per the existing convention. `AGENTS.md` (root) gains an entry for `OD_CRITIQUE_ENABLED` in the environment-variables table.
@@ -2157,7 +2157,7 @@ The README adds a single line under the existing "What you get" table linking to
 git commit -m "docs: user-facing Critique Theater guide"
 ```
 
-### Task 14.2: Update `docs/spec.md`, `docs/architecture.md`, `docs/skills-protocol.md`, `docs/agent-adapters.md`, `docs/roadmap.md`
+### Task 14.2: Update historical product and protocol docs
 
 - [ ] **Step 1–5 per file.** For each, add the section described in `specs/current/critique-theater.md` § Documentation deliverables. One commit per file:
 
@@ -2166,7 +2166,7 @@ git commit -m "docs(spec): add Critique Theater protocol v1 section"
 git commit -m "docs(architecture): add critique module diagram"
 git commit -m "docs(skills-protocol): document od.critique.policy"
 git commit -m "docs(agent-adapters): add conformance contract"
-git commit -m "docs(roadmap): note v2 panelist extensions"
+git commit -m "docs: record historical panelist extension proposal"
 ```
 
 ### Task 14.3: README + AGENTS.md

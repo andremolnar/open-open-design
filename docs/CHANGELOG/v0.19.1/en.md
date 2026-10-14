@@ -3,6 +3,8 @@ title: OpenDesign 0.19.1 — Design with DeepSeek Harness
 description: Connect your official DeepSeek Harness installation to OpenDesign for model discovery, structured runs, and session resume. Paid plans also get DeepSeek V4 Pro and Flash unlimited for two weeks.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *Design with DeepSeek Harness*
 
 🧰 **59 PRs · 24 contributors · 4 days** — **DeepSeek Harness now runs as an

@@ -1,6 +1,6 @@
 # NotebookLM: export issues/PRs from OpenDesign
 
-OpenDesign gets a lot of feedback via GitHub Issues + PRs. If you want NotebookLM to help with:
+This fork accepts feedback via its own GitHub Issues and PRs. If you want NotebookLM to help with:
 
 - support answers (with citations)
 - clustering + taxonomy of user scenarios
@@ -19,7 +19,7 @@ From the repo root:
 
 ```bash
 pnpm exec tsx scripts/notebooklm-export-github.ts \
-  --repo nexu-io/open-design \
+  --repo andremolnar/open-open-design \
   --issues open \
   --prs open \
   --limit 50
@@ -35,7 +35,7 @@ You can override the output path:
 
 ```bash
 pnpm exec tsx scripts/notebooklm-export-github.ts \
-  --repo nexu-io/open-design \
+  --repo andremolnar/open-open-design \
   --out notebooklm/open-design-snapshot.md
 ```
 

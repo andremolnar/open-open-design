@@ -3,6 +3,8 @@ title: OpenDesign 0.17.0
 description: Bring OpenDesign into Codex as an editable design workspace, then refine the result directly in Studio.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *OpenDesign Plugin for Codex*
 
 🚀 **62 PRs · 23 contributors · 11 days** — **Codex now has its own design workspace.** Call `@open-design` from a Codex conversation to turn ideas and briefs into real, editable design artifacts—then keep creating and refining them in OpenDesign Studio without leaving the Codex workflow. 🚀

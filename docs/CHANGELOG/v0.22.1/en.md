@@ -3,6 +3,8 @@ title: Open Design 0.22.1 — Smoother design runs and recovery
 description: OD Next becomes the default for supported design tasks, while clearer failures, reliable retries, steadier chat scrolling, and final syntax checks help you keep creating.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 Open Design 0.22.1 builds on 0.22.0 with a simpler start for supported design tasks and clearer ways to recover when a run goes wrong.
 
 ## 🔁 Changed

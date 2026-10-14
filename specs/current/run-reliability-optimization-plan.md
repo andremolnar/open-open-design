@@ -1,5 +1,7 @@
 # Run Reliability Optimization Plan
 
+> **Inherited upstream proposal:** The issue, backlog, rollout, and external planning link below describe work proposed for the original project, not this fork's release plan or maintainer obligations.
+
 ## Purpose
 
 Define the post-PR1 reliability optimization plan for issue

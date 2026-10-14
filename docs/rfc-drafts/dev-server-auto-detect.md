@@ -1,6 +1,6 @@
 # RFC: Auto-detect & launch dev server for folder-imported projects
 
-**Status:** Draft (for nexu-io/open-design Issue, post #597 merge)
+**Status:** Historical upstream draft; not an open issue or delivery commitment for this fork.
 **Author:** @infinity-nft
 **Related:** #597 (folder import — single mode)
 

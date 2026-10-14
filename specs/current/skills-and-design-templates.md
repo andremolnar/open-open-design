@@ -18,8 +18,8 @@ The filesystem and daemon split shipped. The web surface then evolved again:
 the redesigned home removed the top-level Examples/Templates gallery, design
 templates now feed the new-project "Start from" rails, and functional skill
 management lives under Integrations → Skills. Design systems remain a separate
-settings surface. The later import ideas below remain roadmap items unless
-explicitly marked shipped.
+settings surface. Later import ideas below are inherited proposals, not work
+scheduled for this fork unless independently accepted by its maintainer.
 
 References:
 

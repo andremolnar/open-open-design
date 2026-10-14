@@ -3,6 +3,8 @@ title: Open Design 0.24.0 — Every Run, Kept Intact
 description: Conversations keep their thread across reloads and follow-ups, the preview you chose stays put, rich answers arrive as content instead of markup, a fresh Windows install reaches the app on the first try, and Novita AI joins the BYOK picker.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *Every Run, Kept Intact*
 
 🧭 **`26 PRs` · `13 contributors` · 1 day** — **A run should survive the real  

@@ -3,6 +3,8 @@ title: OpenDesign 0.19.0 — Image Generation, Unlocked
 description: 用 OpenDesign 订阅把想法变成图片：直接使用 Seedream 5.0 Pro、GPT Image 2.0 和 Nano Banana 2.0 生成图像。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 ### 🌟 Codename: *Image Generation, Unlocked*
 
 🖼️ **用 OpenDesign 订阅把想法变成图片：直接使用 Seedream 5.0 Pro、GPT Image 2.0

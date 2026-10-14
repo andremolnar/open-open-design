@@ -1,5 +1,7 @@
 # OpenDesign 插件与 Marketplace 规范（v1）
 
+> **上游技术提案：**本文中的交付阶段与 Marketplace 路线图来自原项目，不代表此独立分叉维护者的开发承诺。请以当前代码和[此分叉的 README](../README.md) 为准。
+
 > **一句话总结：** OpenDesign 插件把可移植的 `SKILL.md` 能力包装成 marketplace 可发现、一键可用的设计工作流，同时保留对现有 agent skill 生态、headless CLI 使用方式和自托管部署的兼容性。
 
 **父文档：** [`spec.md`](spec.md) · **同级文档：** [`skills-protocol.md`](skills-protocol.md) · [`architecture.md`](architecture.md) · [`agent-adapters.md`](agent-adapters.md) · [`modes.md`](modes.md)

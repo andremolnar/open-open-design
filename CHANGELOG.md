@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Changed] Contributor and translation entry points now identify this fork's sole maintainer and link to this repository instead of implying upstream governance, paid programs, review guarantees, or release plans.
+- [Removed] The inherited product roadmap and upstream-only contribution workflow are no longer presented as plans or submission paths for this fork. Historical release credits remain available below.
 - [Removed] This repository no longer runs GitHub Actions for validation, release publishing, scheduled refreshes, or automatic updates to pull requests. Contributors and release operators must run checks and publication explicitly; manual packaging and release tools remain available.
 - [Changed] Home now opens directly for both fresh and returning local users, even when an old setup flag is incomplete or Cloud sign-in has expired. Old onboarding links return to Home; signing out leaves local projects and settings accessible instead of reopening the welcome screen.
 - [Changed] MCP guidance now distinguishes previews authored in the current coding session from delegated OpenDesign generation. Saving a preview into a connected project needs no Cloud sign-in; available local agent CLIs remain an option for delegated runs.
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Added] `pnpm tools-pack mac deploy` builds a locally signed app and installs it in `/Applications`, verifying the signature and existing app identity before replacement. (644b0134f)
 - [Fixed] Long speaker notes are now scrollable inside the presenter view instead of being clipped when notes push the layout past the viewport. (#6271)
 - [Changed] Retired the official Nix flake, Home Manager/NixOS modules, and lockfile-coupled Nix CI maintenance. OpenDesign still discovers agent CLIs installed through Nix profiles on NixOS and nix-darwin hosts.
+
+The entries below document the **original project's historical releases**, not releases or commitments by the maintainer of this fork. Contributor names and links are preserved for attribution.
 
 ## [0.9.0] - 2026-05-29
 
@@ -1255,7 +1259,7 @@ First public release of OpenDesign — a local-first, open-source alternative to
 - Beta release workflow placeholder. ([#36])
 - Git commit co-author policy. ([#131])
 
-[Unreleased]: https://github.com/nexu-io/open-design/compare/open-design-v0.9.0...HEAD
+[Unreleased]: https://github.com/andremolnar/open-open-design/commits/main/
 [0.9.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.9.0
 [0.8.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.8.0
 [0.7.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.7.0

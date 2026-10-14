@@ -55,5 +55,5 @@ body:
     attributes:
       label: Before you submit
       options:
-        - label: This video is actually about OpenDesign (nexu-io/open-design), not a different product.
+        - label: This video is about this independent OpenDesign fork, not an upstream release or another product.
           required: true

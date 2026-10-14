@@ -26,7 +26,6 @@ Other docs:
 - Automations self-evolution → [`../specs/current/automation-self-evolution.md`](../specs/current/automation-self-evolution.md)
 - Run reliability optimization plan → [`../specs/current/run-reliability-optimization-plan.md`](../specs/current/run-reliability-optimization-plan.md)
 - References & credits → [`references.md`](references.md)
-- Roadmap → [`roadmap.md`](roadmap.md)
 
 ---
 
@@ -154,4 +153,4 @@ In short: Claude Design is a product; OD is a **substrate**.
 - **Comment mode on non-Claude-Code agents.** Claude Code supports surgical edits via its tool loop. Codex and Gemini CLI are less graceful. Do we degrade to "regenerate whole file" for weaker agents? Lean: yes, document clearly in the adapter table.
 - **Skill trust model.** Skills can shell out via the agent. We should at minimum warn on install, and probably sandbox the agent's cwd to the project directory. Claude Code's permission mode handles this for us if we use it; Codex is looser. Needs a per-adapter note.
 
-These go on the roadmap as Phase 0 discovery items.
+These were Phase 0 discovery items in the original historical draft, not plans for this fork.

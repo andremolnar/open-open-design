@@ -1,15 +1,12 @@
-# OpenDesign Plugin & Marketplace — Implementation Plan (living)
+# Historical plugin and marketplace implementation plan
+
+This is an inherited engineering checklist, not an active roadmap or merge policy for this fork. Its phase dates and unchecked items are historical proposals; consult current code, tests, and the fork's [README](../../README.md) before deciding future work.
 
 Source spec: [`docs/plugins-spec.md`](../plugins-spec.md) (zh-CN: [`docs/plugins-spec.zh-CN.md`](../plugins-spec.zh-CN.md)).
 
 Sibling docs: [`spec.md`](../spec.md) · [`skills-protocol.md`](../skills-protocol.md) · [`architecture.md`](../architecture.md).
 
-Update protocol — read first
-
-- This file is a **living roadmap**. Every PR that lands a chunk of the plugin system must flip the matching `[ ]` to `[x]` in the same PR, and update §3 "Architecture state" if a new module / table / endpoint becomes real.
-- Do not edit `docs/plugins-spec.md` from this file's PRs except to fix factual drift; the spec is the contract, this file is the schedule.
-- The "Definition of done" gates in §8 are the **only** hard sign-off bar; an empty checkbox under a phase does not mean v1 is broken — only an empty checkbox under §8 does.
-- When `docs/plugins-spec.md` patches change phase numbering or atom names, mirror those changes here in the same PR (per §21.6 / §22.5 / §23.6 of the spec).
+The original update protocol and schedule are no longer binding. Keep this document as implementation history rather than treating its unchecked items as commitments.
 
 ---
 

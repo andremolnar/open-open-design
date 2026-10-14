@@ -3,6 +3,8 @@ title: "Open Design 0.24.1 — A Steadier Handoff"
 description: "A focused reliability patch that preserves diagnostic evidence, makes desktop update restarts safer, keeps successful blocked runs honest, restores the fullscreen exit control in every theme, and improves OD Next and MCP failure handling."
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 0.24.1 is a focused stability and reliability patch for the 0.24 line. No new surface—just fewer dead ends when an app restarts, a run settles, or support needs to see what happened.
 
 ## 🐛 Fixed

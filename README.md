@@ -2,7 +2,9 @@
 
 **This is a hard fork of [nexu-io/open-design](https://github.com/nexu-io/open-design).** It is not the original project's hosted service or an official distribution from that team.
 
-The point of this fork is to let you explore OpenDesign **without signing in to a service**. It removes automatic product telemetry and mandatory Cloud login for local use; the longer-term goal is to remove remaining dependencies on the original project's infrastructure. We want people and organizations to choose their own models, data boundary, and eventually their own cloud and collaboration services. Generating with a third-party model can still require that provider's credentials.
+This fork is maintained by [Andre Molnar](MAINTAINERS.md), not by the original OpenDesign team. Its [direction below](#direction-of-this-fork) is my own; upstream roadmaps and contributor programs do not apply.
+
+The point of this fork is to let you explore OpenDesign **without signing in to a service**. It removes automatic product telemetry and mandatory Cloud login for local use; the longer-term goal is to remove remaining dependencies on the original project's infrastructure. I want people and organizations to choose their own models, data boundary, and eventually their own cloud and collaboration services. Generating with a third-party model can still require that provider's credentials.
 
 > **Today:** Local projects and the Home workspace work without a Cloud account. You can run an installed coding-agent CLI or configure your own model endpoint. This fork does not automatically send product telemetry or check the original project's release feed. Optional network-backed features still exist; this is **not yet** a fully independent, offline-only or enterprise-certified deployment. See [What leaves your machine](#what-leaves-your-machine).
 

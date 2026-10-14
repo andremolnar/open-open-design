@@ -68,7 +68,7 @@ A design template is a **packaged shape for producing one kind of artifact**. It
 
 **Third option: ship an external plugin bundle.** If your workflow is genuinely a recipe (not a daemon feature) but is too vendor-specific or audience-narrow to land in-tree, publish a portable `SKILL.md` bundle with an `open-design.json` manifest and distribute it through the plugin workflow. The current `od skills` CLI is read-only; installation belongs to `od plugin`, not the retired `od skill add` shape. This is the right path for payment-provider workflows, regional marketplace integrations, in-house design systems, and similar — not a rejection, just a different distribution channel.
 
-If you're not sure your idea fits, **open a discussion first** ([github.com/nexu-io/open-design/discussions](https://github.com/nexu-io/open-design/discussions)) — we'd rather spend 5 minutes redirecting than have you build the wrong thing for a week.
+If you're not sure your idea fits this fork, [open an issue here](https://github.com/andremolnar/open-open-design/issues) before investing in it. There is no guaranteed review time.
 
 ---
 

@@ -1,5 +1,7 @@
 # OpenDesign Plugin & Marketplace Spec (v1)
 
+> **Inherited technical proposal:** The delivery phases and marketplace roadmap in this document belong to the original project's design work. They are not commitments by the maintainer of this fork. Check current implementation and the [fork README](../README.md) before relying on a proposed feature.
+
 > **In one sentence:** OpenDesign plugins turn portable `SKILL.md` capabilities into marketplace-ready, one-click design workflows while preserving compatibility with existing agent skill catalogs, headless CLI use, and self-hosted deployment.
 
 **Parent:** [`spec.md`](spec.md) · **Siblings:** [`skills-protocol.md`](skills-protocol.md) · [`architecture.md`](architecture.md) · [`agent-adapters.md`](agent-adapters.md) · [`modes.md`](modes.md)

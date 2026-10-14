@@ -2,7 +2,7 @@
 
 Thanks for thinking about contributing. OD is small on purpose — most of the value lives in **files** (skills, design systems, prompt fragments) rather than framework code. That means the highest-leverage contributions are usually one folder, one Markdown file, or one PR-sized adapter.
 
-This guide tells you exactly where to look for each type of contribution and what bar a PR has to clear before we merge it.
+This guide describes the code and documentation layout inherited from OpenDesign. This independent fork is maintained by [Andre Molnar](MAINTAINERS.md); upstream governance and contributor programs do not apply here. See the [README](README.md) for the fork's current scope before proposing a change.
 
 <p align="center"><b>English</b> · <a href="docs/i18n/CONTRIBUTING.pt-BR.md">Português (Brasil)</a> · <a href="docs/i18n/CONTRIBUTING.de.md">Deutsch</a> · <a href="docs/i18n/CONTRIBUTING.fr.md">Français</a> · <a href="docs/i18n/CONTRIBUTING.zh-CN.md">简体中文</a> · <a href="docs/i18n/CONTRIBUTING.ja-JP.md">日本語</a> · <a href="docs/i18n/CONTRIBUTING.ko.md">한국어</a> · <a href="docs/i18n/CONTRIBUTING.th.md">ภาษาไทย</a></p>
 
@@ -19,7 +19,7 @@ This guide tells you exactly where to look for each type of contribution and wha
 | Add a feature, fix a bug, lift a UX pattern from [`open-codesign`][ocod] | code | `apps/web/src/`, `apps/daemon/` | normal PR |
 | Improve docs, port a section to Français / Deutsch / 中文, fix typos | docs | `README.md`, `docs/i18n/README.fr.md`, `docs/i18n/README.de.md`, `docs/i18n/README.zh-CN.md`, `docs/`, `QUICKSTART.md` | one PR |
 
-If you're not sure which bucket your idea is in, [open a discussion / issue first](https://github.com/nexu-io/open-design/issues/new) and we'll point you at the right surface.
+If you're not sure which bucket your idea is in, [open an issue on this fork](https://github.com/andremolnar/open-open-design/issues/new) first.
 
 ---
 
@@ -28,8 +28,8 @@ If you're not sure which bucket your idea is in, [open a discussion / issue firs
 The full one-page setup lives in [`QUICKSTART.md`](QUICKSTART.md). The TL;DR for contributors:
 
 ```bash
-git clone https://github.com/nexu-io/open-design.git
-cd open-design
+git clone https://github.com/andremolnar/open-open-design.git
+cd open-open-design
 corepack enable           # selects the pinned pnpm from packageManager
 pnpm install
 pnpm tools-dev run web    # daemon + web foreground loop
@@ -41,7 +41,7 @@ Node `~24` and pnpm `10.33.x` are required. `nvm` / `fnm` are optional; use `nvm
 
 ## Docker Setup
 
-Run OpenDesign without installing Node.js or pnpm.
+The Docker instructions below use an **upstream image**, not a build of this fork. To try this fork, use the source setup above or build and identify your own image before using Docker; upstream images are maintained separately.
 
 ### Prerequisites
 
@@ -89,7 +89,7 @@ Create a `deploy/.env` file:
 OPEN_DESIGN_PORT=7456
 OPEN_DESIGN_MEM_LIMIT=384m
 OPEN_DESIGN_ALLOWED_ORIGINS=https://yourdomain.com
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest
+OPEN_DESIGN_IMAGE=<your-own-fork-image>
 ```
 
 > Projects and database data are persisted automatically using Docker volumes.
@@ -102,7 +102,7 @@ For the full Docker guide and advanced configuration, see `QUICKSTART.md`.
 
 ## Adding a new Design template
 
-A design template is a folder under [`design-templates/`](design-templates/) with a `SKILL.md` at the root, following Claude Code's [`SKILL.md` convention][skill] plus our optional `od:` extension. It packages the shape and rendering resources for an artifact shown in the Templates gallery.
+A design template is a folder under [`design-templates/`](design-templates/) with a `SKILL.md` at the root, following Claude Code's [`SKILL.md` convention][skill] plus OpenDesign's optional `od:` extension. It packages the shape and rendering resources for an artifact shown in the Templates gallery.
 
 ### → See [`docs/skills-contributing.md`](docs/skills-contributing.md) for the full guide
 
@@ -114,7 +114,7 @@ That file walks through:
 - **Running locally** — the four commands that actually matter.
 - **Merge bar** — copy-pasteable checklist of every thing a reviewer will check.
 - **PR description template** — drop into your PR body and fill in.
-- **Common rejection patterns** — the close reasons we've used recently, with concrete examples.
+- **Common rejection patterns** — reasons a PR may be declined, with concrete examples.
 
 The protocol spec (active frontmatter grammar, craft references, and testing primitives) lives separately in [`docs/skills-protocol.md`](docs/skills-protocol.md); older portable fields such as `od.inputs`, `od.parameters`, and `od.capabilities_required` may still appear in external bundles but are not consumed by the skill/template registry.
 
@@ -172,7 +172,7 @@ There is no fixed nine-section schema. The package-quality guard requires at lea
 4. **Use real evidence and clear provenance.** Sample from the source product or site, not memory or AI guesses, and record the source in the manifest/package evidence.
 5. **Keep catalog copy useful.** `manifest.name`, `category`, and `description` are the primary picker metadata; avoid marketing fluff.
 
-The upstream-derived product systems are imported from [`VoltAgent/awesome-design-md`][acd2] via [`scripts/sync-design-systems.ts`](scripts/sync-design-systems.ts). If your brand belongs upstream, **send the PR there first** — we'll pick it up automatically on the next sync. The `design-systems/` folder also carries project-owned additions that do not fit upstream.
+The upstream-derived product systems are imported from [`VoltAgent/awesome-design-md`][acd2] via [`scripts/sync-design-systems.ts`](scripts/sync-design-systems.ts). Contributions to that independent catalogue should go to its maintainers; there is no automatic import or publication promise for this fork. The `design-systems/` folder also carries project-owned additions.
 
 ---
 
@@ -220,7 +220,7 @@ node --experimental-strip-types scripts/sync-litellm-models.ts
 
 The script fetches LiteLLM's catalog, filters to `mode: 'chat'` entries, projects each to its `max_output_tokens` (or `max_tokens` fallback), and writes a sorted snapshot. Commit the regenerated `litellm-models.json` alongside whatever PR triggered the refresh.
 
-The OVERRIDES table in `maxTokens.ts` is for the rare case where LiteLLM is missing or wrong for a model id we actually use — for example, `mimo-v2.5-pro` (LiteLLM only ships MiMo via the `openrouter/xiaomi/...` and `novita/xiaomimimo/...` aliases, neither of which matches the canonical id Xiaomi's direct API uses). Keep it small; everything that LiteLLM gets right belongs upstream.
+The OVERRIDES table in `maxTokens.ts` is for the rare case where LiteLLM is missing or wrong for a model id used here — for example, `mimo-v2.5-pro` (LiteLLM only ships MiMo via the `openrouter/xiaomi/...` and `novita/xiaomimimo/...` aliases, neither of which matches the canonical id Xiaomi's direct API uses). Keep it small; everything that LiteLLM gets right belongs upstream.
 
 [litellm]: https://github.com/BerriAI/litellm
 
@@ -236,10 +236,10 @@ For step-by-step instructions on adding a new locale (UI dictionary, README, lan
 
 ## Code style
 
-We're not pedantic about formatting (Prettier on save is fine), but two rules are non-negotiable because they show up in the prompt stack and the user-facing API:
+Formatting is flexible (Prettier on save is fine), but two rules are non-negotiable because they show up in the prompt stack and the user-facing API:
 
 1. **Single quotes in JS/TS.** Strings are single-quoted unless escaping makes them ugly. The codebase is already consistent — please match.
-2. **Comments in English.** Even if the PR is translating something into Deutsch or 中文, code comments stay in English so we can keep one set of greppable references.
+2. **Comments in English.** Even if the PR is translating something into Deutsch or 中文, code comments stay in English to keep one set of greppable references.
 
 Beyond that:
 
@@ -248,7 +248,7 @@ Beyond that:
   reporters, and configs in TypeScript, including code in `apps/web/src/` and
   `apps/daemon/src/`. New `.js`, `.mjs`, or `.cjs` files need an explicit
   generated, vendored, or compatibility reason and must pass `pnpm guard`.
-- **No new top-level dependencies** without a paragraph in the PR description on what we get vs. what bytes we ship. The dep list in [`package.json`](package.json) is small on purpose.
+- **No new top-level dependencies** without a paragraph in the PR description on the benefit versus the extra bytes shipped. The dep list in [`package.json`](package.json) is small on purpose.
 - **Run `pnpm typecheck`** before pushing. No repository-owned GitHub Actions job runs it for you.
 
 ---
@@ -259,11 +259,11 @@ Beyond that:
 - **Title is imperative + scope.** `add dating-web skill`, `fix daemon SSE backpressure when CLI hangs`, `docs: clarify storage contract`.
 - **Use the PR template.** Fill every section of [`.github/pull_request_template.md`](.github/pull_request_template.md) — Why, What users will see, Surface area, Screenshots (if UI), Bug fix verification (if bug fix), Validation. Empty sections earn a "please fill in" reply.
 - **Body explains the why.** "What does this do" is usually obvious from the diff; "why does this need to exist" rarely is.
-- **Reference an issue** if there is one. If there isn't and the PR is non-trivial, open one first so we can agree the change is wanted before you spend the time.
-- **No squash-during-review.** Push fixups; we'll squash on merge.
+- **Reference an issue** if there is one. If there isn't and the PR is non-trivial, open one first to check whether the change fits this fork before spending the time.
+- **No squash-during-review.** Push fixups; the fork maintainer decides how to merge.
 - **No force-push to a shared branch** unless the reviewer asked.
 
-We don't enforce a CLA. Apache-2.0 covers us; your contribution is licensed under the same.
+This fork does not enforce a CLA. Your contribution is licensed under Apache-2.0.
 
 ---
 
@@ -274,26 +274,25 @@ Open an issue with:
 - What you ran (the exact `pnpm tools-dev ...` invocation).
 - Which agent CLI was selected (or whether you were on the BYOK path).
 - The skill + design system pair that triggered it.
-- The relevant **daemon stderr tail** — most "the artifact never rendered" reports get diagnosed in 30 seconds when we can see `spawn ENOENT` or the CLI's actual error.
+- The relevant **daemon stderr tail** — most "the artifact never rendered" reports are easier to diagnose with `spawn ENOENT` or the CLI's actual error.
 - A screenshot if it's UI.
 
-For prompt-stack bugs ("the agent emitted a purple gradient hero, the slop blacklist was supposed to forbid that"), include the **full assistant message** so we can see whether the violation was the model or the prompt.
+For prompt-stack bugs ("the agent emitted a purple gradient hero, the slop blacklist was supposed to forbid that"), include the **full assistant message** so the violation can be traced to the model or the prompt.
 
 ---
 
 ## Asking questions
 
-- Architecture question, design question, "is this a bug or a misuse" → [GitHub Discussions](https://github.com/nexu-io/open-design/discussions) (preferred — searchable for the next person).
-- "How do I write a skill that does X" → Open a discussion. We'll answer it and turn the answer into [`docs/skills-protocol.md`](docs/skills-protocol.md) if it's a missing pattern.
+- Architecture, design, and skill-authoring questions about this fork → [open an issue here](https://github.com/andremolnar/open-open-design/issues). There is no guaranteed response time.
 
 ---
 
-## What we don't accept
+## Changes out of scope
 
 To keep the project focused, please don't open PRs that:
 
-- **Vendor a model runtime.** OD's whole bet is "your existing CLI is enough". We don't ship `pi-ai`, OpenAI keys, or model loaders.
-- **Rewrite the frontend away from the current stack without prior discussion.** Next.js 16 App Router + React 18 + TS is the line. No Astro, Solid, Svelte, or other framework rewrites unless maintainers explicitly want that migration.
+- **Vendor a model runtime.** The current integration model uses existing CLIs; this fork does not ship `pi-ai`, OpenAI keys, or model loaders.
+- **Rewrite the frontend away from the current stack without prior discussion.** Next.js 16 App Router + React 18 + TS is the current stack. Discuss framework changes with the fork maintainer first.
 - **Replace the daemon with a serverless function.** The daemon's whole point is owning a real `cwd` and spawning a real CLI. Vercel deployment of the SPA is fine; the daemon stays a daemon.
 - **Add telemetry or outbound data collection outside the privacy contract.**
   Product analytics and masked session replay are consent-gated; scrubbed
@@ -306,19 +305,9 @@ If you're not sure whether your idea fits, open a discussion before writing the 
 
 ---
 
-## Becoming a Maintainer
+## Maintaining this fork
 
-If you've been contributing consistently and want to know what the path to becoming a Maintainer looks like, the rules live in **[`MAINTAINERS.md`](MAINTAINERS.md)**. The short version:
-
-- A Maintainer can review, approve, and close issues. The merge button stays with the Core Team — your approval still counts as the required approval for merge.
-- The bar is **≥ 20 merged PRs** plus a published account-quality check (anti-bot, anti-sock-puppet) plus a Core Team judgment on contribution quality. There is no application form; the Core Team raises candidates internally and reaches out.
-- There are **no quotas, no SLAs, and no fixed term.** Stepping down is easy and reversible (Emeritus → return when life calms down).
-- All the thresholds, the nomination flow, the step-down rules, and the early-project waiver are in [`MAINTAINERS.md`](MAINTAINERS.md). Read that document if any of the above interests you.
-
-The tl;dr: ship good PRs, review thoughtfully, hang out in [Discussions][discussions] / [Discord][discord], and the rest takes care of itself.
-
-[discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[Andre Molnar maintains this fork](MAINTAINERS.md). Contributions are welcome, but the original project's Core Team, external-maintainer thresholds, Fellow program, and private roadmap do not apply here. There is no promised promotion path or review SLA.
 
 ---
 

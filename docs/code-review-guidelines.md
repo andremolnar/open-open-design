@@ -6,7 +6,7 @@ Use code review to protect repository boundaries, keep changes easy to maintain,
 
 - **Authors**: self-review against this document before requesting review. Confirm the PR passes the [Product relevance test](#1-product-relevance-test), name the boundary you own, and run the validation expected for that boundary.
 - **Reviewers**: walk the document top-down — relevance test → forbidden surfaces → ownership/scope → matching lane → checklist → comments → approval bar.
-- **Maintainers**: only maintainers should [close a PR instead of requesting changes](#close-instead-of-request-changes-maintainer-only).
+- **Fork maintainer**: only the fork maintainer should [close a PR instead of requesting changes](#close-instead-of-request-changes-maintainer-only).
 
 Authoritative rules live in `AGENTS.md` and the directory-level `AGENTS.md` files; this document is the operational guide on top of them. When the two disagree, `AGENTS.md` wins and this document should be updated.
 
@@ -57,14 +57,14 @@ A fixture qualifies as first-party only when **all three** are true:
 
 ### Close instead of request changes (maintainer-only)
 
-A maintainer (not any reviewer) may close instead of requesting changes when **any** of these are true and the core change is not salvageable on the existing branch:
+The fork maintainer (not any reviewer) may close instead of requesting changes when **any** of these are true and the core change is not salvageable on the existing branch:
 
 - The target product is wrong (PR builds a separate app, demo, or customer vertical).
 - The test harness is for another app.
 - The DOM/API assumptions do not exist in this repo.
 - Scripts conflict with repository lifecycle rules in a way that requires rebuilding the change from scratch.
 
-A generally reasonable direction (e.g. "add Arabic/RTL coverage") is **not** sufficient justification to keep an unsalvageable PR open. Close with a comment that names which condition was met and asks for a fresh PR that uses the actual OpenDesign app and harness. If the contributor disputes the close, escalate to another maintainer rather than reopening unilaterally.
+A generally reasonable direction (e.g. "add Arabic/RTL coverage") is **not** sufficient justification to keep an unsalvageable PR open. Close with a comment that names which condition was met and asks for a fresh PR that uses the actual OpenDesign app and harness. If the contributor disputes the close, they can open an issue explaining why; this fork has no second maintainer to escalate to.
 
 ## 2. Forbidden surfaces
 

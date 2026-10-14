@@ -3,6 +3,8 @@ title: OpenDesign 0.17.0
 description: 在 Codex 中直接调用 OpenDesign 设计工作区，把想法变成可继续编辑的真实成果，并在 Studio 中完成精修。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 ### 🌟 Codename: *OpenDesign Plugin for Codex*
 
 🚀 **62 个 PR · 23 位贡献者 · 11 天** — **Codex 现在有了自己的设计工作区。** 在 Codex 对话中调用 `@open-design`，把想法与 brief 变成可继续编辑的真实设计成果；之后仍可在 OpenDesign Studio 中持续创作和精修，不必中断 Codex 工作流。🚀

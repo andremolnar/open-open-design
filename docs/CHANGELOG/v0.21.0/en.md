@@ -3,6 +3,8 @@ title: Open Design 0.21.0 — Reliable, Start to Finish
 description: From Agent connections to live HTML previews and app relaunches, Open Design 0.21.0 makes the entire creation experience more reliable—and easier to recover when something goes wrong.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *Reliable, Start to Finish*
 
 🛡️ **42 PRs · 13 contributors · 4 days** — **From Agent connections to live

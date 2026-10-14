@@ -3,6 +3,8 @@ title: OpenDesign 0.18.0
 description: OpenDesign 0.18.0 带来 Team Workspace——设计团队共同的家：共享项目、查看更新、在上下文中评论，并复用同一套设计体系、插件与技能；协作工作区现已直接延伸进 Codex。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 ### 🌟 Codename: *Design Team Workspace. Now in Codex.*
 
 🤝 **`115 个 PR` · `22 位贡献者` · `2 天`** — OpenDesign 0.18.0 带来 Team Workspace——设计团队共同的家：在这里共享项目、查看更新、在上下文中直接评论，并复用同一套设计体系、插件与技能。借助全新的 OpenDesign plugin for Codex，这个协作工作区现在直接延伸进 Codex。🚀

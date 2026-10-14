@@ -1,7 +1,7 @@
 <!--- app-name: OpenDesign -->
 
 ## Introduction
-This chart bootstraps an [OpenDesign](https://github.com/nexu-io/open-design) deployment on a [Kubernetes](https://kubernetes.io) cluster using the [Helm](https://helm.sh) package manager.
+This inherited chart bootstraps an [OpenDesign](https://github.com/andremolnar/open-open-design) deployment on a [Kubernetes](https://kubernetes.io) cluster using [Helm](https://helm.sh). Its default image points to the original project's distribution, **not this fork**; build your own image and override `image.repository` and `image.tag` before deploying fork-specific behavior. See the [README](../../README.md) for current fork support and scope.
 
 ## Prerequisites
 - Kubernetes 1.23+
@@ -58,7 +58,7 @@ This chart adheres to strict security defaults:
 | Name               | Description                               | Value                        |
 | ------------------ | ----------------------------------------- | ---------------------------- |
 | `commonLabels`     | Custom labels injected into all resources | `{app.kubernetes.io/environment: production}`  |
-| `image.repository` | OpenDesign image repository              | `ghcr.io/nexu-io/od`        |
+| `image.repository` | Default **upstream** image repository; override for this fork | `ghcr.io/nexu-io/od` |
 | `image.pullPolicy` | Image pull policy                         | `IfNotPresent`               |
 | `image.tag`        | Image tag (overrides AppVersion)          | `latest`                     |
 

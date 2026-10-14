@@ -6,10 +6,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! A clear, reproducible report helps us fix it faster.
+        Thanks for taking the time to report a bug in this independent fork. A clear, reproducible report makes it easier to investigate; there is no guaranteed response time.
 
         Before you submit:
-        - Check whether the issue is already reported in [open issues](https://github.com/nexu-io/open-design/issues?q=is%3Aissue).
+        - Check whether the issue is already reported in [this fork's open issues](https://github.com/andremolnar/open-open-design/issues?q=is%3Aissue).
         - Replace example text with your actual bug details. Placeholder reports like `testing` or `0.0.0` are not actionable.
 
   - type: checkboxes
