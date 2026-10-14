@@ -3056,6 +3056,7 @@ export const ja: Dict = {
   'fileViewer.videoMeta': '動画 · {size}',
   'fileViewer.audioMeta': '音声 · {size}',
   'fileViewer.reload': '再読み込み',
+  'fileViewer.returnToDocument': 'ドキュメントに戻る',
   'fileViewer.reloadDisk': 'ディスクから再読み込み',
   'fileViewer.copy': 'コピー',
   'fileViewer.copyTitle': 'ファイルの内容をコピー',

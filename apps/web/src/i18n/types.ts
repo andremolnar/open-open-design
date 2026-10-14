@@ -3967,6 +3967,7 @@ export interface Dict {
   'fileViewer.videoMeta': string;
   'fileViewer.audioMeta': string;
   'fileViewer.reload': string;
+  'fileViewer.returnToDocument': string;
   'fileViewer.reloadDisk': string;
   'fileViewer.copy': string;
   'fileViewer.copyTitle': string;

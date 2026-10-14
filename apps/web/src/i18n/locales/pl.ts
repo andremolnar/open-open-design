@@ -3056,6 +3056,7 @@ export const pl: Dict = {
   'fileViewer.videoMeta': 'Wideo · {size}',
   'fileViewer.audioMeta': 'Dźwięk · {size}',
   'fileViewer.reload': 'Odśwież',
+  'fileViewer.returnToDocument': 'Wróć do dokumentu',
   'fileViewer.reloadDisk': 'Odśwież z dysku',
   'fileViewer.copy': 'Kopiuj',
   'fileViewer.copyTitle': 'Kopiuj zawartość pliku',

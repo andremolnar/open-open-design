@@ -3056,6 +3056,7 @@ export const fa: Dict = {
   'fileViewer.videoMeta': 'ویدئو · {size}',
   'fileViewer.audioMeta': 'صدا · {size}',
   'fileViewer.reload': 'بارگذاری مجدد',
+  'fileViewer.returnToDocument': 'بازگشت به سند',
   'fileViewer.reloadDisk': 'بارگذاری مجدد از دیسک',
   'fileViewer.copy': 'کپی',
   'fileViewer.copyTitle': 'کپی محتوای فایل',

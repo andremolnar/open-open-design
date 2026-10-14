@@ -995,6 +995,39 @@ test('[P0] @critical file workspace restores HTML preview after switching throug
   await expect(page.getByTestId('file-workspace')).toBeVisible();
 });
 
+test('[P1] a linked page in a document preview can return to the document by toolbar or thumbnail', async ({ page }) => {
+  await routeMockAgents(page);
+  const projectId = await createProjectViaApi(page, 'Document preview navigation');
+  await seedHtmlArtifact(
+    page,
+    projectId,
+    'document.html',
+    '<!doctype html><html><body><h1>Original document</h1><a href="/preview-linked-page">Follow link</a></body></html>',
+  );
+  await page.route('**/preview-linked-page', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><html><body><h1>Linked page</h1></body></html>',
+  }));
+
+  await page.goto(`/projects/${projectId}`, { waitUntil: 'domcontentloaded' });
+  await expectWorkspaceReady(page);
+  await openDesignFile(page, 'document.html');
+  const preview = page.frameLocator('[data-testid="artifact-preview-frame"]');
+  await expect(preview.getByRole('heading', { name: 'Original document' })).toBeVisible();
+  await preview.getByRole('link', { name: 'Follow link' }).click();
+  await expect(preview.getByRole('heading', { name: 'Linked page' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Return to document' }).click();
+  await expect(preview.getByRole('heading', { name: 'Original document' })).toBeVisible();
+  await preview.getByRole('link', { name: 'Follow link' }).click();
+  await expect(preview.getByRole('heading', { name: 'Linked page' })).toBeVisible();
+
+  await openAllProjectFiles(page);
+  const row = await revealDesignFileRow(page, 'document.html');
+  await row.locator('.df-card-thumb').click();
+  await expect(preview.getByRole('heading', { name: 'Original document' })).toBeVisible();
+});
+
 test('[P0] @critical white-screen monitoring recovers layout stalls and confirms persistent blanks', async ({ page }) => {
   const safetyEvents = await captureSafetyTelemetry(page);
   await routeMockAgents(page);

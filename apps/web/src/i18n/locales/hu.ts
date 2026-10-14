@@ -3056,6 +3056,7 @@ export const hu: Dict = {
   'fileViewer.videoMeta': 'Videó · {size}',
   'fileViewer.audioMeta': 'Hang · {size}',
   'fileViewer.reload': 'Újratöltés',
+  'fileViewer.returnToDocument': 'Vissza a dokumentumhoz',
   'fileViewer.reloadDisk': 'Újratöltés lemezről',
   'fileViewer.copy': 'Másolás',
   'fileViewer.copyTitle': 'Fájltartalom másolása',

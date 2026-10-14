@@ -3056,6 +3056,7 @@ export const tr: Dict = {
   'fileViewer.videoMeta': 'Video · {size}',
   'fileViewer.audioMeta': 'Ses · {size}',
   'fileViewer.reload': 'Yeniden yükle',
+  'fileViewer.returnToDocument': 'Belgeye dön',
   'fileViewer.reloadDisk': 'Diskten yeniden yükle',
   'fileViewer.copy': 'Kopyala',
   'fileViewer.copyTitle': 'Dosya içeriklerini kopyala',

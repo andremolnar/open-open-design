@@ -3056,6 +3056,7 @@ export const ptBR: Dict = {
   'fileViewer.videoMeta': 'Vídeo · {size}',
   'fileViewer.audioMeta': 'Áudio · {size}',
   'fileViewer.reload': 'Recarregar',
+  'fileViewer.returnToDocument': 'Voltar ao documento',
   'fileViewer.reloadDisk': 'Recarregar do disco',
   'fileViewer.copy': 'Copiar',
   'fileViewer.copyTitle': 'Copiar conteúdo do arquivo',

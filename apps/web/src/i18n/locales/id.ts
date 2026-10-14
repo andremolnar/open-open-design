@@ -3056,6 +3056,7 @@ export const id: Dict = {
   'fileViewer.videoMeta': 'Video - {size}',
   'fileViewer.audioMeta': 'Audio - {size}',
   'fileViewer.reload': 'Muat ulang',
+  'fileViewer.returnToDocument': 'Kembali ke dokumen',
   'fileViewer.reloadDisk': 'Muat ulang dari disk',
   'fileViewer.copy': 'Salin',
   'fileViewer.copyTitle': 'Salin konten',

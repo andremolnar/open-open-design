@@ -3070,6 +3070,7 @@ export const en: Dict = {
   'fileViewer.videoMeta': 'Video · {size}',
   'fileViewer.audioMeta': 'Audio · {size}',
   'fileViewer.reload': 'Reload',
+  'fileViewer.returnToDocument': 'Return to document',
   'fileViewer.reloadDisk': 'Reload from disk',
   'fileViewer.copy': 'Copy',
   'fileViewer.copyTitle': 'Copy file contents',

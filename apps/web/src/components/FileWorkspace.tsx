@@ -1437,6 +1437,9 @@ export function FileWorkspace({
   const [activeTab, setActiveTab] = useState<string>(
     tabsState.active ?? defaultRootTab,
   );
+  // Opening a thumbnail is an explicit request for the saved artifact, unlike
+  // switching tabs (which intentionally preserves a live preview's state).
+  const [previewReopenRequests, setPreviewReopenRequests] = useState<Record<string, number>>({});
   // `materializationPending` can briefly become true again while the router
   // commits a file-tab URL. Once this project has rendered real workspace
   // content, that transient revalidation must not tear down retained viewers:
@@ -2168,13 +2171,24 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideNavRequest]);
 
-  function openFile(name: string, options?: { forcePersist?: boolean }) {
+  function openFile(name: string, options?: { forcePersist?: boolean; returnToArtifact?: boolean }) {
     if (name === activeTab) return;
     afterActiveManualEditSettles(() => {
       setUploadError(null);
       // Read from the ref after the async edit flush so a concurrent tab update
       // cannot be overwritten by the activation that was waiting on it.
       const currentTabs = tabsStateRef.current.tabs;
+      if (
+        options?.returnToArtifact
+        && currentTabs.includes(name)
+        && visibleFiles.some((file) => file.name === name && file.kind === 'html')
+      ) {
+        const key = `${projectId}\0${name}`;
+        setPreviewReopenRequests((current) => ({
+          ...current,
+          [key]: (current[key] ?? 0) + 1,
+        }));
+      }
       const shouldPersistTab =
         options?.forcePersist === true || isPrimaryWorkspaceTab(name, visibleFiles, liveArtifactEntries, sketches);
       const isNewTab = shouldPersistTab && !currentTabs.includes(name);
@@ -3436,6 +3450,7 @@ export function FileWorkspace({
       projectId={projectId}
       projectKind={projectKind}
       file={file}
+      reopenRequest={previewReopenRequests[`${projectId}\0${file.name}`]}
       filesRefreshKey={filesRefreshKey}
       isDeck={isDeck}
       streaming={streaming}
@@ -4404,7 +4419,7 @@ export function FileWorkspace({
                   project_kind: projectKind,
                 });
               }
-              openFile(name);
+              openFile(name, { returnToArtifact: true });
             }}
             onOpenLiveArtifact={(tabId) => openFile(tabId)}
             onRenameFile={handleRename}

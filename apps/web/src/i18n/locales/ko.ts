@@ -3056,6 +3056,7 @@ export const ko: Dict = {
   'fileViewer.videoMeta': '비디오 · {size}',
   'fileViewer.audioMeta': '오디오 · {size}',
   'fileViewer.reload': '새로고침',
+  'fileViewer.returnToDocument': '문서로 돌아가기',
   'fileViewer.reloadDisk': '디스크에서 새로고침',
   'fileViewer.copy': '복사',
   'fileViewer.copyTitle': '파일 내용 복사',

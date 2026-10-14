@@ -3056,6 +3056,7 @@ export const th: Dict = {
   'fileViewer.videoMeta': 'วิดีโอมาแล้ว · {size}',
   'fileViewer.audioMeta': 'คลิปเสียง · {size}',
   'fileViewer.reload': 'โหลดทับ',
+  'fileViewer.returnToDocument': 'กลับไปยังเอกสาร',
   'fileViewer.reloadDisk': 'ดึงโหลดจากแหล่งล่าสุด',
   'fileViewer.copy': 'ก็อปปี้',
   'fileViewer.copyTitle': 'คัดลอกแบบจัดเต็ม',

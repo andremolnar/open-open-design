@@ -3289,6 +3289,7 @@ export const zhCN: Dict = {
   "fileViewer.videoMeta": "视频 · {size}",
   "fileViewer.audioMeta": "音频 · {size}",
   "fileViewer.reload": "重新加载",
+  "fileViewer.returnToDocument": "返回文档",
   "fileViewer.reloadDisk": "从磁盘重新加载",
   "fileViewer.copy": "复制",
   "fileViewer.copyTitle": "复制文件内容",

@@ -1709,6 +1709,8 @@ interface Props {
   file: ProjectFile;
   liveHtml?: string;
   filesRefreshKey?: number;
+  /** Explicit selection from Design Files, not ordinary tab reactivation. */
+  reopenRequest?: number;
   isDeck?: boolean;
   streaming?: boolean;
   commentQueueOnSend?: boolean;
@@ -1811,6 +1813,7 @@ export const FileViewer = memo(function FileViewer({
   file,
   liveHtml,
   filesRefreshKey = 0,
+  reopenRequest,
   isDeck,
   streaming,
   commentQueueOnSend = false,
@@ -1901,6 +1904,7 @@ export const FileViewer = memo(function FileViewer({
         file={file}
         liveHtml={liveHtml}
         filesRefreshKey={filesRefreshKey}
+        reopenRequest={reopenRequest}
         isDeck={rendererMatch.renderer.id === 'deck-html'}
         streaming={Boolean(streaming)}
         commentQueueOnSend={commentQueueOnSend}
@@ -7334,6 +7338,7 @@ function HtmlViewer({
   file,
   liveHtml,
   filesRefreshKey = 0,
+  reopenRequest,
   isDeck,
   streaming,
   commentQueueOnSend = false,
@@ -7369,6 +7374,8 @@ function HtmlViewer({
   file: ProjectFile;
   liveHtml?: string;
   filesRefreshKey?: number;
+  /** Explicit selection from Design Files, not ordinary tab reactivation. */
+  reopenRequest?: number;
   isDeck: boolean;
   streaming: boolean;
   commentQueueOnSend?: boolean;
@@ -14562,7 +14569,7 @@ function HtmlViewer({
     openInNewTab();
   }
 
-  async function reloadHtmlPreview() {
+  async function reloadHtmlPreview({ returnToDocument = false }: { returnToDocument?: boolean } = {}) {
     fireArtifactToolbarClick('reload');
     // Reload is also an Edit-session boundary. Settle pending text/style work
     // before replacing the active document, then release Edit's srcDoc latch
@@ -14585,7 +14592,16 @@ function HtmlViewer({
         file.name,
       );
     }
-    void capturePreviewScrollPosition();
+    if (returnToDocument) {
+      // A linked page's scroll offsets do not belong to the artifact we are
+      // returning to. Ordinary Reload still preserves its preview position.
+      previewScrollRestoreRef.current = null;
+      previewScrollPositionRef.current = {
+        frameLeft: 0, frameTop: 0, canvasLeft: 0, canvasTop: 0,
+      };
+    } else {
+      void capturePreviewScrollPosition();
+    }
     imageExportSnapshotDataUrlRef.current = null;
     setInlinedSource(null);
     // The Edit path already navigated the hidden URL through its standby
@@ -14648,6 +14664,16 @@ function HtmlViewer({
       }
     }
   }
+
+  const lastReopenRequestRef = useRef(reopenRequest);
+  useEffect(() => {
+    if (lastReopenRequestRef.current === reopenRequest) return;
+    lastReopenRequestRef.current = reopenRequest;
+    void reloadHtmlPreview({ returnToDocument: true });
+    // The request nonce is the event; viewer re-renders and ordinary tab
+    // switches must not trigger a second navigation to the artifact URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reopenRequest]);
 
   async function handleVersionRestored(content: string) {
     setSource(content);
@@ -16477,6 +16503,11 @@ function HtmlViewer({
     <div ref={viewerRootRef} className={`viewer html-viewer${inTabPresent ? ' is-tab-present' : ''}${viewerOnly ? ' html-viewer--viewer-only' : ''}`}>
       <div className="viewer-toolbar" style={workspaceActive ? undefined : { visibility: 'hidden' }}>
         <div className="viewer-toolbar-left">
+          {mode === 'preview' && !effectiveDeck ? (
+            <Button variant="ghost" size="sm" onClick={() => void reloadHtmlPreview({ returnToDocument: true })}>
+              {t('fileViewer.returnToDocument')}
+            </Button>
+          ) : null}
           {showDeckThumbnailRail ? (
             <button
               type="button"
@@ -16501,7 +16532,7 @@ function HtmlViewer({
           <button
             type="button"
             className="icon-only od-tooltip"
-            onClick={reloadHtmlPreview}
+            onClick={() => void reloadHtmlPreview()}
             title={`${t('fileViewer.reload')} ${t('fileViewer.preview')}`}
             data-tooltip={`${t('fileViewer.reload')} ${t('fileViewer.preview')}`}
             data-tooltip-placement="bottom"

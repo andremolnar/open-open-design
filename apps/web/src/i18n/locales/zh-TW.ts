@@ -3297,6 +3297,7 @@ export const zhTW: Dict = {
   "fileViewer.videoMeta": "影片 · {size}",
   "fileViewer.audioMeta": "音訊 · {size}",
   "fileViewer.reload": "重新載入",
+  "fileViewer.returnToDocument": "返回文件",
   "fileViewer.reloadDisk": "從磁碟重新載入",
   "fileViewer.copy": "複製",
   "fileViewer.copyTitle": "複製檔案內容",

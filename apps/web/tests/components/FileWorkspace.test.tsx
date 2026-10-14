@@ -1440,6 +1440,50 @@ describe('FileWorkspace upload input', () => {
 });
 
 describe('FileWorkspace launcher tab creation', () => {
+  it('returns a retained HTML preview to its asset when its Design Files thumbnail is selected', async () => {
+    const file = workspaceFile('document.html');
+    mockedFetchProjectFileText.mockResolvedValue('<html><body>Document</body></html>');
+
+    function Harness() {
+      const [tabsState, setTabsState] = useState<OpenTabsState>({
+        tabs: [file.name],
+        active: file.name,
+      });
+      return (
+        <IframeKeepAliveProvider>
+          <CollabProvider value={collabValue(teamContext('workspace-a', 'member-a'))}>
+            <FileWorkspace
+              projectId="project-1"
+              projectKind="prototype"
+              files={[file]}
+              liveArtifacts={[]}
+              onRefreshFiles={vi.fn()}
+              isDeck={false}
+              tabsState={tabsState}
+              onTabsStateChange={setTabsState}
+            />
+          </CollabProvider>
+        </IframeKeepAliveProvider>
+      );
+    }
+
+    const { container } = render(<Harness />);
+    await waitFor(() => expect(mockedFetchProjectFileText).toHaveBeenCalled());
+    const frame = screen.getByTestId('artifact-preview-frame');
+    const initialSrc = frame.getAttribute('src');
+    expect(initialSrc).toContain('r=0');
+
+    fireEvent.click(screen.getByTestId('design-files-tab'));
+    const thumb = container.querySelector<HTMLButtonElement>('.df-card-thumb');
+    expect(thumb).not.toBeNull();
+    fireEvent.click(thumb!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-preview-frame')).toBe(frame);
+      expect(frame.getAttribute('src')).toContain('r=1');
+    });
+  });
+
   it('keeps the active HTML preview full-sized and prewarms file revisions across Design Files round-trips', async () => {
     const file = workspaceFile('artifact.html');
     mockedFetchProjectFileText.mockResolvedValue('<html><body>artifact</body></html>');

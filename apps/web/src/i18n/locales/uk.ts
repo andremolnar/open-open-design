@@ -3056,6 +3056,7 @@ export const uk: Dict = {
   'fileViewer.videoMeta': 'Відеоролик · {size}',
   'fileViewer.audioMeta': 'Аудіо · {size}',
   'fileViewer.reload': 'Перезавантажити',
+  'fileViewer.returnToDocument': 'Повернутися до документа',
   'fileViewer.reloadDisk': 'Перезавантажити з диска',
   'fileViewer.copy': 'Копіювати',
   'fileViewer.copyTitle': 'Копіювати вміст файлу',

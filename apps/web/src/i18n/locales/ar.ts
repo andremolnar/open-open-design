@@ -3056,6 +3056,7 @@ export const ar: Dict = {
   'fileViewer.videoMeta': 'فيديو · {size}',
   'fileViewer.audioMeta': 'صوت · {size}',
   'fileViewer.reload': 'إعادة تحميل',
+  'fileViewer.returnToDocument': 'العودة إلى المستند',
   'fileViewer.reloadDisk': 'إعادة تحميل من القرص',
   'fileViewer.copy': 'نسخ',
   'fileViewer.copyTitle': 'نسخ محتويات الملف',

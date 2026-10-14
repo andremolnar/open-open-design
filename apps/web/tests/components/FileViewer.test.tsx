@@ -1555,6 +1555,29 @@ describe('FileViewer SVG artifacts', () => {
     expect(firstFrame.getAttribute('src')).toBe(firstSrc);
   });
 
+  it('offers a clear way back to the original document after preview link navigation', async () => {
+    const file = baseFile({
+      name: 'document.html',
+      path: 'document.html',
+      mime: 'text/html',
+      kind: 'html',
+    });
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={file}
+        liveHtml="<html><body>Document</body></html>"
+      />,
+    );
+
+    const frame = screen.getByTestId('artifact-preview-frame');
+    expect(frame.getAttribute('src')).toContain('r=0');
+    fireEvent.click(screen.getByRole('button', { name: /return to document/i }));
+
+    await waitFor(() => expect(frame.getAttribute('src')).toContain('r=1'));
+  });
+
   it('reuses a cached HTML source across ordinary viewer remounts until the file version changes', async () => {
     const file = baseFile({
       name: 'page.html',
