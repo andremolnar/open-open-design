@@ -94,6 +94,12 @@ pnpm --filter @open-design/web test
 
 There is no automatic CI safety net in this repository. Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and the relevant directory guide before changing code. File issues and proposals on [this fork's issue tracker](https://github.com/andremolnar/open-open-design/issues), not the upstream tracker, when the work concerns this fork.
 
-## Origin and license
+## Credit to the original authors
 
-OpenDesign was created by the contributors to [nexu-io/open-design](https://github.com/nexu-io/open-design). This fork builds on their work while taking a different position on account requirements, infrastructure ownership, and deployment. [References and third-party provenance](docs/references.md) remain credited. The code is licensed under [Apache 2.0](LICENSE).
+OpenDesign exists because of the work of the original [nexu-io/open-design](https://github.com/nexu-io/open-design) team and [its contributors](https://github.com/nexu-io/open-design/graphs/contributors). Thank you for building and sharing it. This fork builds on their work; its choices about sign-in, telemetry, and infrastructure are my own, not theirs. [References and third-party provenance](docs/references.md) remain credited. The code retains the [Apache 2.0 license](LICENSE).
+
+## A personal note
+
+This works for me, in my workflow, on my Mac. I can't guarantee it'll work for your workflow or your machine. Take it, fork it, and make it your own.
+
+This is a YOLO experiment and proof of concept, not a polished product. If I decide to take it more seriously, I'll make my agent workflows more robust, with more deliberate review and testing.
