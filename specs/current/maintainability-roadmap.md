@@ -1,4 +1,6 @@
-# Maintainability Roadmap
+# Inherited maintainability risk register
+
+This technical inventory was drafted for the original project. Its priorities and optimization path are reference material, not a committed roadmap or delivery schedule for this independent fork. Revalidate every risk against current code before treating it as work to do; public fork direction lives in the [README](../../README.md#direction-of-this-fork).
 
 ## Purpose
 

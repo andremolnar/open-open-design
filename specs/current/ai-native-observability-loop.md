@@ -1,5 +1,7 @@
 # AI Native Observability Loop
 
+> **Inherited upstream planning spec:** The release gates and roadmap below were proposed for the original project. They are not an approved workflow or commitment for this fork, which disables automatic product telemetry by default. See [PRIVACY.md](../../PRIVACY.md) for current behavior.
+
 ## Purpose
 
 Define the target observability loop that lets OpenDesign improve agent

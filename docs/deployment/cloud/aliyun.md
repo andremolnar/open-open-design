@@ -2,6 +2,8 @@
 
 This guide covers self-hosting OpenDesign on Alibaba Cloud for users in mainland China and the broader Asia-Pacific region. It documents the supported deployment paths, image-pull optimisations, and ICP filing considerations for public-facing instances.
 
+> **Fork notice:** This is inherited deployment guidance, not a deployment guarantee or future-work plan for this fork. Container examples may use upstream images. Build and identify your own image to deploy this fork; see the [README](../../../README.md) for its current scope.
+
 > **Status:** This is a docs-only guide. The flows below follow Alibaba Cloud's published product behaviour and the existing [`docs/deployment/docker.md`](../docker.md) and [`docs/install-guide.md`](../../install-guide.md) container model. Live ROS templates, one-click scripts, and verification screenshots are tracked as a follow-up under issue #1025; contributions from operators with active Alibaba Cloud accounts are welcome.
 
 ## Why Alibaba Cloud?
@@ -99,7 +101,7 @@ Get your personal mirror prefix from the Alibaba Cloud console under **Container
 From this point the flow matches [`docs/install-guide.md`](../../install-guide.md):
 
 ```bash
-git clone https://github.com/nexu-io/open-design.git
+git clone https://github.com/andremolnar/open-open-design.git
 cd open-design
 bash deploy/scripts/install.sh --non-interactive --port 7456
 ```

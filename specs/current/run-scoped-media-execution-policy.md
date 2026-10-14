@@ -1,5 +1,7 @@
 # Run-scoped media execution policy
 
+> **Inherited upstream proposal:** References below to maintainers, planned PRs, and future media execution are technical history, not commitments by the [maintainer of this fork](../../MAINTAINERS.md). Check the current implementation before using any proposed API.
+
 ## Purpose
 
 Define the smallest OpenDesign patch that lets an upstream orchestrator call

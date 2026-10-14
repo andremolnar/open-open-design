@@ -3,6 +3,8 @@ title: OpenDesign 0.14.1
 description: Opt in to silent updates that are applied the next time OpenDesign starts.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ## Silent updates
 
 You can now allow OpenDesign to apply a downloaded update silently the next

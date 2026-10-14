@@ -3,6 +3,8 @@ title: OpenDesign 0.18.0
 description: OpenDesign 0.18.0 introduces Team Workspace—a shared home where design teams can share projects, review updates, comment in context, and reuse the same design systems, plugins, and skills. With the new OpenDesign plugin for Codex, that collaborative workspace now extends directly into Codex.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *Design Team Workspace. Now in Codex.*
 
 🤝 **`115 PRs` · `22 contributors` · `2 days`** — OpenDesign 0.18.0 introduces Team Workspace—a shared home where design teams can share projects, review updates, comment in context, and reuse the same design systems, plugins, and skills. With the new OpenDesign plugin for Codex, that collaborative workspace now extends directly into Codex. 🚀

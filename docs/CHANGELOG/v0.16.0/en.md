@@ -3,6 +3,8 @@ title: OpenDesign 0.16.0
 description: Choose a visual direction, keep your work intact, and move from creation to delivery with confidence.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 # OpenDesign 0.16.0 — The Confident Creative Loop
 
 🎨 **92 PRs · 20 contributors · 5 days** — **Choose the direction, keep the work, and ship without second-guessing the path.** Visual guidance now reaches more kinds of work, model setup is easier to trust before a task begins, and long tasks and app updates are less likely to interrupt access to your latest results. 0.16.0 makes the whole journey more dependable—from choosing the look to reopening the app that delivers it.

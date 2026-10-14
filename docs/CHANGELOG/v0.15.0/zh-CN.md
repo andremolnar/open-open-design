@@ -3,6 +3,8 @@ title: OpenDesign 0.15.0
 description: 更低成本，更快交付：OD 的 DeepSeek 时刻。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 # OpenDesign 0.15.0 — 更低成本，更快交付：OD 的 DeepSeek 时刻
 
 OpenDesign 0.15.0 通过优化整体 Design System Prompt，让日常设计任务更快、消耗更低：代表性评测中，首 token 时间缩短 **49.5%**，端到端时长缩短 **21.2%**，平均输入 token 消耗降低 **25.1%**。同时，从制作和演示 deck、通过 URL 复刻公开网站，到任务失败后的提示与恢复路径，整个创作流程也更加顺畅。

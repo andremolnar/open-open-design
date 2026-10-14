@@ -46,8 +46,8 @@ same conversation, which keeps the model context coherent and prevents the
 | **Accessibility** | WCAG conformance, focus rings, semantic structure, alt text. |
 | **Copy** | Voice, tone, terseness, error message quality. |
 
-The cast is fixed in v1. Per-skill cast configuration is reserved for v2
-(see roadmap).
+The cast was fixed in this inherited v1 proposal. Per-skill configuration was
+discussed as a later extension, not committed for this fork.
 
 ### Auto-converging rounds
 
@@ -215,8 +215,8 @@ drops under the 90% shipped or 95% clean-parse thresholds for two
 consecutive cycles, it gets marked `critique:degraded` for 24h. The mark
 auto-clears on the next clean cycle.
 
-**Can I add my own panelist?** Not in v1. v2 plans a panelist plug-in
-contract; see `docs/roadmap.md` for the timeline.
+**Can I add my own panelist?** This inherited v1 proposal did not include
+custom panelists. Any future implementation needs a new decision for this fork.
 
 ## Related
 
@@ -224,6 +224,5 @@ contract; see `docs/roadmap.md` for the timeline.
 - `docs/architecture.md` — orchestrator + parser layout.
 - `docs/skills-protocol.md` — `od.critique.policy` frontmatter contract.
 - `docs/agent-adapters.md` — conformance contract and adapter responsibilities.
-- `docs/roadmap.md` — v2 panelist extensions.
 - `apps/daemon/src/critique/AGENTS.md` — daemon-side module map.
 - `apps/web/src/components/Theater/AGENTS.md` — web-side module map.

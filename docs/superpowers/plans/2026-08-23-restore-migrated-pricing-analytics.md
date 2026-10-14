@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Base the work on the latest `nexu-io/open-design/main`.
+- Historical upstream plan only. Any fork-specific work must be reconsidered against this fork's `main` and its [privacy contract](../../../PRIVACY.md).
 - Do not change Pricing UI, prices, entitlements, CTA destinations, checkout behavior, or existing OpenDesign analytics.
 - Only authenticated Vela sessions arriving from trusted wallet/dashboard surfaces enter the compatibility funnel.
 - Compatibility delivery is best effort and must never block navigation or form submission.

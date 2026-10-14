@@ -38,7 +38,7 @@ If you downloaded the installer from an official source, you can proceed:
 Only run the installer if you got it from an official source:
 
 - [open-design.ai](https://open-design.ai/), or
-- [GitHub Releases](https://github.com/nexu-io/open-design/releases) on the `nexu-io/open-design` repository.
+- [GitHub Releases](https://github.com/nexu-io/open-design/releases) on the original project's repository (upstream builds, **not** releases of this fork).
 
 Do not run an installer from a mirror, a re-upload, or a link you cannot trace back to one of those two sources. If a release publishes a SHA-256 checksum, you can confirm the file is intact before running it:
 

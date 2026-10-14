@@ -3,6 +3,8 @@ title: OpenDesign 0.19.0 — Image Generation, Unlocked
 description: Bring ideas to life with your OpenDesign subscription—generate images directly with Seedream 5.0 Pro, GPT Image 2.0, and Nano Banana 2.0.
 ---
 
+> **Historical upstream release note:** This describes a release by the original OpenDesign project, not this independent fork. Original author and contributor credits are preserved.
+
 ### 🌟 Codename: *Image Generation, Unlocked*
 
 🖼️ **Bring ideas to life with your OpenDesign subscription—generate images

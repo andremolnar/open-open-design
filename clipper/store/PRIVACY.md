@@ -1,5 +1,7 @@
 # OpenDesign Web Clipper — Privacy Policy
 
+> **Inherited upstream extension notice:** This text was written for the original project's store listing. It does not assert that this fork publishes or supports a browser extension. For this fork's current network and privacy boundaries, read [PRIVACY.md](../../PRIVACY.md).
+
 _Last updated: 2026-06-16_
 
 **Short version: the OpenDesign Web Clipper does not collect, store, or transmit

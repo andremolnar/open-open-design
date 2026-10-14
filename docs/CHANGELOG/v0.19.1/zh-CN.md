@@ -3,6 +3,8 @@ title: OpenDesign 0.19.1 — Design with DeepSeek Harness
 description: 把你安装的官方 DeepSeek Harness 接入 OpenDesign，使用模型发现、结构化运行与会话续接；付费套餐还可在两周内不限量使用 DeepSeek V4 Pro 和 Flash。
 ---
 
+> **上游历史版本说明：**本文记录原 OpenDesign 项目的发布，并非此独立分叉的发布或维护承诺。原作者和贡献者署名予以保留。
+
 ### 🌟 Codename: *Design with DeepSeek Harness*
 
 🧰 **59 个 PR · 24 位贡献者 · 4 天** — **DeepSeek Harness 现在可以作为 Agent

@@ -1,5 +1,7 @@
 # Release note source contract
 
+The existing versioned notes in this directory are inherited from the original project. They preserve historical attribution but do not announce releases by this fork's maintainer. See the root [CHANGELOG](../../CHANGELOG.md) for this fork's unreleased changes.
+
 Release note content is stored under `docs/CHANGELOG/v<releaseVersion>/<locale>.md`.
 The directory name must contain the exact full release version, including its
 channel and counter when present. There is no fallback to a base version.

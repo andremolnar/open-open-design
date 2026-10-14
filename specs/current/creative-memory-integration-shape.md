@@ -1,5 +1,7 @@
 # Creative Memory Integration Shape
 
+> **Inherited upstream proposal:** References to a product/pipeline team and its future decisions describe the original project, not a team or committed roadmap for this fork. Any fork-specific work requires a new decision by its [maintainer](../../MAINTAINERS.md).
+
 ## Purpose
 
 Capture the integration-boundary decisions the product/pipeline team needs to

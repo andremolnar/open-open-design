@@ -1,6 +1,6 @@
 # Docker and Docker Compose
 
-This is the easiest self-hosting path for beginners.
+**Fork notice:** This inherited Compose configuration defaults to an upstream image, not this fork. For fork-specific behavior, build your own image and set `OPEN_DESIGN_IMAGE` before starting. The supported path for this fork is the [source quickstart](../../README.md#start-without-an-opendesign-account).
 
 ## Before You Start
 
@@ -10,8 +10,8 @@ This is the easiest self-hosting path for beginners.
 ## Step 1: Open the Deploy Folder
 
 ```bash
-git clone https://github.com/nexu-io/open-design.git
-cd open-design/deploy
+git clone https://github.com/andremolnar/open-open-design.git
+cd open-open-design/deploy
 ```
 
 What this does:
@@ -96,6 +96,6 @@ networking override is required.
 - `failed to connect to the docker API`: Docker Desktop is not running yet
 - `address already in use`: Port `7456` is occupied by another process
 - `curl: (7) Failed to connect`: container is still starting; wait 10-20 seconds and retry
-- `pull access denied` or `authentication required` for `ghcr.io/nexu-io/od`: the GHCR package must be public for anonymous Docker, Compose, and Dokploy pulls. An organization maintainer must open GitHub -> Packages -> `od` -> Package settings and change visibility to Public.
+- `pull access denied` or `authentication required` for `ghcr.io/nexu-io/od`: that is an upstream package, not controlled by this fork. Use an image you built and have permission to pull; do not file an issue here to change upstream package visibility.
 - reverse proxy + `OD_API_TOKEN`: either inject `Authorization: Bearer <OD_API_TOKEN>` at the proxy, or set `OPEN_DESIGN_DISABLE_API_AUTH=1` only when that proxy already authenticates every request and the daemon is not directly exposed.
 - browser sign-in repeats: use username `open-design` and the exact `OD_API_TOKEN` value from `deploy/.env`; recreate the container after changing the token.
