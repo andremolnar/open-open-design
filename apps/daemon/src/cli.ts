@@ -66,6 +66,8 @@ const RESUME_CONTINUE_PROMPT =
 // TDZ ("Cannot access 'MEDIA_GENERATE_STRING_FLAGS' before
 // initialization") and crash every `od media …` invocation.
 const MEDIA_GENERATE_STRING_FLAGS = new Set([
+  'request-id',
+  'resume-task',
   'project',
   'workspace',
   'workspace-member',
@@ -88,6 +90,7 @@ const MEDIA_GENERATE_STRING_FLAGS = new Set([
   'language',
 ]);
 const MEDIA_GENERATE_BOOLEAN_FLAGS = new Set([
+  'json',
   'help',
   'h',
   'loop',
@@ -1737,6 +1740,11 @@ Flags:
 // ---------------------------------------------------------------------------
 
 async function runMedia(args) {
+  if (args[0] === 'comfyui') {
+    const { runComfyCli } = await import('./media/comfyui/cli.js');
+    try { return await runComfyCli(args.slice(1), (flagUrl) => resolveDaemonUrl({ flagUrl })); }
+    catch (error) { console.error(error instanceof Error ? error.message : 'ComfyUI command failed'); process.exitCode = 1; return; }
+  }
   const sub = args.find((a) => !a.startsWith('-')) || '';
   if (sub === 'help' || sub === '-h' || sub === '--help' || sub === '') {
     printMediaHelp();
@@ -1876,6 +1884,8 @@ async function runMediaGenerate(rawArgs) {
     image: images[0],
     images,
     language: flags.language,
+    resumeTaskId: flags['resume-task'],
+    ...(flags.model.startsWith('comfyui/') ? { requestId: flags['request-id'] || crypto.randomUUID() } : {}),
   };
   if (flags.length != null) body.length = Number(flags.length);
   if (flags.duration != null) body.duration = Number(flags.duration);
@@ -2249,6 +2259,7 @@ async function cliDaemonBaseUrl(flags) {
 
 function printMediaHelp() {
   console.log(`Usage: od media scaffold --composition-dir .hyperframes-cache/<id> [opts]
+       od media comfyui help
        od media generate --surface <image|video|audio> --model <id> [opts]
        "$OD_NODE_BIN" "$OD_BIN" media generate --surface <image|video|audio> --model <id> [opts]
 
@@ -2268,6 +2279,8 @@ Generate required:
 Common options:
   --prompt "<text>"         Generation prompt. ElevenLabs SFX prompts must stay under 450 characters.
   --prompt-file <path|->     Read the prompt from a file, or - for stdin (for long-form prompts).
+  --resume-task <taskId>     ComfyUI only: recover a known submitted job without another GPU submission.
+  --request-id <id>          ComfyUI only: reuse this ID on transport retries; generated if omitted.
   --output <filename>       File to write under the project. Auto-named if omitted.
   --aspect 1:1|16:9|9:16|4:3|3:4
   --quality <tier>          OpenDesign Cloud images only: published quality tier

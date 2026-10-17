@@ -1,4 +1,16 @@
 import fs from 'node:fs';
+import { comfyWorkflowModelId, parseComfyWorkflowModelId } from '@open-design/contracts';
+import {
+  addComfyConnection, addComfyWorkflowDraft, listComfyConnections, listComfyWorkflows,
+  getComfyWorkflowSummary, setComfyWorkflowEnabled, updateComfyExecution,
+  reviseComfyWorkflowDraft,
+  getComfyExecution,
+  claimComfyRequest,
+  releaseComfyOccupancy,
+} from '../media/comfyui/store.js';
+import { checkComfyWorkflow, comfyClient, renderComfyWorkflow } from '../media/comfyui/service.js';
+import { object } from '../media/comfyui/schema.js';
+import { ComfyError } from '../media/comfyui/errors.js';
 import type { Express } from 'express';
 import type {
   HyperFramesScaffoldRequest,
@@ -161,6 +173,7 @@ function reconciledMediaTaskFile(
 }
 
 function mediaProviderId(model: string): string | undefined {
+  if (parseComfyWorkflowModelId(model)) return 'comfyui';
   const registered = findMediaModel(model)?.provider;
   if (registered) return registered;
   if (model.startsWith('fal-ai/')) return 'fal';
@@ -312,6 +325,36 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     if (!model) {
       return sendApiError(res, 400, 'BAD_REQUEST', 'model is required');
     }
+    const comfySelection = parseComfyWorkflowModelId(model);
+    if (model.startsWith('comfyui/')) {
+      if (project.metadata?.baseDir) return sendApiError(res, 400, 'COMFY_INVALID', 'This experimental ComfyUI adapter requires a managed project, not an imported-folder destination.');
+      if (!comfySelection || surface !== 'image') return sendApiError(res, 400, 'COMFY_INVALID', 'Choose a versioned ComfyUI image workflow');
+      if (!req.body?.resumeTaskId && (typeof req.body?.requestId !== 'string'
+        || !/^[a-zA-Z0-9-]{16,100}$/.test(req.body.requestId))) {
+        return sendApiError(res, 400, 'COMFY_INVALID', 'A stable requestId is required for a new ComfyUI generation');
+      }
+      if (req.body?.image || req.body?.images?.length || req.body?.aspect || req.body?.quality || req.body?.resolution) {
+        return sendApiError(res, 400, 'COMFY_INVALID', 'ComfyUI uses imported graph dimensions. Image references and aspect/quality/resolution overrides are unsupported.');
+      }
+      if (req.body?.output) return sendApiError(res, 400, 'COMFY_INVALID', 'ComfyUI uses a per-task output filename for safe recovery. Omit the output override.');
+      if (!req.body?.resumeTaskId && !getComfyWorkflowSummary(db, comfySelection.id, comfySelection.version)?.enabled) {
+        return sendApiError(res, 409, 'COMFY_INVALID', 'Workflow version is disabled or missing. Validate and enable it in Settings.');
+      }
+      if (!req.body?.resumeTaskId && (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim())) {
+        return sendApiError(res, 400, 'COMFY_INVALID', 'Image prompt is required');
+      }
+      if (req.body?.resumeTaskId) {
+        const previous = typeof req.body.resumeTaskId === 'string' && getLiveMediaTask(req.body.resumeTaskId);
+        const execution = previous && getComfyExecution(db, previous.id, projectId);
+        if (!previous || previous.projectId !== projectId || previous.model !== model || !execution?.promptId
+          || (options.grant && previous.runId !== options.grant.runId)) {
+          return sendApiError(res, 400, 'COMFY_OUTCOME_UNKNOWN', 'Only an owned task with a known ComfyUI prompt ID can be recovered');
+        }
+        if (['running', 'queued', 'done'].includes(previous.status)) {
+          return res.status(202).json({ taskId: previous.id, status: previous.status, startedAt: previous.startedAt });
+        }
+      }
+    }
 
     const policy = mediaPolicyForGrant(options.grant);
     if (!policy.ok) {
@@ -344,7 +387,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
      * unhandled rejection.
      */
     const reportFailureToRun = (taskId: string, error: unknown): void => {
-      const runId = options.grant?.runId;
+      const runId = options.grant?.runId ?? task?.runId;
       if (!runId || !taskId) return;
       try {
         design.runs.noteMediaTaskFailure(runId, {
@@ -361,16 +404,26 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
 
     let task: ReturnType<typeof createMediaTask> | null = null;
     try {
-      const taskId = randomUUID();
+      const taskId = comfySelection && req.body?.resumeTaskId ? req.body.resumeTaskId : randomUUID();
       const analyticsContext = await mediaAnalyticsContext(req, options.grant);
+      if (comfySelection && !req.body?.resumeTaskId) {
+        const claimedTaskId = claimComfyRequest(db, { taskId, projectId, model, prompt: req.body.prompt, requestId: req.body.requestId, runId: options.grant?.runId });
+        if (claimedTaskId !== taskId) {
+          const previous = getLiveMediaTask(claimedTaskId);
+          if (!previous) return sendApiError(res, 409, 'COMFY_OUTCOME_UNKNOWN', 'This request was recorded but its task is unavailable. Do not resubmit blindly.');
+          return res.status(202).json({ taskId: previous.id, status: previous.status, startedAt: previous.startedAt });
+        }
+      }
       let providerRequestSummary:
         | (ImageGenerationRequestSummary & { providerId: string })
         | null = null;
-      task = createMediaTask(taskId, projectId, {
+      task = (comfySelection && req.body?.resumeTaskId ? getLiveMediaTask(taskId) : null) ?? createMediaTask(taskId, projectId, {
         surface: req.body?.surface,
         model: req.body?.model,
         runId: options.grant?.runId,
       });
+      task.error = null;
+      task.endedAt = null;
       const requestedProviderId = mediaProviderId(model);
       const diagnosticContext = {
         taskId,
@@ -407,7 +460,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
        * at the bytes that were actually written.
        */
       const attachLateOutputToRunMessage = async (meta: unknown): Promise<void> => {
-        const runId = options.grant?.runId;
+        const runId = options.grant?.runId ?? task?.runId;
         const name =
           meta && typeof meta === 'object' && typeof (meta as { name?: unknown }).name === 'string'
             ? (meta as { name: string }).name
@@ -485,7 +538,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
               mime: written.mime,
               bytes: written.bytes,
               sourceMtime: written.mtime,
-              ...(options.grant?.runId ? { runId: options.grant.runId } : {}),
+              ...(task?.runId ? { runId: task.runId } : {}),
               mediaTaskId: taskId,
             },
           );
@@ -495,8 +548,17 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
         onProviderRequestSettled: (summary: ImageGenerationRequestSummary & { providerId: string }) => {
           providerRequestSummary = summary;
         },
+        ...(comfySelection ? {
+          // A generated per-task path prevents remote filenames from deciding local paths.
+          output: `comfy-${taskId}.png`,
+          comfyRender: () => renderComfyWorkflow(db, {
+            taskId, projectId, model, prompt: req.body.prompt ?? '', resume: Boolean(req.body.resumeTaskId),
+            onProgress: (line) => appendTaskProgress(task!, line),
+          }),
+        } : {}),
       })
         .then(async (meta: any) => {
+          if (comfySelection) updateComfyExecution(db, taskId, 'completed');
           task.status = 'done';
           task.file = meta;
           task.endedAt = Date.now();
@@ -679,13 +741,76 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
   app.get('/api/media/models', (_req, res) => {
     res.json({
       providers: MEDIA_PROVIDERS,
-      image: IMAGE_MODELS,
+      image: [...IMAGE_MODELS, ...listComfyWorkflows(db).filter((workflow) => workflow.enabled).map((workflow) => ({
+        id: comfyWorkflowModelId(workflow.id, workflow.version), label: `${workflow.name} · v${workflow.version}`,
+        provider: 'comfyui', hint: 'ComfyUI workflow', caps: ['t2i'],
+      }))],
       video: VIDEO_MODELS,
       audio: AUDIO_MODELS_BY_KIND,
       aspects: MEDIA_ASPECTS,
       videoLengthsSec: VIDEO_LENGTHS_SEC,
       audioDurationsSec: AUDIO_DURATIONS_SEC,
     });
+  });
+
+  // Configuration belongs to the local operator, never a project-scoped tool token.
+  app.use('/api/media/comfyui', (req, res, next) => {
+    if (isSandboxModeEnabled(process.env) || req.get('authorization') || !isLocalSameOrigin(req, getResolvedPort())) {
+      return sendApiError(res, 403, 'FORBIDDEN', 'ComfyUI settings require the local operator');
+    }
+    return requireLocalDaemonRequest(req, res, next);
+  });
+  const comfyRouteError = (res: any, error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Invalid ComfyUI configuration';
+    return sendApiError(res, error instanceof ComfyError ? error.status : 400,
+      error instanceof ComfyError ? error.code : 'COMFY_INVALID',
+      // SQLite diagnostics may contain private graph text or schema details.
+      message.includes('SQLITE') || message.includes('constraint failed') ? 'ComfyUI record could not be saved. Check the server and workflow selection.' : message);
+  };
+  app.get('/api/media/comfyui', (_req, res) => {
+    res.json({ connections: listComfyConnections(db), workflows: listComfyWorkflows(db) });
+  });
+  app.post('/api/media/comfyui/connections', (req, res) => {
+    try {
+      if (!object(req.body)) throw new ComfyError('Server configuration must be an object');
+      res.status(201).json(addComfyConnection(db, req.body as any));
+    } catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/connections/:connectionId/check', async (req, res) => {
+    try {
+      const schemas = await comfyClient(db, req.params.connectionId).json('/object_info');
+      if (!object(schemas) || !Object.keys(schemas).length) throw new ComfyError('Server did not return ComfyUI node schemas');
+      res.json({ connected: true, checkedAt: Date.now() });
+    } catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/workflows', (req, res) => {
+    try { res.status(201).json(addComfyWorkflowDraft(db, req.body)); }
+    catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/workflows/:workflowId/versions', (req, res) => {
+    try { res.status(201).json(reviseComfyWorkflowDraft(db, req.params.workflowId, req.body)); }
+    catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/workflows/:workflowId/:version/validate', async (req, res) => {
+    try { res.json(await checkComfyWorkflow(db, req.params.workflowId, Number(req.params.version))); }
+    catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/workflows/:workflowId/:version/enabled', (req, res) => {
+    try {
+      if (typeof req.body?.enabled !== 'boolean') throw new ComfyError('enabled must be a boolean');
+      if (!getComfyWorkflowSummary(db, req.params.workflowId, Number(req.params.version))) throw new ComfyError('Workflow version not found');
+      setComfyWorkflowEnabled(db, req.params.workflowId, Number(req.params.version), req.body.enabled);
+      res.json(getComfyWorkflowSummary(db, req.params.workflowId, Number(req.params.version)));
+    } catch (error) { comfyRouteError(res, error); }
+  });
+  app.post('/api/media/comfyui/executions/:taskId/release', (req, res) => {
+    try {
+      if (req.body?.confirmUnknown !== true) throw new ComfyError('Confirm that you inspected the server and accept that the previous job may still run');
+      const task = getLiveMediaTask(req.params.taskId);
+      if (task && ['queued', 'running'].includes(task.status)) throw new ComfyError('Wait for local monitoring to end before releasing occupancy');
+      releaseComfyOccupancy(db, req.params.taskId);
+      res.json({ released: true, cancelled: false });
+    } catch (error) { comfyRouteError(res, error); }
   });
 
   // Live AIHubMix media catalogue. The static IMAGE_MODELS registry only
@@ -1337,6 +1462,8 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
         progressCount: t.progress.length,
         ...(confirmedFile ? { file: confirmedFile } : {}),
         ...(t.status === 'failed' || t.status === 'interrupted' ? { error: t.error } : {}),
+        ...(typeof t.model === 'string' && parseComfyWorkflowModelId(t.model)
+          ? { comfy: getComfyExecution(db, t.id, projectId) ?? undefined } : {}),
       };
     });
     // Newest first, with creation order breaking the ties a parallel fan-out

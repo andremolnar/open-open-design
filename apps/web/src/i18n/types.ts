@@ -30,6 +30,44 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 // flat (not deeply nested) so missing-key TS errors point straight at the
 // offending string instead of a generic object mismatch.
 export interface Dict {
+  'comfy.intro': string;
+  'comfy.error': string;
+  'comfy.server': string;
+  'comfy.name': string;
+  'comfy.url': string;
+  'comfy.token': string;
+  'comfy.trustNetwork': string;
+  'comfy.saveServer': string;
+  'comfy.saved': string;
+  'comfy.connected': string;
+  'comfy.check': string;
+  'comfy.workflow': string;
+  'comfy.import': string;
+  'comfy.invalidGraph': string;
+  'comfy.promptTarget': string;
+  'comfy.output': string;
+  'comfy.revision': string;
+  'comfy.newWorkflow': string;
+  'comfy.trustGraph': string;
+  'comfy.saveWorkflow': string;
+  'comfy.enabled': string;
+  'comfy.disabled': string;
+  'comfy.validated': string;
+  'comfy.validate': string;
+  'comfy.enable': string;
+  'comfy.disable': string;
+  'comfy.test': string;
+  'comfy.destination': string;
+  'comfy.openProject': string;
+  'comfy.prompt': string;
+  'comfy.confirmRun': string;
+  'comfy.run': string;
+  'comfy.imported': string;
+  'comfy.recover': string;
+  'comfy.chooseProject': string;
+  'comfy.confirmRelease': string;
+  'comfy.release': string;
+  'comfy.released': string;
   'billing.wallet': string;
   /** The product name of the allowance pool; kept untranslated in every locale. */
   'billing.codingPlanDesignPlan': string;

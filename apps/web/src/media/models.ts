@@ -166,8 +166,10 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
   {
     id: 'comfyui',
     label: 'ComfyUI',
-    hint: 'Local JSON workflow server (planned adapter)',
-    integrated: false,
+    hint: 'Named API-format image workflows',
+    integrated: true,
+    credentialsRequired: false,
+    settingsVisible: false,
     defaultBaseUrl: 'http://127.0.0.1:8188',
     docsUrl: 'https://docs.comfy.org/development/core-concepts/workflow',
   },
