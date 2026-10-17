@@ -68,6 +68,7 @@ import {
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import { LabsSection } from './LabsSection';
+import { ComfySettings } from './ComfySettings';
 import { defaultAgentModelId, effectiveAgentModelChoice } from './agentModelSelection';
 import {
   CUSTOM_MODEL_SENTINEL,
@@ -460,6 +461,7 @@ interface Props {
   initialHighlight?: SettingsHighlight;
   /** Workspace id persisted on the currently-open project, when any. */
   persistedProjectWorkspaceId?: string | null;
+  comfyProjects?: Array<{ id: string; name: string; workspaceId: string | null }>;
   providerModelsCache?: ProviderModelsCache;
   /**
    * Persist the current draft. Invoked by the dialog's autosave loop on
@@ -1506,6 +1508,7 @@ export function SettingsDialog({
   initialSection = 'general',
   initialHighlight = null,
   persistedProjectWorkspaceId = null,
+  comfyProjects = [],
   onPersist,
   onSilentUpdatePreferenceChange,
   onPersistComposioKey,
@@ -5835,6 +5838,7 @@ export function SettingsDialog({
           ) : null}
 
           {activeSection === 'media' ? (
+            <>
             <MediaProvidersSection
               cfg={cfg}
               setCfg={setCfg}
@@ -5851,6 +5855,8 @@ export function SettingsDialog({
                 });
               }}
             />
+            <ComfySettings projects={comfyProjects} workspaceContext={workspaceContext} />
+            </>
           ) : null}
           {activeSection === 'integrations' ? <IntegrationsSection /> : null}
 

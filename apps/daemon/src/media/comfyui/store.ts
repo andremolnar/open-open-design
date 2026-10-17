@@ -5,6 +5,8 @@ import type {
   ComfyConnectionSummary,
   ComfyWorkflowDraft,
   ComfyWorkflowSummary,
+  ComfyExecutionPhase,
+  ComfyExecutionSummary,
 } from '@open-design/contracts';
 import { validateComfyWorkflowDraft } from './workflow.js';
 
@@ -57,7 +59,110 @@ export function migrateComfyWorkflows(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_comfy_workflows_connection
       ON comfy_workflow_versions(connection_id, config_id);
+    CREATE TABLE IF NOT EXISTS comfy_media_executions (
+      task_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      connection_id TEXT NOT NULL REFERENCES comfy_connections(id),
+      model TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      prompt_id TEXT,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS comfy_media_requests (
+      request_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      task_id TEXT NOT NULL
+    );
   `);
+  const columns = db.prepare('PRAGMA table_info(comfy_workflow_versions)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'schema_fingerprint')) {
+    db.exec('ALTER TABLE comfy_workflow_versions ADD COLUMN schema_fingerprint TEXT');
+  }
+  const executionColumns = db.prepare('PRAGMA table_info(comfy_media_executions)').all() as Array<{ name: string }>;
+  if (!executionColumns.some((column) => column.name === 'released_at')) {
+    db.exec('ALTER TABLE comfy_media_executions ADD COLUMN released_at INTEGER');
+  }
+}
+
+/** A browser/transport retry reuses a task, never makes a second /prompt attempt. */
+export function claimComfyRequest(
+  db: Database.Database, input: { requestId: string; projectId: string; model: string; prompt: string; taskId: string; runId?: string | undefined },
+): string {
+  const hash = createHash('sha256').update(JSON.stringify([input.projectId, input.model, input.prompt, input.runId ?? null])).digest('hex');
+  return db.transaction(() => {
+    const existing = db.prepare('SELECT project_id AS projectId, payload_hash AS hash, task_id AS taskId FROM comfy_media_requests WHERE request_id = ?')
+      .get(input.requestId) as { projectId: string; hash: string; taskId: string } | undefined;
+    if (existing) {
+      if (existing.projectId !== input.projectId || existing.hash !== hash) throw new Error('ComfyUI request ID was already used for a different request');
+      return existing.taskId;
+    }
+    db.prepare('INSERT INTO comfy_media_requests (request_id, project_id, payload_hash, task_id) VALUES (?, ?, ?, ?)')
+      .run(input.requestId, input.projectId, hash, input.taskId);
+    return input.taskId;
+  })();
+}
+
+export function getComfyConnection(db: Database.Database, id: string): ComfyConnectionSummary | null {
+  return listComfyConnections(db).find((connection) => connection.id === id) ?? null;
+}
+
+export function getComfyWorkflowSummary(db: Database.Database, id: string, version: number): ComfyWorkflowSummary | null {
+  return listComfyWorkflows(db).find((workflow) => workflow.id === id && workflow.version === version) ?? null;
+}
+
+export function setComfyWorkflowValidation(
+  db: Database.Database, id: string, version: number, fingerprint: string | null,
+): void {
+  db.prepare(`UPDATE comfy_workflow_versions SET schema_fingerprint = ?, schema_checked_at = ?,
+    enabled = 0 WHERE config_id = ? AND version = ?`)
+    .run(fingerprint, fingerprint ? Date.now() : null, id, version);
+}
+
+export function comfyWorkflowFingerprint(db: Database.Database, id: string, version: number): string | null {
+  return (db.prepare(`SELECT schema_fingerprint AS fingerprint FROM comfy_workflow_versions
+    WHERE config_id = ? AND version = ?`).get(id, version) as { fingerprint: string | null } | undefined)?.fingerprint ?? null;
+}
+
+export function setComfyWorkflowEnabled(db: Database.Database, id: string, version: number, enabled: boolean): void {
+  db.transaction(() => {
+    if (enabled && !comfyWorkflowFingerprint(db, id, version)) throw new Error('Validate the workflow before enabling it');
+    if (enabled) db.prepare('UPDATE comfy_workflow_versions SET enabled = 0 WHERE config_id = ?').run(id);
+    db.prepare('UPDATE comfy_workflow_versions SET enabled = ? WHERE config_id = ? AND version = ?')
+      .run(Number(enabled), id, version);
+  })();
+}
+
+/** The record is saved before /prompt. Unresolved submissions continue occupying the connection. */
+export function beginComfyExecution(
+  db: Database.Database, input: { taskId: string; projectId: string; connectionId: string; model: string },
+): void {
+  db.transaction(() => {
+    const occupied = db.prepare(`SELECT task_id FROM comfy_media_executions WHERE connection_id = ?
+      AND phase NOT IN ('completed', 'failed') AND released_at IS NULL LIMIT 1`).get(input.connectionId);
+    if (occupied) throw new Error('This server has an unfinished OpenDesign job. Check its recorded task before starting another.');
+    db.prepare(`INSERT INTO comfy_media_executions (task_id, project_id, connection_id, model, phase, updated_at)
+      VALUES (?, ?, ?, ?, 'validating', ?)`).run(input.taskId, input.projectId, input.connectionId, input.model, Date.now());
+  })();
+}
+
+export function updateComfyExecution(db: Database.Database, taskId: string, phase: ComfyExecutionPhase, promptId?: string): void {
+  db.prepare(`UPDATE comfy_media_executions SET phase = ?, prompt_id = COALESCE(?, prompt_id), updated_at = ? WHERE task_id = ?`)
+    .run(phase, promptId ?? null, Date.now(), taskId);
+}
+
+export function getComfyExecution(db: Database.Database, taskId: string, projectId: string): ComfyExecutionSummary | null {
+  const row = db.prepare(`SELECT task_id AS taskId, project_id AS projectId, model, phase, prompt_id AS promptId, released_at AS releasedAt
+    FROM comfy_media_executions WHERE task_id = ? AND project_id = ?`).get(taskId, projectId) as
+    (ComfyExecutionSummary & { promptId: string | null }) | undefined;
+  return row ? { taskId: row.taskId, projectId: row.projectId, model: row.model, phase: row.phase,
+    ...(row.promptId ? { promptId: row.promptId } : {}), ...(row.releasedAt ? { releasedAt: row.releasedAt } : {}) } : null;
+}
+
+/** Record an informed operator override without fabricating terminal remote evidence. */
+export function releaseComfyOccupancy(db: Database.Database, taskId: string): void {
+  const result = db.prepare('UPDATE comfy_media_executions SET released_at = ? WHERE task_id = ?').run(Date.now(), taskId);
+  if (!result.changes) throw new Error('Recorded ComfyUI execution not found');
 }
 
 /**
@@ -121,7 +226,8 @@ export function listComfyConnections(db: Database.Database): ComfyConnectionSumm
 
 export function addComfyConnection(db: Database.Database, input: ComfyConnectionInput): ComfyConnectionSummary {
   const validated = validateComfyConnection(input);
-  if (input.token !== undefined && (typeof input.token !== 'string' || !input.token.trim())) {
+  if (input.token !== undefined && (typeof input.token !== 'string' || !input.token.trim()
+    || input.token.length > 8192 || /[\r\n]/.test(input.token))) {
     throw new Error('Bearer token must be a nonempty string when supplied');
   }
   const id = randomUUID();
@@ -130,7 +236,7 @@ export function addComfyConnection(db: Database.Database, input: ComfyConnection
       VALUES (?, ?, ?, ?, ?)`).run(id, validated.name, validated.baseUrl, Number(validated.trustedNetwork), Date.now());
     if (input.token) {
       db.prepare(`INSERT INTO comfy_connection_credentials (connection_id, bearer_token) VALUES (?, ?)`)
-        .run(id, input.token);
+        .run(id, input.token.trim());
     }
   })();
   return listComfyConnections(db).find((connection) => connection.id === id)!;

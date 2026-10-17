@@ -59,7 +59,7 @@ import { promisify } from 'node:util';
 import { Agent as UndiciAgent } from 'undici';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { load as loadHtml } from 'cheerio';
-import { SETTINGS_MEDIA_PROVIDERS_PATH } from '@open-design/contracts';
+import { SETTINGS_MEDIA_PROVIDERS_PATH, parseComfyWorkflowModelId } from '@open-design/contracts';
 import {
   findRealTagOffset,
   HTML_TAG_PATTERNS,
@@ -94,6 +94,7 @@ import {
   resolveHyperFramesNodeBin,
 } from './hyperframes-runtime.js';
 import { renderVelaImage, renderVelaVideo } from './vela.js';
+import { importComfyBytes } from './comfyui/import.js';
 import {
   ensureProject,
   kindFor,
@@ -353,6 +354,8 @@ export async function generateMedia(args: {
   compositionDir?: string; image?: string; images?: string[]; onProgress?: ProgressFn; requestInit?: MediaRequestInit;
   desktopFrameRenderer?: DesktopFrameRenderer | null;
   workspaceId?: string;
+  /** Backend-owned adapter seam; credentials and graph resolution stay in the media service. */
+  comfyRender?: () => Promise<RenderResult>;
   onProviderRequestSettled?: (summary: ImageGenerationRequestSummary & { providerId: string }) => void;
   /**
    * Called once with the EXACT provider bytes that were just written, while
@@ -424,7 +427,10 @@ export async function generateMedia(args: {
   let isFalCustomPath = false;
   let isCatalogBypass = false;
   if (!def) {
-    if (/^fal-ai\//.test(model)) {
+    if (parseComfyWorkflowModelId(model) && args.comfyRender && surface === 'image') {
+      isCatalogBypass = true;
+      def = { id: model, label: model, hint: 'ComfyUI workflow', provider: 'comfyui', caps: ['t2i'] };
+    } else if (/^fal-ai\//.test(model)) {
       isFalCustomPath = true;
       def = {
         id: model,
@@ -460,6 +466,10 @@ export async function generateMedia(args: {
         `or pass a full fal-ai/* path (e.g. fal-ai/flux/dev) for any Fal model.`,
       );
     }
+  }
+  if (def.provider === 'comfyui' && (image || (Array.isArray(args.images) && args.images.length)
+    || aspect || quality || resolution)) {
+    throw new Error('This ComfyUI adapter uses the imported graph dimensions and supports prompt-only workflows. Remove references, aspect, quality and resolution overrides.');
   }
   // Reject cross-surface combinations for catalogued models.
   const resolvedAudioKind =
@@ -605,7 +615,12 @@ export async function generateMedia(args: {
     customImageCredentials,
   );
   try {
-    if (
+    if (def.provider === 'comfyui' && args.comfyRender) {
+      const result = await args.comfyRender();
+      bytes = result.bytes;
+      providerNote = result.providerNote;
+      suggestedExt = result.suggestedExt;
+    } else if (
       def.provider === 'openai'
       && surface === 'image'
       && customImageOverride
@@ -821,7 +836,7 @@ export async function generateMedia(args: {
     // HyperFrames is a local render, not a remote provider. Falling back
     // to a stub here hides actionable composition/preflight failures and
     // can make the agent retry or narrate a fake MP4 as success.
-    if (def.provider === 'hyperframes' || def.provider === 'vela') {
+    if (def.provider === 'hyperframes' || def.provider === 'vela' || def.provider === 'comfyui') {
       throw err;
     }
     // A real provider failed (network blip, 4xx, missing key, …). We
@@ -868,7 +883,9 @@ export async function generateMedia(args: {
     finalOut = `${stem}${suggestedExt}`;
   }
   const finalTarget = path.join(dir, finalOut);
-  await writeFile(finalTarget, bytes);
+  if (def.provider === 'comfyui') {
+    await importComfyBytes(projectsRoot, projectId, finalOut, bytes);
+  } else await writeFile(finalTarget, bytes);
   const st = await stat(finalTarget);
   if (args.onBytesWritten) {
     try {

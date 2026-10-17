@@ -1,6 +1,8 @@
 import type { Dict } from "../types";
+import { comfyuiEnglish } from '../comfyui-en';
 
 export const zhTW: Dict = {
+  ...comfyuiEnglish,
   'billing.wallet': '錢包餘額',
   'billing.codingPlanDesignPlan': 'Design Plan',
   'billing.codingPlanPeriodHours': '{count} 小時',
