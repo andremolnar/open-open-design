@@ -1,4 +1,5 @@
 import type { RuntimeAgentDef, RuntimeModelOption } from './types.js';
+import { sanitizeOpenCodeModelReference } from './opencode-models.js';
 
 export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {
   id: 'default',
@@ -223,9 +224,14 @@ export function resolveModelForAgent(
 // the CLI's `models` command hasn't surfaced yet). The CLI gets the value
 // as a child-process arg — not a shell string — so injection isn't a
 // concern, but we still reject anything that could be misread as a flag
-// by a downstream CLI or that contains whitespace / control chars.
-export function sanitizeCustomModel(id: string | null | undefined) {
+// by a downstream CLI or that contains whitespace / control chars. OpenCode
+// has its own reference grammar: literal spaces in its model segment are valid.
+export function sanitizeCustomModel(id: string | null | undefined, agentId?: string) {
   if (typeof id !== 'string') return null;
+  if (agentId === 'opencode') {
+    if (id.trim() === 'default' && id.length <= 200 && !/[\x00-\x1f\x7f-\x9f]/u.test(id)) return 'default';
+    return sanitizeOpenCodeModelReference(id);
+  }
   const trimmed = id.trim();
   if (trimmed.length === 0 || trimmed.length > 200) return null;
   if (!/^[A-Za-z0-9][A-Za-z0-9._/:@-]*$/.test(trimmed)) return null;

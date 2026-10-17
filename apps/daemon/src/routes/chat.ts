@@ -35,6 +35,7 @@ import { isSafeId as isSafeProjectId } from '../projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
 import { proxyDispatcherRequestInit, validateUserProviderBaseUrl } from '../connectionTest.js';
 import { isKnownReasoningEffort, resolveModelForServiceTier } from '../runtimes/models.js';
+import { INVALID_OPENCODE_MODEL_MESSAGE } from '../runtimes/opencode-models.js';
 import { googleStreamGenerateContentUrl } from '../integrations/google-models.js';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from '../reasoning-egress.js';
@@ -361,16 +362,18 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             def && typeof requestedModel === 'string'
               ? isKnownModel(def, requestedModel)
                 ? requestedModel
-                : sanitizeCustomModel(requestedModel)
+                : sanitizeCustomModel(requestedModel, def.id)
               : undefined;
-          if (def && typeof body.model === 'string' && body.model.trim() && !safeModel) {
+          if (def && !safeModel && ((typeof body.model === 'string' && body.model.trim())
+            || (def.id === 'opencode' && typeof requestedModel === 'string' && requestedModel.trim()))) {
             return res.json({
               ok: false,
               kind: 'invalid_model_id',
               latencyMs: Date.now() - testStart,
-              model: body.model.trim(),
+              model: requestedModel?.trim(),
               agentName: def.name,
-              detail: 'Invalid custom model id. Use a model id that starts with a letter or number and contains no spaces.',
+              detail: def.id === 'opencode' ? INVALID_OPENCODE_MODEL_MESSAGE
+                : 'Invalid custom model id. Use a model id that starts with a letter or number and contains no spaces.',
             });
           }
           const safeReasoning =

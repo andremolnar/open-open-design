@@ -2918,6 +2918,39 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/Model list comes from this CLI/i)).toBeNull();
   });
 
+  it('selects and persists an OpenCode catalog model containing spaces without an alias', async () => {
+    const model = 'local/Example 35B Q8';
+    const { onPersist } = renderSettingsDialog({ mode: 'daemon', agentId: 'opencode' }, {
+      agents: [{ id: 'opencode', name: 'OpenCode', bin: 'opencode', available: true, modelsSource: 'live',
+        models: [{ id: 'default', label: 'Default' }, { id: model, label: 'Local example' }] }],
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI/i }));
+    fireEvent.click(screen.getByRole('combobox', { name: en['settings.modelPicker'] }));
+    fireEvent.click(within(screen.getByTestId('settings-agent-model-popover-opencode'))
+      .getByRole('option', { name: /Local example/ }));
+    await waitForPersist(onPersist, expect.objectContaining({ agentModels: {
+      opencode: expect.objectContaining({ model }),
+    } }));
+    expect(screen.queryByLabelText(en['settings.modelCustomLabel'])).toBeNull();
+  });
+
+  it('uses OpenCode-specific validation guidance instead of claiming spaces are forbidden', async () => {
+    const detail = 'Invalid OpenCode reference; spaces inside model names are allowed.';
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => Response.json(
+      input.toString() === '/api/test/connection'
+        ? { ok: false, kind: 'invalid_model_id', latencyMs: 0, model: 'bad', agentName: 'OpenCode', detail }
+        : { context: null },
+    )));
+    renderSettingsDialog({ mode: 'daemon', agentId: 'opencode', agentModels: { opencode: { model: 'bad' } } }, {
+      agents: [{ id: 'opencode', name: 'OpenCode', bin: 'opencode', available: true,
+        models: [{ id: 'default', label: 'Default' }] }],
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    expect(await screen.findByText(detail)).toBeTruthy();
+    expect(screen.queryByText(/Custom ids must.*contain no spaces/)).toBeNull();
+  });
+
   it('labels fallback CLI model metadata in the model picker', () => {
     renderSettingsDialog(
       { mode: 'daemon', agentId: 'codex' },
