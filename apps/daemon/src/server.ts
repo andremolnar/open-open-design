@@ -267,6 +267,7 @@ import {
   resolveModelForServiceTier,
 } from './runtimes/models.js';
 import { loadMmdRouteLaunchEnv } from './runtimes/mmd-routes.js';
+import { INVALID_OPENCODE_MODEL_MESSAGE } from './runtimes/opencode-models.js';
 import { withAcpHandshakeFailureGuidance } from './runtimes/acp-handshake-failure.js';
 import { withAcpServiceFailureCode } from './runtimes/acp-service-failure.js';
 import { preflightCodexDefaultModel } from './runtimes/codex-model-preflight.js';
@@ -12100,13 +12101,23 @@ export async function startServer({
       typeof appConfigForRun?.agentModels?.[def.id]?.model === 'string'
         ? appConfigForRun.agentModels[def.id].model
         : null;
-    let safeModel = resolveModelForAgent(
-      def,
-      typeof requestedRuntimeModel === 'string'
+    const requestedModelChoice = typeof requestedRuntimeModel === 'string'
+      ? requestedRuntimeModel : configuredModel;
+    const validatedOpenCodeModel = def.id === 'opencode'
+      ? sanitizeCustomModel(requestedModelChoice, def.id) : null;
+    if (def.id === 'opencode' && requestedModelChoice?.trim() && !validatedOpenCodeModel) {
+      return failRun('BAD_REQUEST', INVALID_OPENCODE_MODEL_MESSAGE);
+    }
+    const validatedModelChoice = def.id === 'opencode'
+      ? validatedOpenCodeModel
+      : typeof requestedRuntimeModel === 'string'
         ? isKnownModel(def, requestedRuntimeModel, requestedLiveModelScope)
           ? requestedRuntimeModel
-          : sanitizeCustomModel(requestedRuntimeModel)
-        : configuredModel,
+          : sanitizeCustomModel(requestedRuntimeModel, def.id)
+        : configuredModel;
+    let safeModel = resolveModelForAgent(
+      def,
+      validatedModelChoice,
       process.env,
       requestedLiveModelScope,
     );

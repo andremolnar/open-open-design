@@ -285,9 +285,14 @@ the active-run staging implementation is in
   Newer builds that advertise `--dangerously-skip-permissions` from
   `opencode run --help` receive that flag; older builds keep the compatible
   argv without it.
-- The adapter discovers models with `opencode models`, parses structured JSON
-  events, and captures OpenCode's `sessionID`. Follow-up turns continue the
-  native session with `-s <session-id>`.
+- Model discovery reads the OpenCode V2 service catalog. References combine
+  `providerID` and the provider-local catalog `id`; `modelID` remains the
+  upstream API name, not a replacement for a configured alias. Nested model
+  paths and literal spaces in names are preserved in the picker and custom
+  model field. Spaces are accepted only for OpenCode; other adapters retain
+  their own validation. The exact selection is forwarded as one `-m` argument.
+- Structured JSON events carry OpenCode's `sessionID`. Follow-up turns continue
+  the native session with `-s <session-id>`.
 - External MCP configuration is supplied per invocation through
   `OPENCODE_CONFIG_CONTENT`; selected skills still use the shared §4 path.
 

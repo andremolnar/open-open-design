@@ -45,6 +45,7 @@ import { listProviderModels } from '../src/integrations/provider-models.js';
 import { readVelaCredentialRevision } from '../src/integrations/vela.js';
 import { startServer } from '../src/server.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../src/runtimes/models.js';
+import { agentCapabilities } from '../src/runtimes/capabilities.js';
 import { amrModelLoadingCache } from '../src/runtimes/amr-model-cache.js';
 import { buildAmrModelCacheKey } from '../src/runtimes/amr-model-probe.js';
 
@@ -3899,11 +3900,18 @@ process.exit(1);
     );
   });
 
-  it('launches OpenCode V2 connection tests with JSON stdin args', async () => {
+  it.each(['request', 'saved settings'])('launches OpenCode V2 connection tests with a space-containing custom model from %s as one argument', async (source) => {
+    if (!process.env.OD_DATA_DIR) throw new Error('OD_DATA_DIR is required');
+    const previousConfig = await readAppConfig(process.env.OD_DATA_DIR);
     const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-opencode-argv-'));
     const argvFile = path.join(markerDir, 'argv.json');
     const stdinFile = path.join(markerDir, 'stdin.txt');
+    const previousCapabilities = agentCapabilities.get('opencode');
+    agentCapabilities.set('opencode', { skipPermissions: true });
     try {
+      await writeAppConfig(process.env.OD_DATA_DIR, {
+        agentModels: { opencode: { model: source === 'saved settings' ? 'local/Example 35B Q8' : 'default' } },
+      });
       await withFakeOpenCode(
         `
 const fs = require('node:fs');
@@ -3933,7 +3941,7 @@ process.stdin.on('end', () => {
             body: JSON.stringify({
               mode: 'agent',
               agentId: 'opencode',
-              model: 'github-copilot/gpt-4o',
+              ...(source === 'request' ? { model: 'local/Example 35B Q8' } : {}),
             }),
           });
           expect(res.status).toBe(200);
@@ -3941,7 +3949,7 @@ process.stdin.on('end', () => {
             ok: true,
             kind: 'success',
             agentName: 'OpenCode',
-            model: 'github-copilot/gpt-4o',
+            model: 'local/Example 35B Q8',
             sample: 'ok',
           });
 
@@ -3951,7 +3959,7 @@ process.stdin.on('end', () => {
           expect(argv).toEqual([
             'run', '--standalone', '--format', 'json', '--auto',
             '-m',
-            'github-copilot/gpt-4o',
+            'local/Example 35B Q8',
             '--title',
             'Connection test',
           ]);
@@ -3959,6 +3967,41 @@ process.stdin.on('end', () => {
         },
       );
     } finally {
+      if (previousCapabilities) agentCapabilities.set('opencode', previousCapabilities);
+      else agentCapabilities.delete('opencode');
+      await writeAppConfig(process.env.OD_DATA_DIR, { agentModels: previousConfig.agentModels ?? null });
+      await fsp.rm(markerDir, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['request', 'saved settings'])('rejects an invalid OpenCode model from %s before invoking the CLI', async (source) => {
+    if (!process.env.OD_DATA_DIR) throw new Error('OD_DATA_DIR is required');
+    const previousConfig = await readAppConfig(process.env.OD_DATA_DIR);
+    const invalidModel = 'local/Example\nInjected';
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-opencode-invalid-model-'));
+    const marker = path.join(markerDir, 'invoked');
+    try {
+      await writeAppConfig(process.env.OD_DATA_DIR, {
+        agentModels: { opencode: { model: source === 'saved settings' ? invalidModel : 'default' } },
+      });
+      await withFakeOpenCode(`
+require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'invoked');
+process.exit(1);
+`, async () => {
+        const res = await realFetch(`${baseUrl}/api/test/connection`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mode: 'agent', agentId: 'opencode',
+            ...(source === 'request' ? { model: invalidModel } : {}) }),
+        });
+        expect(res.status).toBe(200);
+        await expect(res.json()).resolves.toMatchObject({
+          ok: false, kind: 'invalid_model_id', model: invalidModel,
+          detail: expect.stringContaining('spaces inside the model name are allowed'),
+        });
+        await expect(fsp.stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+      });
+    } finally {
+      await writeAppConfig(process.env.OD_DATA_DIR, { agentModels: previousConfig.agentModels ?? null });
       await fsp.rm(markerDir, { recursive: true, force: true });
     }
   });
