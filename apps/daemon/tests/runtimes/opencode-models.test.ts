@@ -9,8 +9,8 @@ describe('OpenCode V2 model references', () => {
   it('combines the provider and opaque catalog key, preserving spaces, nested IDs and aliases', () => {
     const models = parseOpenCodeModels([
       { providerID: 'local', id: 'Example 35B Q8', name: 'Local example' },
-      { providerID: 'router', id: 'vendor/example-model' },
-      { providerID: 'other', id: 'vendor/example-model' },
+      { providerID: 'router', id: 'vendor/example-model', name: 'Shared display name' },
+      { providerID: 'other', id: 'vendor/example-model', name: 'Shared display name' },
       { providerID: 'local', id: 'coding-alias', modelID: 'Upstream Model With Spaces' },
       { providerID: 'local', id: 'Example 35B Q8' },
       { providerID: 'local', id: 'hidden', enabled: false },
@@ -19,7 +19,8 @@ describe('OpenCode V2 model references', () => {
       'default', 'local/Example 35B Q8', 'router/vendor/example-model',
       'other/vendor/example-model', 'local/coding-alias',
     ]);
-    expect(models?.[1]?.label).toBe('Local example');
+    // Display the reference so identically named models remain distinguishable.
+    expect(models?.slice(1).map((model) => model.label)).toEqual(models?.slice(1).map((model) => model.id));
   });
 
   it('accepts OpenCode custom IDs with literal spaces without weakening other agents', () => {

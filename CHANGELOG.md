@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- [Fixed] OpenCode model discovery preserves provider namespaces, configured aliases and model names containing spaces. These names work unchanged in the model picker, custom ID field, connection test and generation; malformed explicit selections fail rather than silently using the CLI default.
+- [Fixed] OpenCode model discovery preserves provider namespaces, configured aliases and model names containing spaces. These names work unchanged in the model picker, custom ID field, connection test and generation; malformed explicit selections fail rather than silently using the CLI default. (#10)
 - [Changed] Contributor and translation entry points now identify this fork's sole maintainer and link to this repository instead of implying upstream governance, paid programs, review guarantees, or release plans.
 - [Removed] The inherited product roadmap and upstream-only contribution workflow are no longer presented as plans or submission paths for this fork. Historical release credits remain available below.
 - [Removed] This repository no longer runs GitHub Actions for validation, release publishing, scheduled refreshes, or automatic updates to pull requests. Contributors and release operators must run checks and publication explicitly; manual packaging and release tools remain available.

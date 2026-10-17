@@ -59,7 +59,7 @@ export function parseOpenCodeModels(catalog: readonly { id: string; providerID: 
       .filter((variant) => OPENCODE_VARIANT_ID.test(variant));
     models.push({
       id,
-      label: model.name?.trim() || id,
+      label: id,
       ...(variantIds.length > 0
         ? { reasoningOptions: reasoningOptions(variantIds) }
         : {}),
