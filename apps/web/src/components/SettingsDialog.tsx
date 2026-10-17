@@ -2987,7 +2987,8 @@ export function SettingsDialog({
       case 'not_found_model':
         return t('settings.testNotFoundModel', { model: testedModel });
       case 'invalid_model_id':
-        return t('settings.testInvalidModelId', { model: testedModel });
+        return kindForSuccess === 'cli' && cfg.agentId === 'opencode' && result.detail
+          ? result.detail : t('settings.testInvalidModelId', { model: testedModel });
       case 'invalid_base_url':
         return t('settings.testInvalidBaseUrl');
       case 'rate_limited':

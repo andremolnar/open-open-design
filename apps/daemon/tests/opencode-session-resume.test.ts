@@ -71,8 +71,10 @@ describe('opencode native session resume', () => {
 
     clearTelemetryEnv();
     started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
+    const model = 'local/Example 35B Q8';
     await putConfig(started.url, {
       agentId: 'opencode',
+      agentModels: { opencode: { model } },
       agentCliEnv: { opencode: { OPENCODE_BIN: bin } },
       telemetry: { metrics: true, content: false, artifactManifest: false },
       privacyDecisionAt: Date.now(),
@@ -80,7 +82,7 @@ describe('opencode native session resume', () => {
 
     const conversationId = await createConversation(started.url);
 
-    const turn1 = await sendRunAndWait(started.url, conversationId, 'first user request');
+    const turn1 = await sendRunAndWait(started.url, conversationId, 'first user request', model);
     expect(turn1.status).toBe('succeeded');
 
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second user request please');
@@ -94,6 +96,8 @@ describe('opencode native session resume', () => {
     expect(create.argv[0]).toBe('run');
     expect(create.argv).not.toContain('-s');
     expect(create.argv).not.toContain(SESSION);
+    expect(create.argv[create.argv.indexOf('-m') + 1]).toBe(model);
+    expect(resume.argv[resume.argv.indexOf('-m') + 1]).toBe(model);
 
     // Turn 2 continues the captured session id.
     expect(resume.argv).toContain('-s');
@@ -103,6 +107,23 @@ describe('opencode native session resume', () => {
     // carried by the resumed session), but must carry the new user message.
     expect(resume.stdin).not.toContain(FIRST_REPLY_SENTINEL);
     expect(resume.stdin).toContain('second user request please');
+  });
+
+  it.each(['request', 'saved settings'])('rejects an invalid model from %s instead of launching the CLI default', async (source) => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-model-bin-'));
+    const { bin, logPath } = await writeCapturingOpencode(binDir, 'opencode-model');
+    clearTelemetryEnv();
+    started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
+    const invalidModel = 'local/Example\nInjected';
+    await putConfig(started.url, {
+      agentId: 'opencode', agentCliEnv: { opencode: { OPENCODE_BIN: bin } },
+      ...(source === 'saved settings' ? { agentModels: { opencode: { model: invalidModel } } } : {}),
+    });
+    const conversationId = await createConversation(started.url);
+    const run = await sendRunAndWait(started.url, conversationId, 'test invalid model', source === 'request' ? invalidModel : undefined);
+    expect(run.status).toBe('failed');
+    expect(run.errorCode).toBe('BAD_REQUEST');
+    expect(await readChatTurnRuns(logPath, conversationId)).toEqual([]);
   });
 
   it('transparently auto-reseeds within the same turn on `Session not found`', async () => {
@@ -319,7 +340,7 @@ async function putConfig(url: string, patch: Record<string, unknown>): Promise<v
   const response = await fetch(`${url}/api/app-config`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({ agentModels: { opencode: { model: 'default' } }, ...patch }),
   });
   expect(response.status).toBe(200);
 }
@@ -348,6 +369,7 @@ async function sendRunAndWait(
   url: string,
   encoded: string,
   message: string,
+  model?: string,
 ): Promise<RunStatus> {
   const [projectId, conversationId] = encoded.split('::');
   const assistantMessageId = `assistant_opencode_${randomUUID()}`;
@@ -365,6 +387,7 @@ async function sendRunAndWait(
       assistantMessageId,
       clientRequestId: `client_opencode_${randomUUID()}`,
       agentId: 'opencode',
+      ...(model !== undefined ? { model } : {}),
       message,
       currentPrompt: message,
     }),

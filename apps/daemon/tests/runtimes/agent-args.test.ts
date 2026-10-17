@@ -131,11 +131,11 @@ test('opencode args pass model-supported variants without changing the default a
 test('opencode parses V2 catalog variants and only forwards variants advertised for that model', () => {
   const previous = getRememberedLiveModels('opencode');
   const parsed = parseOpenCodeModels([
-    { providerID: 'openai', id: 'openai/gpt-5.6-sol', variants: [{ id: 'high' }] },
-    { providerID: 'openai', id: 'openai/gpt-5.6-terra', variants: [{ id: 'high' }] },
-    { providerID: 'openai', id: 'openai/gpt-5.6-luna', variants: [{ id: 'max' }] },
-    { providerID: 'custom', id: 'custom/reasoner', variants: [{ id: 'low' }, { id: 'ultra' }] },
-    { providerID: 'custom', id: 'custom/plain', variants: [] },
+    { providerID: 'openai', id: 'gpt-5.6-sol', variants: [{ id: 'high' }] },
+    { providerID: 'openai', id: 'gpt-5.6-terra', variants: [{ id: 'high' }] },
+    { providerID: 'openai', id: 'gpt-5.6-luna', variants: [{ id: 'max' }] },
+    { providerID: 'custom', id: 'reasoner', variants: [{ id: 'low' }, { id: 'ultra' }] },
+    { providerID: 'custom', id: 'plain', variants: [] },
   ]);
   assert.deepEqual(parsed?.find((model) => model.id === 'custom/reasoner')?.reasoningOptions, [
     { id: 'default', label: 'Default' },

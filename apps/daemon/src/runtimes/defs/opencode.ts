@@ -6,10 +6,10 @@ import {
   appendOpenCodePermissionBypass,
 } from '../opencode-permissions.js';
 import { getRememberedLiveModels } from '../models.js';
+import { sanitizeOpenCodeModelReference } from '../opencode-models.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
 const OPENCODE_VARIANT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
-const OPENCODE_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._/:@-]*$/u;
 
 function reasoningOptions(ids: readonly string[]): RuntimeModelOption[] {
   return [
@@ -44,21 +44,22 @@ const OPENCODE_FALLBACK_MODELS: RuntimeModelOption[] = [
  * Normalize the V2 model catalog. The CLI's `models` command only prints IDs;
  * the client returns variant metadata needed for the reasoning picker.
  */
-export function parseOpenCodeModels(catalog: readonly { id: string; providerID: string; variants?: readonly { id: string }[]; enabled?: boolean }[]): RuntimeModelOption[] | null {
+export function parseOpenCodeModels(catalog: readonly { id: string; providerID: string; name?: string; modelID?: string; variants?: readonly { id: string }[]; enabled?: boolean }[]): RuntimeModelOption[] | null {
   const models: RuntimeModelOption[] = [DEFAULT_MODEL_OPTION];
   const seen = new Set<string>();
   for (const model of catalog) {
-    // V2 Model.Info.id is the CLI model reference, including the provider
-    // namespace (which can differ from providerID, e.g. OpenRouter routes).
-    const id = model.id;
+    // V2's id is the provider-local catalog key, not modelID (the upstream
+    // API name). A routed key may itself contain slashes; keep every segment.
+    const reference = `${model.providerID}/${model.id}`;
+    const id = sanitizeOpenCodeModelReference(reference);
     if (model.enabled === false) continue;
-    if (!OPENCODE_MODEL_ID.test(id) || seen.has(id)) continue;
+    if (!id || id !== reference || seen.has(id)) continue;
     seen.add(id);
     const variantIds = (model.variants ?? []).map((variant) => variant.id)
       .filter((variant) => OPENCODE_VARIANT_ID.test(variant));
     models.push({
       id,
-      label: id,
+      label: model.name?.trim() || id,
       ...(variantIds.length > 0
         ? { reasoningOptions: reasoningOptions(variantIds) }
         : {}),
