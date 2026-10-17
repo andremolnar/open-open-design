@@ -1,4 +1,4 @@
-export const COMFY_WORKFLOW_MODEL_HELP = 'ComfyUI is a provider, not an executable model. Save a workflow in Settings → Media providers → Configure ComfyUI, validate its schema, then enable it. Use the full comfyui/<workflow-id>@<version> model ID shown on that saved version, not comfyui. Enabled IDs and required workflowInputs are listed at GET /api/media/models. Do not retry the provider name.';
+export const COMFY_WORKFLOW_MODEL_HELP = 'ComfyUI is a provider, not an executable model. Save and enable a workflow in Settings → Media providers → ComfyUI. Discover saved servers, enabled workflows and required inputs with od media comfyui discover --json (GET /api/media/models). Use the full comfyui/<workflow-id>@<version> model ID, not comfyui. A workflow may prefer a server; a generation can select another with --comfy-server. Do not retry the provider name.';
 
 /** A connection is a server, not a generation model. Several workflows may use it. */
 export interface ComfyConnectionInput {
@@ -41,6 +41,8 @@ export type ComfyWorkflowInputs = Record<string, ComfyLiteral>;
 /** Additional fields on the existing media generation request, not a new dispatcher. */
 export interface ComfyMediaRequestInputs {
   workflowInputs?: ComfyWorkflowInputs;
+  /** Saved server ID for this submission only; omitted uses the workflow preference or sole server. */
+  comfyServerId?: string;
 }
 
 /** API-format graph (not the ComfyUI editor's canvas/workflow document). */
@@ -50,10 +52,11 @@ export type ComfyApiGraph = Record<string, {
   _meta?: Record<string, unknown>;
 }>;
 
-/** A draft is inert until server schemas have been checked and it is enabled. */
+/** OpenDesign owns the reusable graph; servers are selected at execution time. */
 export interface ComfyWorkflowDraft {
   name: string;
-  connectionId: string;
+  /** Optional preferred server. Kept under its existing wire name for saved configuration compatibility. */
+  connectionId?: string;
   graph: ComfyApiGraph;
   promptTargets: ComfyInputTarget[];
   /** All declared parameters must be supplied by a generation call. */
@@ -65,7 +68,8 @@ export interface ComfyWorkflowSummary {
   id: string;
   version: number;
   name: string;
-  connectionId: string;
+  /** Optional preference, never a server lock. */
+  connectionId?: string;
   graphSha256: string;
   enabled: boolean;
   schemaCheckedAt?: number;
@@ -76,6 +80,17 @@ export interface ComfyWorkflowSummary {
 export interface ComfySettingsResponse {
   connections: ComfyConnectionSummary[];
   workflows: ComfyWorkflowSummary[];
+  /** Operator recovery only; each job keeps its original project and server. */
+  executions?: Array<ComfyExecutionSummary & { running: boolean }>;
+}
+
+/** Agent-safe discovery: no URLs, credentials, graph, or private locked literals. */
+export interface ComfyDiscovery {
+  servers: Array<{ id: string; name: string }>;
+  workflows: Array<{
+    id: string; version: number; name: string; model: string; preferredServerId?: string;
+    inputs: Array<{ name: string; type: 'string' | 'number' | 'boolean'; required: true }>;
+  }>;
 }
 
 export interface ComfyWorkflowValidation {
@@ -93,6 +108,8 @@ export interface ComfyExecutionSummary {
   taskId: string;
   projectId: string;
   model: string;
+  /** Recovery always uses this recorded server, not a new preference or override. */
+  connectionId: string;
   phase: ComfyExecutionPhase;
   promptId?: string;
   /** Operator overrides local occupancy only; this never means remote cancellation. */

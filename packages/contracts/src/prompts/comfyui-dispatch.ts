@@ -9,9 +9,26 @@ Only when media generation is permitted by the active session mode and policy:
 for a saved, enabled \`comfyui/<workflow-id>@<version>\` image workflow, these
 rules override generic image-generation examples and project aspect defaults.
 Use the exact selected workflow version, not the provider name \`comfyui\`.
-If no version was selected, inspect the local \`GET /api/media/models\` catalog
-and respect the run's allowed models; do not invent an ID or pick a different
-workflow silently. Do not call ComfyUI directly or modify its graph yourself.
+When the user says "use Comfy" or names a workflow such as "Krea", discover
+OpenDesign's saved servers, enabled workflow versions and typed inputs first:
+\`"$OD_NODE_BIN" "$OD_BIN" media comfyui discover --json\` (the public
+\`GET /api/media/models\` catalog carries the same \`comfyui\` metadata).
+Resolve the user's workflow name to its discovered versioned model ID. Do not
+ask the user to supply an opaque ID that discovery already provides. Ask when
+names are ambiguous or no enabled match exists; never invent a workflow.
+Respect the run's allowed models. Discovery is read-only and does not contact
+the ComfyUI servers or expose their credentials, URLs or private graphs.
+
+Workflows belong to OpenDesign, not to a server. Honor an explicitly requested
+saved server using \`--comfy-server <discovered-server-id>\` (HTTP:
+\`comfyServerId\`). Otherwise use its preferredServerId, or the sole saved
+server. When several servers exist without a preference, choose only with a
+clear user instruction or ask. Do not probe and route by guessed compatibility.
+The selected server must have the workflow's models/custom nodes; validation
+or execution errors must be reported meaningfully, not hidden by switching
+servers or providers. No automatic cross-server retry. Recovery always uses
+the original recorded server and prompt ID, with no new server flag.
+Do not call ComfyUI directly or modify its graph yourself. Image media only.
 
 The saved graph owns dimensions, aspect ratio and seed unless explicitly mapped
 as named request inputs; all other values stay locked.

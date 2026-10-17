@@ -58,6 +58,9 @@ describe('OD Next V2 prompt recipe', () => {
       expect(prompt).toContain('## ComfyUI workflow dispatch');
       expect(prompt).toContain('Do not pass `--aspect`, `--quality`, `--resolution`, `--image`, or `--output`');
       expect(prompt).toContain('outcome unknown');
+      expect(prompt).toContain('media comfyui discover --json');
+      expect(prompt).toContain('--comfy-server <discovered-server-id>');
+      expect(prompt).toContain('Recovery always uses');
     }
   });
   it('does not add ComfyUI dispatch to chat-only or media-disabled prompts', () => {

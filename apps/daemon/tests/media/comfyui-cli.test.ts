@@ -12,6 +12,15 @@ afterEach(async () => {
 });
 
 describe('od media comfyui shared API', () => {
+  it('discovers only public capabilities through the shared media catalog instead of operator settings', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ comfyui: { servers: [{ id: 'gpu', name: 'Studio' }], workflows: [] },
+      ignored: 'not-part-of-discovery' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runComfyCli(['discover', '--json'], async () => 'http://127.0.0.1:7456');
+    expect(fetchMock.mock.calls[0]).toEqual(['http://127.0.0.1:7456/api/media/models']);
+    expect(JSON.parse(String(stdout.mock.calls[0]?.[0]))).toEqual({ servers: [{ id: 'gpu', name: 'Studio' }], workflows: [] });
+  });
   it('sends token-file credentials only to the server API and supports validate/enable JSON operations', async () => {
     dir = await mkdtemp(join(tmpdir(), 'od-comfy-cli-'));
     const configFile = join(dir, 'server.json');

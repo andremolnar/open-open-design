@@ -23,4 +23,11 @@ describe('Home image composer metadata', () => {
       imageModel: 'gpt-image-2',
     });
   });
+
+  it('retains an explicit local workflow while discovery is unavailable instead of choosing Cloud', () => {
+    const composer = buildHomeMediaComposer('image', [], { model: 'comfyui/workflow@1' });
+    expect(metadataForHomeMediaComposer('image', composer.inputs, [])).toEqual({
+      kind: 'image', imageModel: 'comfyui/workflow@1',
+    });
+  });
 });

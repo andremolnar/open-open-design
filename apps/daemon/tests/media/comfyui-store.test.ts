@@ -10,6 +10,8 @@ import {
   migrateComfyWorkflows,
   reviseComfyWorkflowDraft,
   validateComfyConnection,
+  setComfyWorkflowEnabled,
+  discoverComfy, beginComfyExecution, getComfyExecution,
 } from '../../src/media/comfyui/store.js';
 
 const databases: Database.Database[] = [];
@@ -30,6 +32,61 @@ const graph = {
 };
 
 describe('ComfyUI connection and workflow storage', () => {
+  it('migrates legacy server-bound versions without changing graphs, credentials or in-flight server identity', () => {
+    const db = freshDb();
+    const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'comfy_workflow_versions'").get() as { sql: string };
+    db.exec('DROP TABLE comfy_workflow_versions');
+    db.exec(sql.replace('connection_id TEXT REFERENCES', 'connection_id TEXT NOT NULL REFERENCES'));
+    const server = addComfyConnection(db, { name: 'Existing', baseUrl: 'http://127.0.0.1:8188', trustedNetwork: true, token: 'old-secret' });
+    const workflow = addComfyWorkflowDraft(db, { name: 'Existing workflow', connectionId: server.id, graph,
+      promptTargets: [{ nodeId: '6', input: 'text' }], output: { nodeId: '9', index: 0 } });
+    setComfyWorkflowEnabled(db, workflow.id, 1, true);
+    beginComfyExecution(db, { taskId: 'in-flight', projectId: 'A', model: `comfyui/${workflow.id}@1`, connectionId: server.id });
+    const before = db.prepare('SELECT * FROM comfy_workflow_versions').all();
+    migrateComfyWorkflows(db);
+    migrateComfyWorkflows(db);
+    expect(db.prepare('SELECT * FROM comfy_workflow_versions').all()).toEqual(before);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+    expect(getComfyConnectionToken(db, server.id)).toBe('old-secret');
+    expect(getComfyExecution(db, 'in-flight', 'A')?.connectionId).toBe(server.id);
+    expect(() => addComfyWorkflowDraft(db, { name: 'Unbound', graph,
+      promptTargets: [{ nodeId: '6', input: 'text' }], output: { nodeId: '9', index: 0 } })).not.toThrow();
+  });
+
+  it('discovers enabled workflows, server identities and argument types without private configuration', () => {
+    const db = freshDb();
+    const server = addComfyConnection(db, { name: 'Studio', baseUrl: 'http://127.0.0.1:8188', trustedNetwork: true, token: 'private-token' });
+    const workflow = addComfyWorkflowDraft(db, { name: 'Krea fixture', connectionId: server.id, graph,
+      promptTargets: [{ nodeId: '6', input: 'text' }], output: { nodeId: '9', index: 0 } });
+    expect(discoverComfy(db).workflows).toEqual([]);
+    setComfyWorkflowEnabled(db, workflow.id, 1, true);
+    const result = discoverComfy(db);
+    expect(result).toMatchObject({ servers: [{ id: server.id, name: 'Studio' }],
+      workflows: [{ model: `comfyui/${workflow.id}@1`, name: 'Krea fixture', preferredServerId: server.id, inputs: [] }] });
+    for (const secret of ['private-token', '127.0.0.1', 'original', 'graph', 'defaultValue']) expect(JSON.stringify(result)).not.toContain(secret);
+  });
+  it('saves and enables a reusable workflow before any server is configured', () => {
+    const db = freshDb();
+    const workflow = addComfyWorkflowDraft(db, { name: 'Reusable', graph,
+      promptTargets: [{ nodeId: '6', input: 'text' }], output: { nodeId: '9', index: 0 } });
+    expect(workflow.connectionId).toBeUndefined();
+    setComfyWorkflowEnabled(db, workflow.id, 1, true);
+    expect(listComfyWorkflows(db)[0]?.enabled).toBe(true);
+    migrateComfyWorkflows(db);
+    expect(getComfyWorkflowDraft(db, workflow.id, 1)?.connectionId).toBeUndefined();
+  });
+
+  it('treats the saved server as an optional preference, not a version lock', () => {
+    const db = freshDb();
+    const first = addComfyConnection(db, { name: 'First', baseUrl: 'http://127.0.0.1:8188', trustedNetwork: true });
+    const second = addComfyConnection(db, { name: 'Second', baseUrl: 'http://127.0.0.1:8189', trustedNetwork: true });
+    const draft = { name: 'Reusable', connectionId: first.id, graph,
+      promptTargets: [{ nodeId: '6', input: 'text' }], output: { nodeId: '9', index: 0 } };
+    const workflow = addComfyWorkflowDraft(db, draft);
+    const revised = reviseComfyWorkflowDraft(db, workflow.id, { ...draft, connectionId: second.id });
+    expect(revised.connectionId).toBe(second.id);
+    expect(getComfyWorkflowDraft(db, workflow.id, 1)?.connectionId).toBe(first.id);
+  });
   it('starts without any bundled connection, credentials or workflow configuration', () => {
     const db = freshDb();
     migrateComfyWorkflows(db);

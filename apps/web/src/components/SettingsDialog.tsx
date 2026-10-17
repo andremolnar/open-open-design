@@ -461,7 +461,6 @@ interface Props {
   initialHighlight?: SettingsHighlight;
   /** Workspace id persisted on the currently-open project, when any. */
   persistedProjectWorkspaceId?: string | null;
-  comfyProjects?: Array<{ id: string; name: string; workspaceId: string | null }>;
   providerModelsCache?: ProviderModelsCache;
   /**
    * Persist the current draft. Invoked by the dialog's autosave loop on
@@ -1508,7 +1507,6 @@ export function SettingsDialog({
   initialSection = 'general',
   initialHighlight = null,
   persistedProjectWorkspaceId = null,
-  comfyProjects = [],
   onPersist,
   onSilentUpdatePreferenceChange,
   onPersistComposioKey,
@@ -5842,7 +5840,6 @@ export function SettingsDialog({
             <>
             <MediaProvidersSection
               cfg={cfg}
-              comfyProjects={comfyProjects}
               workspaceContext={workspaceContext}
               setCfg={setCfg}
               mediaProvidersNotice={mediaProvidersNotice}
@@ -7651,7 +7648,6 @@ function OrbitSection({
 
 function MediaProvidersSection({
   cfg,
-  comfyProjects,
   workspaceContext,
   setCfg,
   mediaProvidersNotice,
@@ -7662,7 +7658,6 @@ function MediaProvidersSection({
   onChange,
 }: {
   cfg: AppConfig;
-  comfyProjects: Array<{ id: string; name: string; workspaceId: string | null }>;
   workspaceContext: WorkspaceCollabContext | null;
   setCfg: Dispatch<SetStateAction<AppConfig>>;
   mediaProvidersNotice?: string | null;
@@ -7675,6 +7670,7 @@ function MediaProvidersSection({
   const { t } = useI18n();
   const analytics = useAnalytics();
   const [reloadRunning, setReloadRunning] = useState(false);
+  const [comfyConfigured, setComfyConfigured] = useState(false);
   const [reloadNotice, setReloadNotice] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -7881,7 +7877,6 @@ function MediaProvidersSection({
           </button>
         ) : null}
       </div>
-      <ComfySettings projects={comfyProjects} workspaceContext={workspaceContext} />
       <div
         className="protocol-chips protocol-chips--providers media-provider-tabs"
         role="tablist"
@@ -7893,8 +7888,8 @@ function MediaProvidersSection({
             {availableProviders.map((provider) => {
               const active = activeProvider?.id === provider.id;
               const entry = cfg.mediaProviders?.[provider.id];
-              const connected = provider.credentialsRequired === false
-                || isStoredMediaProviderEntryPresent(entry);
+              const connected = provider.id === 'comfyui' ? comfyConfigured
+                : provider.credentialsRequired === false || isStoredMediaProviderEntryPresent(entry);
               const statusLabel = connected
                 ? t('settings.mediaProviderConfigured')
                 : t('settings.mediaProviderUnset');
@@ -7920,7 +7915,7 @@ function MediaProvidersSection({
           </div>
         </div>
       </div>
-      {activeProvider && activeEntry ? (
+      {activeProvider?.id === 'comfyui' ? <ComfySettings onConfiguredChange={setComfyConfigured} workspaceContext={workspaceContext} /> : activeProvider && activeEntry ? (
         <article className="media-provider-detail">
           <div className="media-provider-detail-head">
             <div className="media-provider-meta">

@@ -1,8 +1,9 @@
 # ComfyUI image workflow adapter (experimental)
 
-This branch supports a first manual-test slice: save a server, import a named
-API-format workflow, lock fixed inputs, bind request-time inputs, select one image output, validate
-and enable the version, then run a test into an open OpenDesign project.
+ComfyUI is an image provider alongside the other Media providers. OpenDesign
+manages reusable, named API-format workflows independently of its saved servers.
+Each workflow may prefer a server, and a generation may select another server.
+This slice imports one PNG into the project that requested the generation.
 
 It uses the classic ComfyUI `/object_info`, `/prompt`, `/history/{prompt_id}` and
 `/view` routes. A server address is **not** a per-workflow HTTP endpoint. Hosted
@@ -13,15 +14,17 @@ preset is bundled. Operators supply their own connection and API export at runti
 the adapter derives bindings from that saved graph. Repository examples and test
 screenshots use synthetic fixtures, not a user's configuration.
 
-## Manual test from the interface
+## Configure from the interface
 
 1. Start the branch through the normal development entry point:
    `pnpm tools-dev run web --daemon-port 17456 --web-port 17573`.
-2. Create a project if needed. Open **Settings → Media providers** and click
-   **Configure ComfyUI** at the top. Select that project in
-   **ComfyUI manual-test destination project** below the button.
-   This explicit choice is necessary because full-page Settings has its own route.
-3. Enter a name and the server origin, for example `http://127.0.0.1:8188`.
+2. Open **Settings → Media providers → ComfyUI**. This is a provider tab;
+   other providers' settings are hidden while ComfyUI is selected.
+3. **Active servers** lists saved servers and a **Test connection** action for
+   each. “Active” means configured for selection, not proof that a server is
+   online or supports a workflow. **Add server** opens its own configuration
+   screen; saving returns to the list. Enter a name and the server origin,
+   for example `http://127.0.0.1:8188`.
    For an operator-owned loopback/LAN server, explicitly approve the trusted
    network checkbox. HTTP is unencrypted; use HTTPS for untrusted networks.
    A proxy bearer token is optional and write-only. Save, then **Test connection**.
@@ -31,7 +34,8 @@ screenshots use synthetic fixtures, not a user's configuration.
    that server. Import the JSON under Workflow or paste it and click **Build
    input form**. Both the node graph and a `{"prompt": {...}}` request envelope
    are accepted; envelope fields such as `client_id` are not imported.
-   Give the workflow a name.
+   Give the workflow a name. **Preferred server** is optional and does not pin
+   the workflow to that server. Workflows can be saved before any server exists.
    File imports populate the JSON editor and use the filename as an initial name.
    A single recognized prompt input and a single image output are suggested when
    unambiguous; review them rather than assuming every graph has the same layout.
@@ -45,7 +49,7 @@ screenshots use synthetic fixtures, not a user's configuration.
      there is no global search/replace or LLM-generated graph.
    - **Named input from media request**: choose a unique public name such as
      `seed` or `resolution`. Every such input must be supplied in `workflowInputs`
-     on each new job. The graph value is the manual-test starting example, not
+     on each new job. The graph value is the saved example, not
      a silent fallback for omitted arguments. Text, number and boolean literals
      are supported; connections and structured values stay read-only.
    Then select the exact final `SaveImage` or
@@ -57,16 +61,37 @@ screenshots use synthetic fixtures, not a user's configuration.
    The **Before saving** checklist names any missing setup. Save stays actionable
    and reports those requirements instead of silently remaining grey. Changing
    the destination project does not discard your unsaved graph or mappings.
-6. Save the disabled version. Click **Validate schema**. Resolve missing nodes,
-   models/enums, incompatible links, or invalid input values on the server or
-   by importing a revised version. Validation discloses executable output node IDs.
-7. Click **Enable**. Under **Manual image test**, choose the exact workflow
-   version, enter a prompt, fill its named request inputs and confirm a real generation. The selected server
-   and originating project are displayed before submission. Click **Run image test**.
-8. Wait for the imported filename and preview. It should also appear among that
-   project's files. Reload Settings to verify that the server/workflow and task
-   result survive the browser session. Verify the result on your real server;
-   protocol-fixture tests are not evidence of GPU generation.
+6. Save the disabled version and **Enable** it when ready. **Validate schema**
+   is an optional, read-only check against the preferred or sole server; the CLI
+   can check a different server explicitly. This does not establish compatibility
+   with every server, disable the workflow globally, or submit a GPU job.
+7. Generate from the current project or image creation interface, not from a
+   Settings-only test form. Enabled workflows appear as ComfyUI image model
+   choices. An assistant can discover a named workflow and its required inputs
+   without asking you to copy an opaque ID. The requesting project owns the
+   imported image; there is no Settings destination-project selector.
+8. The selected server's live schemas and substituted graph are checked before
+   submission. Missing nodes, models/enums, invalid inputs, authentication and
+   connection failures are reported; OpenDesign does not try other servers or
+   providers automatically. The operator is responsible for installed models,
+   custom nodes and GPU capacity. Protocol-fixture tests do not establish real
+   model/server compatibility.
+
+Existing saved workflow versions retain their original server as a preference.
+Their graph bytes, mappings, enabled state and in-flight job identity survive
+the migration. A new version can change or remove the preference without
+changing an earlier version or a submitted job.
+
+Server selection is explicit request → workflow preference → sole saved server.
+With several servers and no preference, the caller must choose a discovered
+server ID. A missing or failing selection never silently falls through to another.
+
+For “use Comfy with the Krea workflow, 4:3”, discovery resolves the saved name,
+version, server preference and argument types. Current exposed-field semantics
+are unchanged: 4:3 must already be provided by the saved graph or declared named
+inputs. An unsupported ratio must be reported, not ignored or invented. Improving
+the exposed-fields/defaults interface is a separate follow-up. Video/audio
+execution is not supported by this adapter.
 
 Use **Edit as new version** on a saved workflow to inspect its graph/mappings
 and change locked values without rewriting a published or in-flight version.
@@ -92,18 +117,21 @@ diagnosis and never authorizes resubmitting an unknown remote outcome.
 
 Use `od media comfyui help` for the complete setup format. Every configuration
 action supports `--json` and `--daemon-url` and calls the same local API as Settings.
-Configuration is operator-only, not available to sandboxed agents.
+Configuration is operator-only, not available to sandboxed agents. Read-only
+discovery is available through the existing media catalog and excludes server
+URLs, tokens, private graphs, locked literals and input example values.
 
 ```sh
 od media comfyui server-add --file server.json --token-file /path/to/token --json
 od media comfyui list --json
+od media comfyui discover --json
 od media comfyui check --server <server-id> --json
 od media comfyui workflow-add --file workflow.json --json
-od media comfyui validate --workflow <workflow-id> --version 1 --json
+od media comfyui validate --workflow <workflow-id> --version 1 --server <server-id> --json
 od media comfyui enable --workflow <workflow-id> --version 1 --json
 od media generate --project <project-id> --surface image \
   --model 'comfyui/<workflow-id>@1' --prompt-file /path/to/prompt \
-  --workflow-inputs-file inputs.json --json
+  --workflow-inputs-file inputs.json --comfy-server <server-id> --json
 ```
 
 `server.json` contains `name`, `baseUrl`, and `trustedNetwork`. Keep tokens out
@@ -112,7 +140,7 @@ stored in the daemon database in a separate credential table, **not encrypted**,
 and are omitted from settings responses and browser storage. Runtime data follows
 the [root data-directory contract](../AGENTS.md#daemon-data-directory-contract).
 
-`workflow.json` contains `name`, `connectionId`, the API graph object as `graph`,
+`workflow.json` contains `name`, optional preferred `connectionId`, the API graph object as `graph`,
 `promptTargets: [{"nodeId":"6","input":"text"}]`, and
 `output: {"nodeId":"9","index":0}`. IDs must match your exported graph.
 `workflow-add --workflow <id>` appends a disabled immutable version; enablement
@@ -128,10 +156,11 @@ Use `od media comfyui workflow-show --workflow <id> --version 1 --json` to inspe
 the saved version, including locked values, prompt/parameter mappings and output.
 
 The existing media generation HTTP request accepts `workflowInputs` alongside
-`prompt`, `model`, `surface` and `requestId`, for example:
+`prompt`, `model`, `surface` and `requestId`. Optional `comfyServerId` selects a
+saved server for a new submission only, for example:
 
 ```json
-{"surface":"image","model":"comfyui/<workflow-id>@1","prompt":"A ceramic cup","workflowInputs":{"seed":123},"requestId":"a-unique-stable-request-id"}
+{"surface":"image","model":"comfyui/<workflow-id>@1","prompt":"A ceramic cup","workflowInputs":{"seed":123},"comfyServerId":"<server-id>","requestId":"a-unique-stable-request-id"}
 ```
 
 Unknown/missing inputs, wrong primitive types, duplicate mappings and attempts
@@ -142,16 +171,18 @@ Request deduplication includes sorted input values; reusing a request ID with
 different values fails rather than reusing the wrong image or submitting again.
 
 `comfyui` is the provider name, **not** a runnable model ID. Before asking an
-assistant to generate, save, validate and enable a workflow, then give it the exact
-`comfyui/<workflow-id>@<version>` ID shown on the workflow card (and any declared
-request inputs). A bare-provider request is rejected before creating a task or
+assistant to generate, save and enable a workflow. The assistant can discover its
+name and `comfyui/<workflow-id>@<version>` ID along with declared request inputs.
+A bare-provider request is rejected before creating a task or
 submitting to the server; its diagnostic lists enabled IDs/input types when
 available. Repeating `--model comfyui` cannot fix missing configuration.
 
 Bound projects require the existing `--workspace` and `--workspace-member` flags
 on generation and wait commands. Media policy and project write authorization
 still apply. New ComfyUI generations accept `--request-id <stable-id>` for safe
-HTTP retries; use a new ID only for a deliberately new generation.
+HTTP retries; use a new ID only for a deliberately new generation. Explicit
+server selection participates in deduplication: the same request ID cannot be
+reused to submit to another server.
 
 ## Recovery and current limits
 
@@ -162,9 +193,11 @@ HTTP retries; use a new ID only for a deliberately new generation.
   inspection, an operator can explicitly acknowledge the risk and **Release
   local server slot**. This does not cancel remote work or change its recorded
   outcome. CLI: `od media comfyui release --task <id> --confirm-unknown --json`.
-- Known prompt IDs are persisted against the existing media task. For a failed
-  download, interrupted wait, or daemon restart, use **Recover recorded result**
-  in Settings. It reads the same history and output; it does not submit again.
+- Known prompt IDs and the actual selected server are persisted against the
+  existing media task. For a failed download or interrupted wait, use **Recorded
+  jobs needing attention → Recover recorded result** in ComfyUI Settings. It uses
+  the original project's authorization and reads the same server history/output;
+  it does not submit again. No project chooser or new server flag is involved.
   CLI equivalent: `od media generate --project <id> --surface image
   --model 'comfyui/<workflow-id>@1' --resume-task <task-id> --json`.
 - Browser refresh does not cancel work. After daemon restart the existing task
@@ -184,9 +217,11 @@ HTTP retries; use a new ID only for a deliberately new generation.
   originals are retained, not silently stripped. Review metadata before export.
 - Settings labels for this experimental surface currently use explicit English
   fallback in all locales. Existing provider settings and selections are unchanged.
-- Workflows are selectable for the Settings manual test and through the
-  versioned model ID in the media API/CLI; the general chat/composer workflow
-  picker, reference-image editors and universal quality/aspect translation remain follow-up work.
+- Enabled workflows appear in image creation pickers and the media API/CLI.
+  Named-workflow discovery is available to assistants through `od media comfyui
+  discover --json`. Reference-image editors, video/audio, and universal
+  quality/aspect translation remain follow-up work; the exposed-fields/defaults
+  interface is unchanged in this refinement.
 
 The design guide is [draft PR #7](https://github.com/andremolnar/open-open-design/pull/7).
 This slice is not a claim that all acceptance gates in that proposal are complete.

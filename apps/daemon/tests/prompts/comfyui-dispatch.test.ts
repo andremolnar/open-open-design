@@ -11,6 +11,9 @@ describe('ComfyUI host dispatch constraints', () => {
         expect(prompt).toContain('## ComfyUI workflow dispatch');
         expect(prompt).toContain('Do not pass `--aspect`, `--quality`, `--resolution`, `--image`, or `--output`');
         expect(prompt).toContain('--workflow-inputs-file');
+        expect(prompt).toContain('media comfyui discover --json');
+        expect(prompt).toContain('--comfy-server <discovered-server-id>');
+        expect(prompt).toContain('No automatic cross-server retry');
         expect(prompt).not.toContain('--aspect 16:9)');
       });
     }

@@ -9,10 +9,6 @@
 .cards { display: grid; gap: 12px; }
 .panel article { padding: 16px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
 .panel code { display: block; font-size: 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
-.preview { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
-.destination { display: grid; gap: 6px; margin-top: 24px; font-size: 13px; }
-.destination select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-subtle); color: var(--text); }
-.entry { margin: 16px 0; }
 .builder { display: grid; gap: 12px; }
 .node { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
 .inputRow { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }

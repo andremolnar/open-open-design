@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import type Database from 'better-sqlite3';
 import { parseComfyWorkflowModelId } from '@open-design/contracts';
-import type { ComfyWorkflowValidation } from '@open-design/contracts';
+import type { ComfyWorkflowValidation, ComfyWorkflowDraft, ComfyConnectionSummary } from '@open-design/contracts';
 import { ComfyHttpClient, type ComfyClient } from './client.js';
 import { ComfyError } from './errors.js';
 import { object, validateComfySchema } from './schema.js';
 import {
-  beginComfyExecution, comfyWorkflowFingerprint, getComfyConnection, getComfyConnectionToken,
+  beginComfyExecution, getComfyConnection, getComfyConnectionToken, listComfyConnections,
   getComfyWorkflowDraft, getComfyWorkflowSummary, setComfyWorkflowValidation, updateComfyExecution,
   getComfyExecution,
 } from './store.js';
@@ -19,13 +19,32 @@ export function comfyClient(db: Database.Database, connectionId: string): ComfyH
   return new ComfyHttpClient(connection, getComfyConnectionToken(db, connectionId));
 }
 
+/** Select once, without probing other servers or changing the user's preference. */
+export function resolveComfyServer(db: Database.Database, workflow: Pick<ComfyWorkflowDraft, 'connectionId'>, override?: unknown): ComfyConnectionSummary {
+  if (override !== undefined && (typeof override !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(override))) {
+    throw new ComfyError('comfyServerId must be a saved ComfyUI server ID from discovery.');
+  }
+  const id = typeof override === 'string' ? override : workflow.connectionId;
+  if (id) {
+    const server = getComfyConnection(db, id);
+    if (!server) throw new ComfyError('The selected ComfyUI server was not found. Discover saved servers and choose an existing ID.');
+    return server;
+  }
+  const servers = listComfyConnections(db);
+  if (servers.length === 1) return servers[0]!;
+  throw new ComfyError(servers.length
+    ? 'Several ComfyUI servers are configured. Choose one with comfyServerId (--comfy-server), or save a preferred server for the workflow.'
+    : 'No ComfyUI server is configured. Add a server in Settings → Media providers → ComfyUI.');
+}
+
 export async function checkComfyWorkflow(
-  db: Database.Database, id: string, version: number, client?: ComfyClient,
+  db: Database.Database, id: string, version: number, client?: ComfyClient, serverId?: unknown,
 ): Promise<ComfyWorkflowValidation> {
   const draft = getComfyWorkflowDraft(db, id, version);
   if (!draft) throw new ComfyError('Workflow version not found');
   try {
-    const checked = validateComfySchema(draft, await (client ?? comfyClient(db, draft.connectionId)).json('/object_info'));
+    const server = resolveComfyServer(db, draft, serverId);
+    const checked = validateComfySchema(draft, await (client ?? comfyClient(db, server.id)).json('/object_info'));
     setComfyWorkflowValidation(db, id, version, checked.schemaFingerprint);
     return checked;
   } catch (error) {
@@ -71,36 +90,28 @@ export function validateComfyPng(bytes: Buffer): void {
 
 export async function renderComfyWorkflow(
   db: Database.Database,
-  input: { taskId: string; projectId: string; model: string; prompt: string; workflowInputs?: unknown; resume?: boolean; onProgress?: (line: string) => void },
+  input: { taskId: string; projectId: string; model: string; prompt: string; workflowInputs?: unknown; comfyServerId?: string; resume?: boolean; onProgress?: (line: string) => void },
   dependencies: { client?: ComfyClient; wait?: () => Promise<void>; maxPolls?: number } = {},
 ): Promise<{ bytes: Buffer; suggestedExt: string; providerNote: string }> {
   const selected = parseComfyWorkflowModelId(input.model);
   const summary = selected && getComfyWorkflowSummary(db, selected.id, selected.version);
   const draft = selected && getComfyWorkflowDraft(db, selected.id, selected.version);
-  if (!selected || !summary || (!summary.enabled && !input.resume) || !draft) throw new ComfyError('This workflow version is unavailable. Validate and enable it in Settings.');
+  if (!selected || !summary || (!summary.enabled && !input.resume) || !draft) throw new ComfyError('This workflow version is unavailable. Save and enable it in Settings.');
   const previous = input.resume ? getComfyExecution(db, input.taskId, input.projectId) : null;
   if (input.resume && (!previous?.promptId || previous.model !== input.model)) {
     throw new ComfyError('This job has no known prompt ID to recover. Inspect the server; a new submission may duplicate remote work.', 'COMFY_OUTCOME_UNKNOWN');
   }
+  if (input.resume && input.comfyServerId !== undefined) throw new ComfyError('Recovery uses the original server. Do not supply a new server selection.');
+  const server = resolveComfyServer(db, draft, previous?.connectionId ?? input.comfyServerId);
   const patched = input.resume ? null : bindComfyInputs(draft, input.prompt, input.workflowInputs);
-  const client = dependencies.client ?? comfyClient(db, draft.connectionId);
-  if (!input.resume) beginComfyExecution(db, { ...input, connectionId: draft.connectionId });
+  const client = dependencies.client ?? comfyClient(db, server.id);
+  if (!input.resume) beginComfyExecution(db, { ...input, connectionId: server.id });
   let submitted = Boolean(input.resume);
   let promptId: string | undefined = previous?.promptId;
   try {
     if (!input.resume) {
-      input.onProgress?.('Validating ComfyUI workflow');
+      input.onProgress?.(`Validating ${summary.name} on ${server.name}`);
       const schemas = await client.json('/object_info');
-      let checked: ComfyWorkflowValidation;
-      try { checked = validateComfySchema(draft, schemas); }
-      catch (error) {
-        setComfyWorkflowValidation(db, selected.id, selected.version, null);
-        throw error;
-      }
-      if (checked.schemaFingerprint !== comfyWorkflowFingerprint(db, selected.id, selected.version)) {
-        setComfyWorkflowValidation(db, selected.id, selected.version, null);
-        throw new ComfyError('ComfyUI node schemas changed. Revalidate and enable the workflow before another run.', 'COMFY_SCHEMA_DRIFT');
-      }
       // Request values must satisfy the same live enum/range/link contract as fixed values.
       validateComfySchema({ ...draft, graph: patched! }, schemas);
       updateComfyExecution(db, input.taskId, 'submitting');
@@ -133,7 +144,7 @@ export async function renderComfyWorkflow(
       if (object(entry) && object(entry.status)) {
         if (entry.status.status_str === 'error') {
           submitted = false;
-          throw new ComfyError('ComfyUI execution failed. Inspect the server for missing models, custom-node errors or GPU memory limits.');
+          throw new ComfyError(`Workflow ${summary.name} failed on ${server.name}. Check that server's execution log for missing models, custom-node errors or GPU memory limits.`);
         }
         if (entry.status.completed === true && entry.status.status_str === 'success') {
           // Execution ended: a failed safe download/import must never trigger another GPU submission.
@@ -161,6 +172,9 @@ export async function renderComfyWorkflow(
     updateComfyExecution(db, input.taskId, submitted ? 'outcome_unknown' : 'failed', promptId);
     if (submitted && !(error instanceof ComfyError && error.code === 'COMFY_OUTCOME_UNKNOWN')) {
       throw new ComfyError('ComfyUI may have accepted or completed this job. Its task and prompt ID were retained; do not blindly submit again.', 'COMFY_OUTCOME_UNKNOWN');
+    }
+    if (!submitted && error instanceof ComfyError) {
+      throw new ComfyError(`${summary.name} on ${server.name}: ${error.message}`, error.code, error.status);
     }
     throw error;
   }

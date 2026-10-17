@@ -32,6 +32,18 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 export interface Dict {
   'comfy.intro': string;
   'comfy.configure': string;
+  'comfy.activeServers': string;
+  'comfy.addServer': string;
+  'comfy.back': string;
+  'comfy.noServers': string;
+  'comfy.notChecked': string;
+  'comfy.serverSaved': string;
+  'comfy.preferredServer': string;
+  'comfy.noPreference': string;
+  'comfy.preferenceHint': string;
+  'comfy.recordedJobs': string;
+  'comfy.recordedJobsHint': string;
+  'comfy.refreshJobs': string;
   'comfy.needGraph': string;
   'comfy.needServer': string;
   'comfy.needName': string;

@@ -5067,7 +5067,6 @@ function AppInner() {
       welcome={presentation === 'modal' ? settingsWelcome : false}
       initialSection={settingsInitialSection}
       initialHighlight={settingsHighlight}
-      comfyProjects={projects.map((project) => ({ id: project.id, name: project.name, workspaceId: project.workspaceId ?? null }))}
       persistedProjectWorkspaceId={
         route.kind === 'project'
           ? projects.find((project) => project.id === route.projectId)?.workspaceId ?? null

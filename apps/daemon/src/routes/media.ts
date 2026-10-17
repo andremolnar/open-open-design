@@ -10,7 +10,8 @@ import {
   getComfyWorkflowDraft,
 } from '../media/comfyui/store.js';
 import { bindComfyInputs } from '../media/comfyui/workflow.js';
-import { checkComfyWorkflow, comfyClient, renderComfyWorkflow } from '../media/comfyui/service.js';
+import { checkComfyWorkflow, comfyClient, renderComfyWorkflow, resolveComfyServer } from '../media/comfyui/service.js';
+import { discoverComfy, unresolvedComfyExecutions } from '../media/comfyui/store.js';
 import { object } from '../media/comfyui/schema.js';
 import { ComfyError } from '../media/comfyui/errors.js';
 import type { Express } from 'express';
@@ -329,7 +330,8 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     }
     if (model === 'comfyui') return sendApiError(res, 400, 'COMFY_INVALID', comfyWorkflowModelHelp(listComfyWorkflows(db)));
     const comfySelection = parseComfyWorkflowModelId(model);
-    if (!comfySelection && req.body?.workflowInputs !== undefined) return sendApiError(res, 400, 'COMFY_INVALID', 'workflowInputs require a versioned ComfyUI workflow');
+    let selectedComfyServerId: string | undefined;
+    if (!comfySelection && (req.body?.workflowInputs !== undefined || req.body?.comfyServerId !== undefined)) return sendApiError(res, 400, 'COMFY_INVALID', 'workflowInputs and comfyServerId require a versioned ComfyUI workflow');
     if (model.startsWith('comfyui/')) {
       if (project.metadata?.baseDir) return sendApiError(res, 400, 'COMFY_INVALID', 'This experimental ComfyUI adapter requires a managed project, not an imported-folder destination.');
       if (!comfySelection || surface !== 'image') return sendApiError(res, 400, 'COMFY_INVALID', 'Choose a versioned ComfyUI image workflow');
@@ -342,19 +344,20 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
       }
       if (req.body?.output) return sendApiError(res, 400, 'COMFY_UNSUPPORTED_OPTIONS', 'Generation did not start: ComfyUI uses a per-task output filename for safe recovery. Omit the output override.', { nextStep: 'revise-options', retryable: false });
       if (!req.body?.resumeTaskId && !getComfyWorkflowSummary(db, comfySelection.id, comfySelection.version)?.enabled) {
-        return sendApiError(res, 409, 'COMFY_INVALID', 'Workflow version is disabled or missing. Validate and enable it in Settings.');
+        return sendApiError(res, 409, 'COMFY_INVALID', 'Workflow version is disabled or missing. Save and enable it in Settings.');
       }
       if (!req.body?.resumeTaskId && (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim())) {
         return sendApiError(res, 400, 'COMFY_INVALID', 'Image prompt is required');
       }
-      if (req.body?.resumeTaskId && (req.body.workflowInputs !== undefined || req.body.prompt)) {
-        return sendApiError(res, 400, 'COMFY_INVALID', 'Recovery uses the original submitted inputs. Do not provide new prompt or workflowInputs.');
+      if (req.body?.resumeTaskId && (req.body.workflowInputs !== undefined || req.body.prompt || req.body.comfyServerId !== undefined)) {
+        return sendApiError(res, 400, 'COMFY_INVALID', 'Recovery uses the original server and submitted inputs. Do not provide a new server, prompt or workflowInputs.');
       }
       if (!req.body?.resumeTaskId) {
         try {
           const draft = getComfyWorkflowDraft(db, comfySelection.id, comfySelection.version);
           if (!draft) throw new Error('Workflow not found');
           bindComfyInputs(draft, req.body.prompt, req.body.workflowInputs);
+          selectedComfyServerId = resolveComfyServer(db, draft, req.body.comfyServerId).id;
         } catch (error) { return sendApiError(res, 400, 'COMFY_INVALID', error instanceof Error ? error.message : 'Invalid workflow inputs'); }
       }
       if (req.body?.resumeTaskId) {
@@ -421,7 +424,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
       const taskId = comfySelection && req.body?.resumeTaskId ? req.body.resumeTaskId : randomUUID();
       const analyticsContext = await mediaAnalyticsContext(req, options.grant);
       if (comfySelection && !req.body?.resumeTaskId) {
-        const claimedTaskId = claimComfyRequest(db, { taskId, projectId, model, prompt: req.body.prompt, requestId: req.body.requestId, runId: options.grant?.runId, workflowInputs: req.body.workflowInputs });
+        const claimedTaskId = claimComfyRequest(db, { taskId, projectId, model, prompt: req.body.prompt, requestId: req.body.requestId, runId: options.grant?.runId, workflowInputs: req.body.workflowInputs, comfyServerId: req.body.comfyServerId });
         if (claimedTaskId !== taskId) {
           const previous = getLiveMediaTask(claimedTaskId);
           if (!previous) return sendApiError(res, 409, 'COMFY_OUTCOME_UNKNOWN', 'This request was recorded but its task is unavailable. Do not resubmit blindly.');
@@ -568,6 +571,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
           comfyRender: () => renderComfyWorkflow(db, {
             taskId, projectId, model, prompt: req.body.prompt ?? '', resume: Boolean(req.body.resumeTaskId),
             workflowInputs: req.body.workflowInputs,
+            ...(selectedComfyServerId ? { comfyServerId: selectedComfyServerId } : {}),
             onProgress: (line) => appendTaskProgress(task!, line),
           }),
         } : {}),
@@ -756,6 +760,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
   app.get('/api/media/models', (_req, res) => {
     res.json({
       providers: MEDIA_PROVIDERS,
+      comfyui: discoverComfy(db),
       image: [...IMAGE_MODELS, ...listComfyWorkflows(db).filter((workflow) => workflow.enabled).map((workflow) => ({
         id: comfyWorkflowModelId(workflow.id, workflow.version), label: `${workflow.name} · v${workflow.version}`,
         provider: 'comfyui', hint: 'ComfyUI workflow', caps: ['t2i'],
@@ -784,7 +789,11 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
       message.includes('SQLITE') || message.includes('constraint failed') ? 'ComfyUI record could not be saved. Check the server and workflow selection.' : message);
   };
   app.get('/api/media/comfyui', (_req, res) => {
-    res.json({ connections: listComfyConnections(db), workflows: listComfyWorkflows(db) });
+    res.json({ connections: listComfyConnections(db), workflows: listComfyWorkflows(db),
+      executions: unresolvedComfyExecutions(db).map((execution) => ({ ...execution,
+        running: ['queued', 'running'].includes(getLiveMediaTask(execution.taskId)?.status ?? ''),
+      })),
+    });
   });
   app.post('/api/media/comfyui/connections', (req, res) => {
     try {
@@ -813,7 +822,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     catch (error) { comfyRouteError(res, error); }
   });
   app.post('/api/media/comfyui/workflows/:workflowId/:version/validate', async (req, res) => {
-    try { res.json(await checkComfyWorkflow(db, req.params.workflowId, Number(req.params.version))); }
+    try { res.json(await checkComfyWorkflow(db, req.params.workflowId, Number(req.params.version), undefined, req.body?.comfyServerId)); }
     catch (error) { comfyRouteError(res, error); }
   });
   app.post('/api/media/comfyui/workflows/:workflowId/:version/enabled', (req, res) => {

@@ -69,6 +69,7 @@ const MEDIA_GENERATE_STRING_FLAGS = new Set([
   'request-id',
   'resume-task',
   'workflow-inputs-file',
+  'comfy-server',
   'project',
   'workspace',
   'workspace-member',
@@ -1877,6 +1878,10 @@ async function runMediaGenerate(rawArgs) {
   const prompt = await readPromptFromFlags(flags);
 
   let workflowInputs;
+  if (flags['comfy-server'] && (!flags.model.startsWith('comfyui/') || flags['resume-task'])) {
+    console.error('--comfy-server requires a new ComfyUI job; recovery uses the recorded server');
+    process.exit(2);
+  }
   if (flags['workflow-inputs-file']) {
     try {
       const { readComfyWorkflowInputs } = await import('./media/comfyui/cli.js');
@@ -1900,6 +1905,7 @@ async function runMediaGenerate(rawArgs) {
     language: flags.language,
     resumeTaskId: flags['resume-task'],
     ...(workflowInputs ? { workflowInputs } : {}),
+    ...(flags['comfy-server'] ? { comfyServerId: flags['comfy-server'] } : {}),
     ...(flags.model.startsWith('comfyui/') ? { requestId: flags['request-id'] || crypto.randomUUID() } : {}),
   };
   if (flags.length != null) body.length = Number(flags.length);
@@ -2298,6 +2304,7 @@ Common options:
   --resume-task <taskId>     ComfyUI only: recover a known submitted job without another GPU submission.
   --request-id <id>          ComfyUI only: reuse this ID on transport retries; generated if omitted.
   --workflow-inputs-file <path|->  ComfyUI only: JSON values for every declared named input.
+  --comfy-server <server-id>     ComfyUI only: override the preferred server for a new job.
   --output <filename>       File to write under the project. Auto-named if omitted.
   --aspect 1:1|16:9|9:16|4:3|3:4
   --quality <tier>          OpenDesign Cloud images only: published quality tier

@@ -19,7 +19,7 @@ function targetKey(target: ComfyInputTarget): string {
 /**
  * Parse an API export without guessing how canvas widget positions map to inputs.
  * This is structural validation only: /object_info must validate classes, types,
- * connected inputs and output capability before a draft can be enabled or run.
+ * connected inputs and output capability on the selected server before a run.
  */
 export function parseComfyApiGraph(raw: unknown): ComfyApiGraph {
   const size = Buffer.byteLength(typeof raw === 'string' ? raw : JSON.stringify(raw) ?? '');
@@ -34,8 +34,8 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
   if (typeof name !== 'string' || !name.trim() || name.length > 120) {
     throw new Error('Workflow name must be between 1 and 120 characters');
   }
-  if (typeof connectionId !== 'string' || !connectionId.trim()) {
-    throw new Error('Choose a saved ComfyUI server');
+  if (connectionId !== undefined && connectionId !== null && (typeof connectionId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(connectionId))) {
+    throw new Error('Preferred server must be a saved ComfyUI server ID');
   }
   const graph = parseComfyApiGraph(raw.graph);
   if (!Array.isArray(promptTargets) || !promptTargets.length || promptTargets.length > 8) {
@@ -80,7 +80,7 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
   }
   return {
     name: name.trim(),
-    connectionId: connectionId.trim(),
+    ...(typeof connectionId === 'string' ? { connectionId } : {}),
     graph,
     promptTargets: promptTargets.map((target: ComfyInputTarget) => ({ nodeId: target.nodeId, input: target.input })),
     ...(parameters.length ? { parameters } : {}),

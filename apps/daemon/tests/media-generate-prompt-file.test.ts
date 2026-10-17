@@ -120,6 +120,15 @@ describe('od media generate --prompt-file', () => {
     expect(request.workflowInputs).toEqual({ seed: 456, resolution: 'medium', enabled: false });
     expect(request.prompt).toBe('a cup');
   });
+  it('forwards an explicit saved server for ComfyUI and rejects it on other providers without HTTP', async () => {
+    await runCli(['media', 'generate', '--surface', 'image', '--model', 'comfyui/workflow@1',
+      '--prompt', 'a cup', '--comfy-server', 'studio-1', '--json', '--daemon-url', baseUrl]);
+    expect(JSON.parse(seen.find((request) => request.url.includes('/media/generate'))!.body).comfyServerId).toBe('studio-1');
+    seen = [];
+    await runCli(['media', 'generate', '--surface', 'image', '--model', 'test-model',
+      '--prompt', 'a cup', '--comfy-server', 'studio-1', '--json', '--daemon-url', baseUrl], undefined, 2);
+    expect(seen).toEqual([]);
+  });
   it('reads a long-form prompt from a file and posts it to media/generate', async () => {
     const promptFile = path.join(tmp, 'prompt.txt');
     await writeFile(promptFile, LONG_PROMPT, 'utf8');

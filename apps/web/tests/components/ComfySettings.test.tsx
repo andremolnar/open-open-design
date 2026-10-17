@@ -15,7 +15,8 @@ function mockRequests(configuration: ComfySettingsResponse = settings) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
       writes.push({ url, body: JSON.parse(String(init.body)) });
-      if (url.endsWith('/media/generate')) return Response.json({ taskId: 'job', status: 'running', startedAt: 1 });
+      if (url.endsWith('/connections')) configuration = { ...configuration, connections: [...configuration.connections,
+        { id: 'new-server', name: String(writes.at(-1)!.body.name), baseUrl: 'http://127.0.0.1:8188', trustedNetwork: true, hasToken: true }] };
       return Response.json({ id: 'new-server' });
     }
     if (url === '/api/media/comfyui') return Response.json(configuration);
@@ -30,11 +31,20 @@ function mockRequests(configuration: ComfySettingsResponse = settings) {
   return { writes, fetchMock };
 }
 
-describe('ComfyUI settings manual test', () => {
-  it('preserves unsaved authoring fields and trust when choosing the result destination', async () => {
+describe('ComfyUI provider settings', () => {
+  it('shows active servers and reveals the add-server form only on request', async () => {
     mockRequests();
-    render(<I18nProvider initial="en"><ComfySettings projects={[{ id: 'A', name: 'Project A', workspaceId: null }]} workspaceContext={null} /></I18nProvider>);
-    fireEvent.click(screen.getByRole('button', { name: 'Configure ComfyUI' }));
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    const active = await screen.findByRole('group', { name: 'Active servers' });
+    expect(within(active).getByText(/Studio GPU/)).toBeTruthy();
+    expect(screen.queryByLabelText('Bearer token (optional, write-only)')).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Manual image test' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    expect(screen.getByLabelText('Bearer token (optional, write-only)')).toBeTruthy();
+  });
+  it('preserves unsaved workflow fields when opening and cancelling the server form', async () => {
+    mockRequests();
+    render(<I18nProvider initial="en"><ComfySettings /></I18nProvider>);
     const form = () => within(screen.getByRole('group', { name: 'Workflow' }));
     fireEvent.change(form().getByLabelText('Name', { exact: true }), { target: { value: 'Unsaved render' } });
     const json = JSON.stringify({ '6': { class_type: 'CLIPTextEncode', inputs: { text: 'cup' } },
@@ -43,7 +53,9 @@ describe('ComfyUI settings manual test', () => {
     fireEvent.click(form().getByRole('button', { name: 'Build input form' }));
     await waitFor(() => expect(form().getByLabelText('Source · 6.text')).toBeTruthy());
     fireEvent.click(form().getByLabelText(/I trust this graph/));
-    fireEvent.change(screen.getByLabelText('ComfyUI manual-test destination project'), { target: { value: 'A' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    expect(screen.queryByRole('group', { name: 'Workflow' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to ComfyUI' }));
     await waitFor(() => expect((form().getByLabelText('Name', { exact: true }) as HTMLInputElement).value).toBe('Unsaved render'));
     expect((form().getByLabelText('Paste API graph or /prompt request JSON') as HTMLTextAreaElement).value).toBe(json);
     expect((form().getByLabelText(/I trust this graph/) as HTMLInputElement).checked).toBe(true);
@@ -62,7 +74,7 @@ describe('ComfyUI settings manual test', () => {
   });
   it('keeps Save actionable and explains missing mappings instead of silently disabling it', async () => {
     const { writes } = mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId={null} ready={false} workspaceContext={null} /></I18nProvider>);
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
     const form = within(screen.getByRole('group', { name: 'Workflow' }));
     const save = form.getByRole('button', { name: 'Save disabled workflow version' }) as HTMLButtonElement;
     expect(save.disabled).toBe(false);
@@ -73,7 +85,7 @@ describe('ComfyUI settings manual test', () => {
 
   it('populates the JSON editor from a file and suggests a unique prompt/output without enabling a GPU job', async () => {
     mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId={null} ready={false} workspaceContext={null} /></I18nProvider>);
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
     const form = within(screen.getByRole('group', { name: 'Workflow' }));
     const json = JSON.stringify({ prompt: {
       '6': { class_type: 'CLIPTextEncode', inputs: { text: 'YOUR PROMPT HERE' } },
@@ -86,27 +98,11 @@ describe('ComfyUI settings manual test', () => {
     expect((form.getByLabelText('Name', { exact: true }) as HTMLInputElement).value).toBe('sample-workflow');
     expect((form.getByLabelText('Source · 6.text') as HTMLSelectElement).value).toBe('prompt');
     expect((form.getByLabelText('Final image output to import') as HTMLSelectElement).value).toBe('5');
-    expect((screen.getByRole('button', { name: 'Run image test' }) as HTMLButtonElement).disabled).toBe(true);
-  });
-  it('renders typed public inputs for the selected version and sends them as workflowInputs', async () => {
-    const { writes } = mockRequests({ ...settings, workflows: [{ ...settings.workflows[0]!, parameters: [
-      { name: 'seed', type: 'number', defaultValue: 123 }, { name: 'enabled', type: 'boolean', defaultValue: true },
-    ] }] });
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId="origin-A" ready workspaceContext={null} /></I18nProvider>);
-    const form = within(screen.getByRole('group', { name: 'Manual image test' }));
-    await waitFor(() => expect(form.getByRole('option', { name: 'Cup render · v1' })).toBeTruthy());
-    fireEvent.change(form.getByLabelText('Workflow'), { target: { value: 'comfyui/workflow@1' } });
-    fireEvent.change(form.getByLabelText('Test prompt'), { target: { value: 'a cup' } });
-    fireEvent.change(form.getByLabelText('seed'), { target: { value: '456' } });
-    fireEvent.click(form.getByLabelText('enabled'));
-    fireEvent.click(form.getByLabelText(/Submit a real generation/));
-    fireEvent.click(form.getByRole('button', { name: 'Run image test' }));
-    await waitFor(() => expect(writes).toHaveLength(1));
-    expect(writes[0]?.body.workflowInputs).toEqual({ seed: 456, enabled: false });
+    expect(screen.queryByRole('button', { name: 'Run image test' })).toBeNull();
   });
   it('builds a form from an envelope, locks dimensions and saves explicit prompt, parameter and PreviewImage mappings', async () => {
     const { writes } = mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId={null} ready={false} workspaceContext={null} /></I18nProvider>);
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
     const form = within(screen.getByRole('group', { name: 'Workflow' }));
     const graph = {
       '21': { class_type: 'CLIPTextEncode', inputs: { text: 'Example prompt' } },
@@ -132,10 +128,12 @@ describe('ComfyUI settings manual test', () => {
       graph: { ...graph, '20': { ...graph['20'], inputs: { width: 640, height: 480, preset: 'standard' } } },
     } });
     expect(form.queryByLabelText('Source · 30.images')).toBeNull();
+    expect(writes[0]?.body.connectionId).toBeUndefined();
   });
   it('saves a write-only token without returning it to the input or putting it into localStorage', async () => {
     const { writes } = mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId={null} ready={false} workspaceContext={null} /></I18nProvider>);
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
     const server = within(screen.getByRole('group', { name: 'Server' }));
     fireEvent.change(server.getByLabelText('Name', { exact: true }), { target: { value: 'My GPU' } });
     fireEvent.change(server.getByLabelText('Bearer token (optional, write-only)'), { target: { value: 'private-token' } });
@@ -143,34 +141,32 @@ describe('ComfyUI settings manual test', () => {
     fireEvent.click(server.getByRole('button', { name: 'Save server' }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toMatchObject({ url: '/api/media/comfyui/connections', body: { name: 'My GPU', token: 'private-token', trustedNetwork: true } });
-    await waitFor(() => expect((server.getByLabelText('Bearer token (optional, write-only)') as HTMLInputElement).value).toBe(''));
+    await waitFor(() => expect(screen.queryByLabelText('Bearer token (optional, write-only)')).toBeNull());
+    expect(screen.getByRole('article', { name: 'My GPU' })).toBeTruthy();
     expect(JSON.stringify(localStorage)).not.toContain('private-token');
   });
 
-  it('requires confirmation and sends a versioned workflow to the origin project, then previews imported bytes', async () => {
-    const { writes } = mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId="origin-A" ready workspaceContext={null} /></I18nProvider>);
-    const form = within(screen.getByRole('group', { name: 'Manual image test' }));
-    await waitFor(() => expect(form.getByRole('option', { name: 'Cup render · v1' })).toBeTruthy());
-    fireEvent.change(form.getByLabelText('Workflow'), { target: { value: 'comfyui/workflow@1' } });
-    fireEvent.change(form.getByLabelText('Test prompt'), { target: { value: 'A ceramic cup' } });
-    expect((form.getByRole('button', { name: 'Run image test' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(writes).toHaveLength(0);
-    fireEvent.click(form.getByRole('checkbox'));
-    fireEvent.click(form.getByRole('button', { name: 'Run image test' }));
-    await waitFor(() => expect(writes).toHaveLength(1));
-    expect(writes[0]).toMatchObject({ url: '/api/projects/origin-A/media/generate', body: {
-      surface: 'image', model: 'comfyui/workflow@1', prompt: 'A ceramic cup', requestId: expect.any(String),
-    } });
-    await waitFor(() => expect(screen.getByRole('img').getAttribute('src')).toContain('/api/projects/origin-A/raw/comfy-job.png'));
+  it('surfaces a failed server test with its server name and never submits an image', async () => {
+    const { fetchMock, writes } = mockRequests();
+    const implementation = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, init) => url.endsWith('/check')
+      ? Promise.resolve(Response.json({ error: { message: 'Cannot reach ComfyUI. Check the saved server.' } }, { status: 502 }))
+      : implementation(url, init));
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Test connection' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Studio GPU: Cannot reach');
+    expect(writes.some((write) => write.url.endsWith('/media/generate'))).toBe(false);
   });
 
-  it('does not enable a run from Home or while project authority is unavailable', async () => {
-    const { writes } = mockRequests();
-    render(<I18nProvider initial="en"><ComfySettingsPanel projectId={null} ready={false} workspaceContext={null} /></I18nProvider>);
-    expect(screen.getByText(/Choose a destination project above/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Run image test' }) as HTMLButtonElement).disabled).toBe(true);
-    await waitFor(() => expect(screen.getByText('Cup render · v1', { selector: 'strong' })).toBeTruthy());
-    expect(writes).toHaveLength(0);
+  it('recovers a recorded job into its original project without a new prompt or server selection', async () => {
+    const { writes } = mockRequests({ ...settings, executions: [{ taskId: 'old-job', projectId: 'original-project',
+      model: 'comfyui/workflow@1', connectionId: 'original-server', phase: 'outcome_unknown', promptId: 'known-prompt', running: false }] });
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    const button = await screen.findByRole('button', { name: 'Recover recorded result (no new submission)' });
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({ url: '/api/projects/original-project/media/generate',
+      body: { surface: 'image', model: 'comfyui/workflow@1', resumeTaskId: 'old-job' } });
   });
 });

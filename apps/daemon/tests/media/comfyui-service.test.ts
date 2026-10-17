@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { comfyWorkflowModelId } from '@open-design/contracts';
 import { generateMedia } from '../../src/media/index.js';
-import { renderComfyWorkflow, checkComfyWorkflow, validateComfyPng } from '../../src/media/comfyui/service.js';
+import { renderComfyWorkflow, checkComfyWorkflow, validateComfyPng, resolveComfyServer } from '../../src/media/comfyui/service.js';
 import { addComfyConnection, addComfyWorkflowDraft, getComfyExecution, migrateComfyWorkflows,
   setComfyWorkflowEnabled, claimComfyRequest } from '../../src/media/comfyui/store.js';
-import { releaseComfyOccupancy } from '../../src/media/comfyui/store.js';
+import { releaseComfyOccupancy, listComfyWorkflows, discoverComfy } from '../../src/media/comfyui/store.js';
 import { assertComfyAddress } from '../../src/media/comfyui/client.js';
 import { validateComfySchema } from '../../src/media/comfyui/schema.js';
 import { ComfyError } from '../../src/media/comfyui/errors.js';
@@ -51,12 +51,50 @@ async function setup() {
 }
 
 describe('ComfyUI handoff and returned assets', () => {
+  it('requires an explicit choice when no preference exists and multiple servers are configured', async () => {
+    const { db, connection } = await setup();
+    expect(resolveComfyServer(db, {}).id).toBe(connection.id);
+    const other = addComfyConnection(db, { name: 'Other', baseUrl: 'http://127.0.0.1:8189', trustedNetwork: true });
+    expect(() => resolveComfyServer(db, {})).toThrow('Several');
+    expect(resolveComfyServer(db, { connectionId: connection.id }, other.id).id).toBe(other.id);
+    expect(() => resolveComfyServer(db, { connectionId: connection.id }, 'missing')).toThrow('not found');
+    expect(() => resolveComfyServer(db, {}, '')).toThrow('saved ComfyUI server ID');
+  });
+
+  it('discovers a Krea-named workflow and forwards an explicitly exposed 4:3 size without editing the saved graph', async () => {
+    const { db, client, draft } = await setup();
+    const imageGraph = { ...graph, '1': { ...graph['1'], inputs: { prompt: 'original', width: 512, height: 512 } } };
+    const workflow = addComfyWorkflowDraft(db, { ...draft, name: 'Krea fixture', graph: imageGraph,
+      parameters: [{ name: 'width', nodeId: '1', input: 'width' }, { name: 'height', nodeId: '1', input: 'height' }] });
+    setComfyWorkflowEnabled(db, workflow.id, 1, true);
+    const discovered = discoverComfy(db).workflows.find(({ name }) => name === 'Krea fixture')!;
+    expect(discovered.inputs).toEqual([{ name: 'width', type: 'number', required: true }, { name: 'height', type: 'number', required: true }]);
+    const originalJson = client.json.getMockImplementation()!;
+    client.json.mockImplementation((path, body) => path === '/object_info' ? Promise.resolve({ ...schemas,
+      SolidImage: { ...schemas.SolidImage, input: { required: { prompt: ['STRING', {}], width: ['INT', { min: 64, max: 2048 }], height: ['INT', { min: 64, max: 2048 }] } } },
+    }) : originalJson(path, body));
+    await renderComfyWorkflow(db, { taskId: 'ratio', projectId: 'A', model: discovered.model, prompt: 'cup',
+      workflowInputs: { width: 1024, height: 768 } }, { client });
+    const submitted = client.json.mock.calls.find(([path]) => path === '/prompt')?.[1] as { prompt: typeof imageGraph };
+    expect(submitted.prompt['1'].inputs).toEqual({ prompt: 'cup', width: 1024, height: 768 });
+    expect(imageGraph['1'].inputs).toEqual({ prompt: 'original', width: 512, height: 512 });
+  });
+
+  it('reports selected-server schema errors without disabling the workflow or trying another server', async () => {
+    const { db, client, model } = await setup();
+    client.json.mockResolvedValue({ SaveImage: schemas.SaveImage });
+    await expect(renderComfyWorkflow(db, { taskId: 'missing-model', projectId: 'A', model, prompt: 'cup' }, { client }))
+      .rejects.toThrow(/Solid on Studio:.*SolidImage/);
+    expect(client.json.mock.calls.filter(([path]) => path === '/prompt')).toHaveLength(0);
+    expect(getComfyExecution(db, 'missing-model', 'A')?.phase).toBe('failed');
+    expect(listComfyWorkflows(db)[0]?.enabled).toBe(true);
+  });
   it('explains that the provider alias is not a saved model and never falls back or submits it', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'od-comfy-alias-')); dirs.push(dir);
     const comfyRender = vi.fn();
     await expect(generateMedia({ projectRoot: dir, projectsRoot: join(dir, 'projects'), projectId: 'A',
       surface: 'image', model: 'comfyui', prompt: 'a cup', comfyRender,
-    })).rejects.toThrow(/save.*validate.*enable/i);
+    })).rejects.toThrow(/save.*enable/i);
     expect(comfyRender).not.toHaveBeenCalled();
   });
   it('records explicit submission rejection as failed rather than manufacturing an unknown GPU job', async () => {
@@ -149,6 +187,21 @@ describe('ComfyUI handoff and returned assets', () => {
     expect(claimComfyRequest(db, parameterized)).toBe('first-task');
     expect(claimComfyRequest(db, { ...parameterized, workflowInputs: { resolution: 'medium', seed: 12 } })).toBe('first-task');
     expect(() => claimComfyRequest(db, { ...parameterized, workflowInputs: { seed: 13, resolution: 'medium' } })).toThrow('different request');
+    const onServer = { ...request, requestId: 'server-choice-1', comfyServerId: 'server-a' };
+    expect(claimComfyRequest(db, onServer)).toBe('first-task');
+    expect(() => claimComfyRequest(db, { ...onServer, comfyServerId: 'server-b' })).toThrow('different request');
+  });
+
+  it('records an explicit server override and refuses to recover the job on a different server', async () => {
+    const { db, client, model } = await setup();
+    const other = addComfyConnection(db, { name: 'Other', baseUrl: 'http://127.0.0.1:8189', trustedNetwork: true });
+    client.image.mockRejectedValueOnce(new Error('download interrupted'));
+    await expect(renderComfyWorkflow(db, { taskId: 'override', projectId: 'A', model, prompt: 'cup', comfyServerId: other.id }, { client }))
+      .rejects.toMatchObject({ code: 'COMFY_OUTCOME_UNKNOWN' });
+    expect(getComfyExecution(db, 'override', 'A')).toMatchObject({ connectionId: other.id });
+    await expect(renderComfyWorkflow(db, { taskId: 'override', projectId: 'A', model, prompt: '', resume: true, comfyServerId: 'different' }, { client }))
+      .rejects.toThrow(/original server/i);
+    expect(client.json.mock.calls.filter(([path]) => path === '/prompt')).toHaveLength(1);
   });
 
   it('validates substituted enum/range values before posting and keeps the saved fixed graph intact', async () => {

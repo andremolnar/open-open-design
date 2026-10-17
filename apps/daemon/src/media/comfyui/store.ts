@@ -9,8 +9,10 @@ import type {
   ComfyExecutionSummary,
   ComfyWorkflowInputs,
   ComfyLiteral,
+  ComfyDiscovery,
 } from '@open-design/contracts';
 import { validateComfyWorkflowDraft } from './workflow.js';
+import { comfyWorkflowModelId } from '@open-design/contracts';
 
 type ConnectionRow = {
   id: string;
@@ -23,7 +25,7 @@ type WorkflowRow = {
   configId: string;
   version: number;
   name: string;
-  connectionId: string;
+  connectionId: string | null;
   graphJson: string;
   graphSha256: string;
   bindingsJson: string;
@@ -50,7 +52,7 @@ export function migrateComfyWorkflows(db: Database.Database): void {
       config_id TEXT NOT NULL,
       version INTEGER NOT NULL CHECK(version > 0),
       name TEXT NOT NULL,
-      connection_id TEXT NOT NULL REFERENCES comfy_connections(id) ON DELETE RESTRICT,
+      connection_id TEXT REFERENCES comfy_connections(id) ON DELETE RESTRICT,
       graph_json TEXT NOT NULL,
       graph_sha256 TEXT NOT NULL,
       bindings_json TEXT NOT NULL,
@@ -78,12 +80,32 @@ export function migrateComfyWorkflows(db: Database.Database): void {
       task_id TEXT NOT NULL
     );
   `);
-  const columns = db.prepare('PRAGMA table_info(comfy_workflow_versions)').all() as Array<{ name: string }>;
+  const columns = db.prepare('PRAGMA table_info(comfy_workflow_versions)').all() as Array<{ name: string; notnull: number }>;
   if (!columns.some((column) => column.name === 'schema_fingerprint')) {
     db.exec('ALTER TABLE comfy_workflow_versions ADD COLUMN schema_fingerprint TEXT');
   }
   if (!columns.some((column) => column.name === 'parameters_json')) {
     db.exec("ALTER TABLE comfy_workflow_versions ADD COLUMN parameters_json TEXT NOT NULL DEFAULT '[]'");
+  }
+  // Retain every immutable graph/version and the old server as its preference.
+  // Only the NOT NULL constraint changes; executions retain their original server.
+  if (columns.find((column) => column.name === 'connection_id')?.notnull) {
+    db.transaction(() => db.exec(`
+      CREATE TABLE comfy_workflow_versions_reusable (
+        config_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version > 0), name TEXT NOT NULL,
+        connection_id TEXT REFERENCES comfy_connections(id) ON DELETE RESTRICT,
+        graph_json TEXT NOT NULL, graph_sha256 TEXT NOT NULL, bindings_json TEXT NOT NULL,
+        output_json TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, schema_checked_at INTEGER,
+        created_at INTEGER NOT NULL, schema_fingerprint TEXT, parameters_json TEXT NOT NULL DEFAULT '[]',
+        PRIMARY KEY(config_id, version)
+      );
+      INSERT INTO comfy_workflow_versions_reusable SELECT config_id, version, name, connection_id,
+        graph_json, graph_sha256, bindings_json, output_json, enabled, schema_checked_at,
+        created_at, schema_fingerprint, parameters_json FROM comfy_workflow_versions;
+      DROP TABLE comfy_workflow_versions;
+      ALTER TABLE comfy_workflow_versions_reusable RENAME TO comfy_workflow_versions;
+      CREATE INDEX idx_comfy_workflows_connection ON comfy_workflow_versions(connection_id, config_id);
+    `))();
   }
   const executionColumns = db.prepare('PRAGMA table_info(comfy_media_executions)').all() as Array<{ name: string }>;
   if (!executionColumns.some((column) => column.name === 'released_at')) {
@@ -93,11 +115,12 @@ export function migrateComfyWorkflows(db: Database.Database): void {
 
 /** A browser/transport retry reuses a task, never makes a second /prompt attempt. */
 export function claimComfyRequest(
-  db: Database.Database, input: { requestId: string; projectId: string; model: string; prompt: string; taskId: string; runId?: string | undefined; workflowInputs?: ComfyWorkflowInputs },
+  db: Database.Database, input: { requestId: string; projectId: string; model: string; prompt: string; taskId: string; runId?: string | undefined; workflowInputs?: ComfyWorkflowInputs; comfyServerId?: string },
 ): string {
   const payload: unknown[] = [input.projectId, input.model, input.prompt, input.runId ?? null];
   const values = Object.entries(input.workflowInputs ?? {}).sort(([a], [b]) => a.localeCompare(b));
   if (values.length) payload.push(values);
+  if (input.comfyServerId !== undefined) payload.push({ comfyServerId: input.comfyServerId });
   const hash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   return db.transaction(() => {
     const existing = db.prepare('SELECT project_id AS projectId, payload_hash AS hash, task_id AS taskId FROM comfy_media_requests WHERE request_id = ?')
@@ -123,8 +146,8 @@ export function getComfyWorkflowSummary(db: Database.Database, id: string, versi
 export function setComfyWorkflowValidation(
   db: Database.Database, id: string, version: number, fingerprint: string | null,
 ): void {
-  db.prepare(`UPDATE comfy_workflow_versions SET schema_fingerprint = ?, schema_checked_at = ?,
-    enabled = 0 WHERE config_id = ? AND version = ?`)
+  db.prepare(`UPDATE comfy_workflow_versions SET schema_fingerprint = ?, schema_checked_at = ?
+    WHERE config_id = ? AND version = ?`)
     .run(fingerprint, fingerprint ? Date.now() : null, id, version);
 }
 
@@ -135,7 +158,6 @@ export function comfyWorkflowFingerprint(db: Database.Database, id: string, vers
 
 export function setComfyWorkflowEnabled(db: Database.Database, id: string, version: number, enabled: boolean): void {
   db.transaction(() => {
-    if (enabled && !comfyWorkflowFingerprint(db, id, version)) throw new Error('Validate the workflow before enabling it');
     if (enabled) db.prepare('UPDATE comfy_workflow_versions SET enabled = 0 WHERE config_id = ?').run(id);
     db.prepare('UPDATE comfy_workflow_versions SET enabled = ? WHERE config_id = ? AND version = ?')
       .run(Number(enabled), id, version);
@@ -161,11 +183,18 @@ export function updateComfyExecution(db: Database.Database, taskId: string, phas
 }
 
 export function getComfyExecution(db: Database.Database, taskId: string, projectId: string): ComfyExecutionSummary | null {
-  const row = db.prepare(`SELECT task_id AS taskId, project_id AS projectId, model, phase, prompt_id AS promptId, released_at AS releasedAt
+  const row = db.prepare(`SELECT task_id AS taskId, project_id AS projectId, connection_id AS connectionId, model, phase, prompt_id AS promptId, released_at AS releasedAt
     FROM comfy_media_executions WHERE task_id = ? AND project_id = ?`).get(taskId, projectId) as
     (ComfyExecutionSummary & { promptId: string | null }) | undefined;
-  return row ? { taskId: row.taskId, projectId: row.projectId, model: row.model, phase: row.phase,
+  return row ? { taskId: row.taskId, projectId: row.projectId, model: row.model, connectionId: row.connectionId, phase: row.phase,
     ...(row.promptId ? { promptId: row.promptId } : {}), ...(row.releasedAt ? { releasedAt: row.releasedAt } : {}) } : null;
+}
+
+export function unresolvedComfyExecutions(db: Database.Database): ComfyExecutionSummary[] {
+  const rows = db.prepare(`SELECT task_id AS taskId, project_id AS projectId FROM comfy_media_executions
+    WHERE phase NOT IN ('completed', 'failed') AND released_at IS NULL ORDER BY updated_at DESC LIMIT 50`)
+    .all() as Array<{ taskId: string; projectId: string }>;
+  return rows.map(({ taskId, projectId }) => getComfyExecution(db, taskId, projectId)!);
 }
 
 /** Record an informed operator override without fabricating terminal remote evidence. */
@@ -268,7 +297,7 @@ function workflowSummary(row: WorkflowRow): ComfyWorkflowSummary {
     id: row.configId,
     version: row.version,
     name: row.name,
-    connectionId: row.connectionId,
+    ...(row.connectionId ? { connectionId: row.connectionId } : {}),
     graphSha256: row.graphSha256,
     enabled: row.enabled === 1,
     output: JSON.parse(row.outputJson),
@@ -285,7 +314,20 @@ export function listComfyWorkflows(db: Database.Database): ComfyWorkflowSummary[
     .all() as WorkflowRow[]).map(workflowSummary);
 }
 
-/** Each import creates an immutable, disabled version; schema validation is a later gate. */
+/** Discovery is public capability metadata, not access to operator configuration. */
+export function discoverComfy(db: Database.Database): ComfyDiscovery {
+  return {
+    servers: listComfyConnections(db).map(({ id, name }) => ({ id, name })),
+    workflows: listComfyWorkflows(db).filter((workflow) => workflow.enabled).map((workflow) => ({
+      id: workflow.id, version: workflow.version, name: workflow.name,
+      model: comfyWorkflowModelId(workflow.id, workflow.version),
+      ...(workflow.connectionId ? { preferredServerId: workflow.connectionId } : {}),
+      inputs: (workflow.parameters ?? []).map(({ name, type }) => ({ name, type, required: true as const })),
+    })),
+  };
+}
+
+/** Each import creates an immutable, disabled version; server schemas are checked before submission. */
 export function addComfyWorkflowDraft(db: Database.Database, input: unknown): ComfyWorkflowSummary {
   const draft = validateComfyWorkflowDraft(input);
   const graphJson = JSON.stringify(draft.graph);
@@ -299,10 +341,11 @@ function insertWorkflowVersion(
   db: Database.Database, configId: string, version: number, draft: ComfyWorkflowDraft,
   graphJson: string, graphSha256: string,
 ): void {
+  if (draft.connectionId && !getComfyConnection(db, draft.connectionId)) throw new Error('Preferred ComfyUI server was not found. Choose a saved server or leave the preference empty.');
   db.prepare(`INSERT INTO comfy_workflow_versions
     (config_id, version, name, connection_id, graph_json, graph_sha256,
       bindings_json, output_json, parameters_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(configId, version, draft.name, draft.connectionId, graphJson, graphSha256,
+    .run(configId, version, draft.name, draft.connectionId ?? null, graphJson, graphSha256,
       JSON.stringify(draft.promptTargets), JSON.stringify(draft.output), JSON.stringify(draft.parameters ?? []), Date.now());
 }
 
@@ -314,13 +357,10 @@ export function reviseComfyWorkflowDraft(
   const graphJson = JSON.stringify(draft.graph);
   const graphSha256 = createHash('sha256').update(graphJson).digest('hex');
   return db.transaction(() => {
-    const previous = db.prepare(`SELECT version, connection_id AS connectionId
+    const previous = db.prepare(`SELECT version
       FROM comfy_workflow_versions WHERE config_id = ? ORDER BY version DESC LIMIT 1`)
-      .get(configId) as { version: number; connectionId: string } | undefined;
+      .get(configId) as { version: number } | undefined;
     if (!previous) throw new Error('Workflow not found');
-    if (previous.connectionId !== draft.connectionId) {
-      throw new Error('A workflow version cannot silently move to another server');
-    }
     const version = previous.version + 1;
     insertWorkflowVersion(db, configId, version, draft, graphJson, graphSha256);
     return getComfyWorkflowSummary(db, configId, version)!;
@@ -333,7 +373,7 @@ export function getComfyWorkflowDraft(db: Database.Database, id: string, version
     .get(id, version) as WorkflowRow | undefined;
   return row ? {
     name: row.name,
-    connectionId: row.connectionId,
+    ...(row.connectionId ? { connectionId: row.connectionId } : {}),
     graph: JSON.parse(row.graphJson),
     promptTargets: JSON.parse(row.bindingsJson),
     parameters: JSON.parse(row.parametersJson),
