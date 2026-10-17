@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bindComfyPrompt,
+  bindComfyInputs,
   parseComfyApiGraph,
   validateComfyWorkflowDraft,
 } from '../../src/media/comfyui/workflow.js';
@@ -20,6 +21,43 @@ function draft() {
 }
 
 describe('ComfyUI API graph import', () => {
+  it('accepts a /prompt request envelope as well as its inner API graph', () => {
+    expect(parseComfyApiGraph(JSON.stringify({ prompt: graph, client_id: 'ignored' }))).toEqual(graph);
+  });
+
+  it('binds only declared typed request inputs while preserving locked literals and links', () => {
+    const workflow = { ...draft(), graph: { ...graph,
+      '20': { class_type: 'FixtureDimensions', inputs: { width: 512, height: 512, preset: 'standard', enabled: true } },
+    }, parameters: [{ name: 'preset', nodeId: '20', input: 'preset' }] };
+    const bound = bindComfyInputs(workflow, 'a cup', { preset: 'large' });
+    expect(bound['6']?.inputs.text).toBe('a cup');
+    expect(bound['20']?.inputs).toEqual({ width: 512, height: 512, preset: 'large', enabled: true });
+    expect(bound['6']?.inputs.clip).toEqual(['4', 1]);
+    expect(workflow.graph['20'].inputs.preset).toBe('standard');
+    expect(() => bindComfyInputs(workflow, 'cup', {})).toThrow('preset');
+    expect(() => bindComfyInputs(workflow, 'cup', { preset: 123 })).toThrow('string');
+    expect(() => bindComfyInputs(workflow, 'cup', { preset: 'large', width: 640 })).toThrow('Unknown workflow input');
+    expect(() => bindComfyInputs(workflow, 'cup', [])).toThrow();
+  });
+
+  it('rejects ambiguous parameter mappings, links and unsafe keys before saving', () => {
+    for (const parameters of [
+      [{ name: 'clip', nodeId: '6', input: 'clip' }],
+      [{ name: 'promptAgain', nodeId: '6', input: 'text' }],
+      [{ name: 'constructor', nodeId: '9', input: 'filename_prefix' }],
+      [{ name: 'same', nodeId: '4', input: 'ckpt_name' }, { name: 'same', nodeId: '9', input: 'filename_prefix' }],
+    ]) expect(() => validateComfyWorkflowDraft({ ...draft(), parameters })).toThrow();
+  });
+
+  it('requires actual finite numbers and booleans rather than coercing request strings', () => {
+    const workflow = { ...draft(), graph: { ...graph, '16': { class_type: 'Custom', inputs: { seed: 123, enabled: true } } },
+      parameters: [{ name: 'seed', nodeId: '16', input: 'seed' }, { name: 'enabled', nodeId: '16', input: 'enabled' }],
+    };
+    expect(bindComfyInputs(workflow, 'cup', { seed: 0, enabled: false })['16']?.inputs).toEqual({ seed: 0, enabled: false });
+    for (const inputs of [{ seed: '123', enabled: false }, { seed: 123, enabled: 'false' }, { seed: Infinity, enabled: true }]) {
+      expect(() => bindComfyInputs(workflow, 'cup', inputs)).toThrow();
+    }
+  });
   it('accepts an API export without changing the imported graph when binding a prompt', () => {
     const workflow = validateComfyWorkflowDraft(draft());
     const bound = bindComfyPrompt(workflow, 'new prompt');

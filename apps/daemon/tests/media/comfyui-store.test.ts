@@ -30,6 +30,13 @@ const graph = {
 };
 
 describe('ComfyUI connection and workflow storage', () => {
+  it('starts without any bundled connection, credentials or workflow configuration', () => {
+    const db = freshDb();
+    migrateComfyWorkflows(db);
+    expect(listComfyConnections(db)).toEqual([]);
+    expect(listComfyWorkflows(db)).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM comfy_connection_credentials').get()).toEqual({ count: 0 });
+  });
   it('stores multiple drafts for one server without returning its token', () => {
     const db = freshDb();
     const connection = addComfyConnection(db, {
@@ -98,5 +105,19 @@ describe('ComfyUI connection and workflow storage', () => {
     expect(next.graphSha256).not.toBe(first.graphSha256);
     expect(getComfyWorkflowDraft(db, first.id, 1)?.graph['6']?.inputs.text).toBe('original');
     expect(getComfyWorkflowDraft(db, first.id, 2)?.graph['6']?.inputs.text).toBe('different literal');
+  });
+
+  it('persists public input definitions and output selection across migration without exposing other graph literals', () => {
+    const db = freshDb();
+    const server = addComfyConnection(db, { name: 'GPU', baseUrl: 'http://127.0.0.1:8188', trustedNetwork: true });
+    const workflow = addComfyWorkflowDraft(db, { name: 'Mapped', connectionId: server.id,
+      graph: { ...graph, '9': { ...graph['9'], inputs: { ...graph['9'].inputs, filename_prefix: 'example' } } },
+      promptTargets: [{ nodeId: '6', input: 'text' }], parameters: [{ name: 'prefix', nodeId: '9', input: 'filename_prefix' }],
+      output: { nodeId: '9', index: 0 },
+    });
+    migrateComfyWorkflows(db);
+    expect(getComfyWorkflowDraft(db, workflow.id, 1)?.parameters).toEqual([{ name: 'prefix', nodeId: '9', input: 'filename_prefix' }]);
+    expect(listComfyWorkflows(db)[0]).toMatchObject({ parameters: [{ name: 'prefix', type: 'string', defaultValue: 'example' }], output: { nodeId: '9', index: 0 } });
+    expect(JSON.stringify(listComfyWorkflows(db))).not.toContain('original');
   });
 });

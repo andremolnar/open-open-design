@@ -2,12 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import type { ComfyConnectionInput } from '@open-design/contracts';
+import { isComfyLiteral } from '@open-design/contracts';
 
 export const COMFY_CLI_HELP = `Usage: od media comfyui <action> [options]
   list                                      List servers and workflow versions
   server-add --file <json> [--token-file <path|->]
   check --server <id>                        Read-only connection test
   workflow-add --file <json> [--workflow <id>]
+  workflow-show --workflow <id> --version <n>  Inspect graph and input mappings
   validate --workflow <id> --version <n>      Check schemas (does not generate)
   enable|disable --workflow <id> --version <n>
   release --task <id> --confirm-unknown       Release local occupancy after inspecting the server; does not cancel it
@@ -16,12 +18,24 @@ All actions accept --json and --daemon-url <url>.
 server-add JSON: {"name":"Studio","baseUrl":"http://127.0.0.1:8188","trustedNetwork":true}
 Keep secrets out of argv; use --token-file (or - for stdin). Tokens are never returned.
 workflow-add JSON contains name, connectionId, graph (API export), promptTargets,
-and output {nodeId,index:0}. With --workflow, append a new disabled version.
+and output {nodeId,index:0}. Optional parameters: [{name,nodeId,input}].
+Fixed values live in graph.inputs; only promptTargets and parameters are overridden.
+With --workflow, append a new disabled version.
 
 After validation and enablement, submit a real, potentially costly GPU run with:
   od media generate --surface image --project <id> --model comfyui/<id>@<version> --prompt-file <path|-> --json
-Use the existing media wait command to check the returned task. Dimensions stay
-as imported; image references and aspect/quality/resolution overrides are unsupported.`;
+For declared parameters add --workflow-inputs-file <json|->, e.g. {"resolution":"medium"}.
+All declared parameters are required. Use the existing media wait command to check
+the returned task. Generic aspect/quality/resolution flags and image references are unsupported.`;
+
+export async function readComfyWorkflowInputs(file: string): Promise<Record<string, string | number | boolean>> {
+  const raw = file === '-' ? readFileSync(0, 'utf8') : await readFile(file, 'utf8');
+  if (Buffer.byteLength(raw) > 2 * 1024 * 1024) throw new Error('Workflow inputs exceed 2 MiB');
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 32
+    || !Object.values(value).every(isComfyLiteral)) throw new Error('Workflow inputs must be an object of at most 32 text, number or boolean values');
+  return value as Record<string, string | number | boolean>;
+}
 
 export async function runComfyCli(args: string[], resolveBase: (url?: string) => Promise<string>): Promise<void> {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, options: {
@@ -49,6 +63,8 @@ export async function runComfyCli(args: string[], resolveBase: (url?: string) =>
   } else if (action === 'check') {
     path += `/connections/${required(values.server, 'server')}/check`;
     body = {};
+  } else if (action === 'workflow-show') {
+    path += `/workflows/${required(values.workflow, 'workflow')}/${required(values.version, 'version')}`;
   } else if (['validate', 'enable', 'disable'].includes(action)) {
     path += `/workflows/${required(values.workflow, 'workflow')}/${required(values.version, 'version')}/${action === 'validate' ? 'validate' : 'enabled'}`;
     body = action === 'validate' ? {} : { enabled: action === 'enable' };

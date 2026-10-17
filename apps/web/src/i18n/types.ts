@@ -31,6 +31,34 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 // offending string instead of a generic object mismatch.
 export interface Dict {
   'comfy.intro': string;
+  'comfy.configure': string;
+  'comfy.needGraph': string;
+  'comfy.needServer': string;
+  'comfy.needName': string;
+  'comfy.needPrompt': string;
+  'comfy.needOutput': string;
+  'comfy.needTrust': string;
+  'comfy.beforeSave': string;
+  'comfy.reviewSuggested': string;
+  'comfy.noEnabledWorkflow': string;
+  'comfy.modelIdHint': string;
+  'comfy.paste': string;
+  'comfy.readGraph': string;
+  'comfy.inputs': string;
+  'comfy.inputsHint': string;
+  'comfy.source': string;
+  'comfy.fixed': string;
+  'comfy.fixedValue': string;
+  'comfy.imagePrompt': string;
+  'comfy.promptHint': string;
+  'comfy.requestInput': string;
+  'comfy.requestKey': string;
+  'comfy.exampleValue': string;
+  'comfy.connection': string;
+  'comfy.outputHint': string;
+  'comfy.editVersion': string;
+  'comfy.requestInputs': string;
+  'comfy.requiredInputs': string;
   'comfy.error': string;
   'comfy.server': string;
   'comfy.name': string;

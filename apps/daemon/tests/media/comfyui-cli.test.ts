@@ -33,5 +33,9 @@ describe('od media comfyui shared API', () => {
     expect(fetchMock.mock.calls.at(-1)).toMatchObject([
       'http://127.0.0.1:7456/api/media/comfyui/workflows/workflow/1/enabled', { body: '{"enabled":true}' },
     ]);
+    await runComfyCli(['workflow-show', '--workflow', 'workflow', '--version', '1', '--json'], base);
+    expect(fetchMock.mock.calls.at(-1)).toMatchObject([
+      'http://127.0.0.1:7456/api/media/comfyui/workflows/workflow/1', { method: 'GET' },
+    ]);
   });
 });

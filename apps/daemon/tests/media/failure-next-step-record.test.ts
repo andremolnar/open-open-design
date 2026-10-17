@@ -9,6 +9,7 @@ import {
 } from '../../src/media/tasks.js';
 import { mediaTaskErrorFromFailure } from '../../src/routes/media.js';
 import { VelaMediaError } from '../../src/media/vela.js';
+import { ComfyError } from '../../src/media/comfyui/errors.js';
 
 /** Shape of `StubProviderDisabledError` (apps/daemon/src/media/index.ts), which is module-private. */
 function stubProviderDisabled(model: string): Error {
@@ -59,6 +60,12 @@ function roundTrip(error: unknown): ReturnType<typeof mediaTaskErrorFromFailure>
 }
 
 describe('recorded media failures carry a next step', () => {
+  it('preserves unsupported-option corrections without treating unresolved submissions as safe retries', () => {
+    expect(roundTrip(new ComfyError('omit aspect', 'COMFY_UNSUPPORTED_OPTIONS')))
+      .toMatchObject({ code: 'COMFY_UNSUPPORTED_OPTIONS', nextStep: 'revise-options', retryable: false });
+    expect(roundTrip(new ComfyError('unknown remote outcome', 'COMFY_OUTCOME_UNKNOWN')).nextStep)
+      .not.toBe('revise-options');
+  });
   it('classifies a content refusal as something the user can fix', () => {
     const error = mediaTaskErrorFromFailure(
       new VelaMediaError('the request was refused', {

@@ -51,6 +51,14 @@ async function setup() {
 }
 
 describe('ComfyUI handoff and returned assets', () => {
+  it('explains that the provider alias is not a saved model and never falls back or submits it', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'od-comfy-alias-')); dirs.push(dir);
+    const comfyRender = vi.fn();
+    await expect(generateMedia({ projectRoot: dir, projectsRoot: join(dir, 'projects'), projectId: 'A',
+      surface: 'image', model: 'comfyui', prompt: 'a cup', comfyRender,
+    })).rejects.toThrow(/save.*validate.*enable/i);
+    expect(comfyRender).not.toHaveBeenCalled();
+  });
   it('records explicit submission rejection as failed rather than manufacturing an unknown GPU job', async () => {
     const { db, client, model } = await setup();
     client.json.mockImplementation(async (path) => {
@@ -137,6 +145,34 @@ describe('ComfyUI handoff and returned assets', () => {
     expect(claimComfyRequest(db, request)).toBe('first-task');
     expect(claimComfyRequest(db, { ...request, taskId: 'new-task' })).toBe('first-task');
     expect(() => claimComfyRequest(db, { ...request, prompt: 'different' })).toThrow('different request');
+    const parameterized = { ...request, requestId: 'parameters-1', workflowInputs: { seed: 12, resolution: 'medium' } };
+    expect(claimComfyRequest(db, parameterized)).toBe('first-task');
+    expect(claimComfyRequest(db, { ...parameterized, workflowInputs: { resolution: 'medium', seed: 12 } })).toBe('first-task');
+    expect(() => claimComfyRequest(db, { ...parameterized, workflowInputs: { seed: 13, resolution: 'medium' } })).toThrow('different request');
+  });
+
+  it('validates substituted enum/range values before posting and keeps the saved fixed graph intact', async () => {
+    const { db, client, draft } = await setup();
+    const extendedGraph = { ...graph, '20': { class_type: 'FixtureDimensions', inputs: { width: 512, preset: 'standard' } } };
+    const info = { ...schemas, FixtureDimensions: { input: { required: {
+      width: ['INT', { min: 1, max: 1024 }], preset: [['standard', 'large'], {}],
+    } }, output: ['INT', 'INT'] } };
+    const workflow = addComfyWorkflowDraft(db, { ...draft, graph: extendedGraph,
+      parameters: [{ name: 'preset', nodeId: '20', input: 'preset' }, { name: 'width', nodeId: '20', input: 'width' }],
+    });
+    const model = comfyWorkflowModelId(workflow.id, 1);
+    const originalJson = client.json.getMockImplementation()!;
+    client.json.mockImplementation((path, body) => path === '/object_info' ? Promise.resolve(info) : originalJson(path, body));
+    await checkComfyWorkflow(db, workflow.id, 1, client); setComfyWorkflowEnabled(db, workflow.id, 1, true);
+    await expect(renderComfyWorkflow(db, { taskId: 'bad-enum', projectId: 'A', model, prompt: 'cup', workflowInputs: { preset: 'missing', width: 512 } }, { client }))
+      .rejects.toThrow('Unavailable model or enum');
+    await expect(renderComfyWorkflow(db, { taskId: 'bad-range', projectId: 'A', model, prompt: 'cup', workflowInputs: { preset: 'large', width: 0 } }, { client }))
+      .rejects.toThrow('Numeric input out of range');
+    expect(client.json.mock.calls.filter(([path]) => path === '/prompt')).toHaveLength(0);
+    await renderComfyWorkflow(db, { taskId: 'good-enum', projectId: 'A', model, prompt: 'cup', workflowInputs: { preset: 'large', width: 512 } }, { client });
+    const submitted = client.json.mock.calls.find(([path]) => path === '/prompt')?.[1] as { prompt: typeof extendedGraph };
+    expect(submitted.prompt['20'].inputs).toEqual({ width: 512, preset: 'large' });
+    expect(extendedGraph['20'].inputs.preset).toBe('standard');
   });
 
   it('rejects metadata, unapproved LAN targets, and non-image or oversized decoded data', () => {

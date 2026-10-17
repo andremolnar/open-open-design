@@ -68,6 +68,7 @@ const RESUME_CONTINUE_PROMPT =
 const MEDIA_GENERATE_STRING_FLAGS = new Set([
   'request-id',
   'resume-task',
+  'workflow-inputs-file',
   'project',
   'workspace',
   'workspace-member',
@@ -1868,7 +1869,20 @@ async function runMediaGenerate(rawArgs) {
   // generated prompts) arrive via --prompt-file <path|-> (stdin) per the CLI
   // contract; readPromptFromFlags prefers an inline --prompt and otherwise reads
   // the file/stdin, matching od run / od brand / od automation.
+  if (flags['workflow-inputs-file'] && (!flags.model.startsWith('comfyui/') || flags['resume-task']
+    || (flags['workflow-inputs-file'] === '-' && flags['prompt-file'] === '-'))) {
+    console.error('--workflow-inputs-file requires a new ComfyUI job and cannot share stdin with --prompt-file');
+    process.exit(2);
+  }
   const prompt = await readPromptFromFlags(flags);
+
+  let workflowInputs;
+  if (flags['workflow-inputs-file']) {
+    try {
+      const { readComfyWorkflowInputs } = await import('./media/comfyui/cli.js');
+      workflowInputs = await readComfyWorkflowInputs(flags['workflow-inputs-file']);
+    } catch (error) { console.error(error instanceof Error ? error.message : 'Invalid workflow inputs'); process.exit(2); }
+  }
 
   const body = {
     surface,
@@ -1885,6 +1899,7 @@ async function runMediaGenerate(rawArgs) {
     images,
     language: flags.language,
     resumeTaskId: flags['resume-task'],
+    ...(workflowInputs ? { workflowInputs } : {}),
     ...(flags.model.startsWith('comfyui/') ? { requestId: flags['request-id'] || crypto.randomUUID() } : {}),
   };
   if (flags.length != null) body.length = Number(flags.length);
@@ -1924,6 +1939,7 @@ async function runMediaGenerate(rawArgs) {
   console.error(`task ${taskId} queued (${accepted.status || 'queued'})`);
   await pollUntilDoneOrBudget(daemonUrl, taskId, 0, {
     stillRunningExitCode: 0,
+    json: flags.json,
     requestHeaders: token
       ? { authorization: `Bearer ${token}` }
       : workspaceHeaders,
@@ -2077,7 +2093,7 @@ async function pollUntilDoneOrBudget(daemonUrl, taskId, sinceStart, options = {}
     if (Array.isArray(snap.progress)) {
       for (const line of snap.progress) {
         process.stderr.write(line + '\n');
-        process.stdout.write(`# ${line}\n`);
+        if (!options.json) process.stdout.write(`# ${line}\n`);
       }
     }
     if (typeof snap.nextSince === 'number') since = snap.nextSince;
@@ -2281,6 +2297,7 @@ Common options:
   --prompt-file <path|->     Read the prompt from a file, or - for stdin (for long-form prompts).
   --resume-task <taskId>     ComfyUI only: recover a known submitted job without another GPU submission.
   --request-id <id>          ComfyUI only: reuse this ID on transport retries; generated if omitted.
+  --workflow-inputs-file <path|->  ComfyUI only: JSON values for every declared named input.
   --output <filename>       File to write under the project. Auto-named if omitted.
   --aspect 1:1|16:9|9:16|4:3|3:4
   --quality <tier>          OpenDesign Cloud images only: published quality tier

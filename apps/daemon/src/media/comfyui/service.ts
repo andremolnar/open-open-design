@@ -11,7 +11,7 @@ import {
   getComfyWorkflowDraft, getComfyWorkflowSummary, setComfyWorkflowValidation, updateComfyExecution,
   getComfyExecution,
 } from './store.js';
-import { bindComfyPrompt } from './workflow.js';
+import { bindComfyInputs } from './workflow.js';
 
 export function comfyClient(db: Database.Database, connectionId: string): ComfyHttpClient {
   const connection = getComfyConnection(db, connectionId);
@@ -71,7 +71,7 @@ export function validateComfyPng(bytes: Buffer): void {
 
 export async function renderComfyWorkflow(
   db: Database.Database,
-  input: { taskId: string; projectId: string; model: string; prompt: string; resume?: boolean; onProgress?: (line: string) => void },
+  input: { taskId: string; projectId: string; model: string; prompt: string; workflowInputs?: unknown; resume?: boolean; onProgress?: (line: string) => void },
   dependencies: { client?: ComfyClient; wait?: () => Promise<void>; maxPolls?: number } = {},
 ): Promise<{ bytes: Buffer; suggestedExt: string; providerNote: string }> {
   const selected = parseComfyWorkflowModelId(input.model);
@@ -82,7 +82,7 @@ export async function renderComfyWorkflow(
   if (input.resume && (!previous?.promptId || previous.model !== input.model)) {
     throw new ComfyError('This job has no known prompt ID to recover. Inspect the server; a new submission may duplicate remote work.', 'COMFY_OUTCOME_UNKNOWN');
   }
-  const patched = input.resume ? null : bindComfyPrompt(draft, input.prompt);
+  const patched = input.resume ? null : bindComfyInputs(draft, input.prompt, input.workflowInputs);
   const client = dependencies.client ?? comfyClient(db, draft.connectionId);
   if (!input.resume) beginComfyExecution(db, { ...input, connectionId: draft.connectionId });
   let submitted = Boolean(input.resume);
@@ -101,6 +101,8 @@ export async function renderComfyWorkflow(
         setComfyWorkflowValidation(db, selected.id, selected.version, null);
         throw new ComfyError('ComfyUI node schemas changed. Revalidate and enable the workflow before another run.', 'COMFY_SCHEMA_DRIFT');
       }
+      // Request values must satisfy the same live enum/range/link contract as fixed values.
+      validateComfySchema({ ...draft, graph: patched! }, schemas);
       updateComfyExecution(db, input.taskId, 'submitting');
       submitted = true;
       // /prompt is not idempotent: exactly one attempt, even after a timeout.

@@ -59,7 +59,7 @@ import { promisify } from 'node:util';
 import { Agent as UndiciAgent } from 'undici';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { load as loadHtml } from 'cheerio';
-import { SETTINGS_MEDIA_PROVIDERS_PATH, parseComfyWorkflowModelId } from '@open-design/contracts';
+import { SETTINGS_MEDIA_PROVIDERS_PATH, parseComfyWorkflowModelId, COMFY_WORKFLOW_MODEL_HELP } from '@open-design/contracts';
 import {
   findRealTagOffset,
   HTML_TAG_PATTERNS,
@@ -95,6 +95,7 @@ import {
 } from './hyperframes-runtime.js';
 import { renderVelaImage, renderVelaVideo } from './vela.js';
 import { importComfyBytes } from './comfyui/import.js';
+import { ComfyError } from './comfyui/errors.js';
 import {
   ensureProject,
   kindFor,
@@ -414,6 +415,7 @@ export async function generateMedia(args: {
   if (typeof model !== 'string' || !model) {
     throw new Error('model required');
   }
+  if (model === 'comfyui') throw new Error(COMFY_WORKFLOW_MODEL_HELP);
   if (surface === 'audio' && audioKind && !AUDIO_KINDS.has(audioKind)) {
     throw new Error(
       `unsupported audioKind: ${audioKind}. Allowed: music | speech | sfx.`,
@@ -469,7 +471,7 @@ export async function generateMedia(args: {
   }
   if (def.provider === 'comfyui' && (image || (Array.isArray(args.images) && args.images.length)
     || aspect || quality || resolution)) {
-    throw new Error('This ComfyUI adapter uses the imported graph dimensions and supports prompt-only workflows. Remove references, aspect, quality and resolution overrides.');
+    throw new ComfyError('Generation did not start: this ComfyUI workflow uses its saved graph dimensions. Remove image references, aspect, quality and resolution overrides.', 'COMFY_UNSUPPORTED_OPTIONS');
   }
   // Reject cross-surface combinations for catalogued models.
   const resolvedAudioKind =

@@ -12,3 +12,12 @@
 .preview { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
 .destination { display: grid; gap: 6px; margin-top: 24px; font-size: 13px; }
 .destination select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-subtle); color: var(--text); }
+.entry { margin: 16px 0; }
+.builder { display: grid; gap: 12px; }
+.node { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.inputRow { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.panel .inputRow code { margin-bottom: 0; }
+.builder h4 { margin: 0; }
+.panel textarea { resize: vertical; }
+.requirements { padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.requirements ul { margin: 8px 0 0; padding-inline-start: 20px; }

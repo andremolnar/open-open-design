@@ -60,6 +60,8 @@ export interface ProjectMediaTaskFile {
 export const MEDIA_FAILURE_NEXT_STEPS = [
   /** The request itself was refused. Reword it / swap the reference image. */
   'revise-request',
+  /** Unsupported options were rejected before provider submission; correct, not blindly retry. */
+  'revise-options',
   /** This model cannot serve the request; another one can. */
   'switch-model',
   /** A credential or endpoint is missing or wrong in Settings. */
@@ -145,6 +147,7 @@ export interface MediaFailureSignal {
 const MEDIA_FAILURE_NEXT_STEP_BY_CODE: Readonly<Record<string, MediaFailureNextStep>> = {
   // Content policy. The one code that licenses "reword it".
   safety_rejection: 'revise-request',
+  COMFY_UNSUPPORTED_OPTIONS: 'revise-options',
   // Daemon/dispatcher policy for this run.
   MEDIA_EXECUTION_DISABLED: 'unsupported',
   MEDIA_SURFACE_DENIED: 'unsupported',

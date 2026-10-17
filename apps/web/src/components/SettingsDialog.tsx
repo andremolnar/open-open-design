@@ -5841,6 +5841,8 @@ export function SettingsDialog({
             <>
             <MediaProvidersSection
               cfg={cfg}
+              comfyProjects={comfyProjects}
+              workspaceContext={workspaceContext}
               setCfg={setCfg}
               mediaProvidersNotice={mediaProvidersNotice}
               onReloadMediaProviders={onReloadMediaProviders}
@@ -5855,7 +5857,6 @@ export function SettingsDialog({
                 });
               }}
             />
-            <ComfySettings projects={comfyProjects} workspaceContext={workspaceContext} />
             </>
           ) : null}
           {activeSection === 'integrations' ? <IntegrationsSection /> : null}
@@ -7649,6 +7650,8 @@ function OrbitSection({
 
 function MediaProvidersSection({
   cfg,
+  comfyProjects,
+  workspaceContext,
   setCfg,
   mediaProvidersNotice,
   onReloadMediaProviders,
@@ -7658,6 +7661,8 @@ function MediaProvidersSection({
   onChange,
 }: {
   cfg: AppConfig;
+  comfyProjects: Array<{ id: string; name: string; workspaceId: string | null }>;
+  workspaceContext: WorkspaceCollabContext | null;
   setCfg: Dispatch<SetStateAction<AppConfig>>;
   mediaProvidersNotice?: string | null;
   onReloadMediaProviders?: () => Promise<AppConfig['mediaProviders'] | null>;
@@ -7875,6 +7880,7 @@ function MediaProvidersSection({
           </button>
         ) : null}
       </div>
+      <ComfySettings projects={comfyProjects} workspaceContext={workspaceContext} />
       <div
         className="protocol-chips protocol-chips--providers media-provider-tabs"
         role="tablist"

@@ -2,11 +2,11 @@ import type {
   ComfyApiGraph,
   ComfyInputTarget,
   ComfyWorkflowDraft,
+  ComfyParameterBinding,
 } from '@open-design/contracts';
+import { isComfyLiteral, parseComfyGraphDocument } from '@open-design/contracts';
 
 const MAX_GRAPH_BYTES = 2 * 1024 * 1024;
-const MAX_NODES = 500;
-const NODE_ID = /^(?:0|[1-9][0-9]*)$/;
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -25,43 +25,7 @@ export function parseComfyApiGraph(raw: unknown): ComfyApiGraph {
   const size = Buffer.byteLength(typeof raw === 'string' ? raw : JSON.stringify(raw) ?? '');
   if (size > MAX_GRAPH_BYTES) throw new Error('ComfyUI API graph exceeds 2 MiB');
 
-  let graph: unknown = raw;
-  if (typeof raw === 'string') {
-    try {
-      graph = JSON.parse(raw);
-    } catch {
-      throw new Error('Invalid ComfyUI API JSON');
-    }
-  }
-  if (record(graph) && Array.isArray(graph.nodes)) {
-    throw new Error('This is a ComfyUI editor workflow; export the API format instead');
-  }
-  if (!record(graph) || !Object.keys(graph).length) {
-    throw new Error('ComfyUI API graph must contain nodes keyed by node ID');
-  }
-  const entries = Object.entries(graph);
-  if (entries.length > MAX_NODES) throw new Error('ComfyUI API graph exceeds 500 nodes');
-
-  for (const [id, rawNode] of entries) {
-    if (!NODE_ID.test(id) || !record(rawNode)
-      || typeof rawNode.class_type !== 'string' || !rawNode.class_type.trim()
-      || !record(rawNode.inputs)) {
-      throw new Error(`Invalid ComfyUI API node ${id}`);
-    }
-    for (const [input, value] of Object.entries(rawNode.inputs)) {
-      if (!input || input === '__proto__' || input === 'constructor' || input === 'prototype') {
-        throw new Error(`Invalid ComfyUI input in node ${id}`);
-      }
-      if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
-        && Number.isInteger(value[1]) && NODE_ID.test(value[0])) {
-        if (!Object.hasOwn(graph, value[0])) {
-          throw new Error(`Node ${id}.${input} links to missing node ${value[0]}`);
-        }
-      }
-    }
-  }
-  // Clone: callers can bind literals without mutating a stored version.
-  return structuredClone(graph) as ComfyApiGraph;
+  return parseComfyGraphDocument(raw);
 }
 
 export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
@@ -92,6 +56,24 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
     if (seen.has(key)) throw new Error('Duplicate prompt binding');
     seen.add(key);
   }
+  const parameters: ComfyParameterBinding[] = [];
+  if (raw.parameters !== undefined) {
+    if (!Array.isArray(raw.parameters) || raw.parameters.length > 32) throw new Error('Choose at most 32 request inputs');
+    const names = new Set<string>();
+    for (const binding of raw.parameters) {
+      if (!record(binding) || typeof binding.name !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(binding.name)
+        || ['constructor', 'prototype', 'prompt'].includes(binding.name) || names.has(binding.name)) {
+        throw new Error('Request input names must be unique identifiers, not reserved keys');
+      }
+      if (typeof binding.nodeId !== 'string' || typeof binding.input !== 'string'
+        || !Object.hasOwn(graph, binding.nodeId) || !Object.hasOwn(graph[binding.nodeId]!.inputs, binding.input)
+        || !isComfyLiteral(graph[binding.nodeId]!.inputs[binding.input])) throw new Error('Request bindings must target existing text, number or boolean literals, not links');
+      const key = targetKey(binding as unknown as ComfyInputTarget);
+      if (seen.has(key)) throw new Error('A node input cannot have multiple bindings');
+      seen.add(key); names.add(binding.name);
+      parameters.push({ name: binding.name, nodeId: binding.nodeId, input: binding.input });
+    }
+  }
   if (!record(output) || typeof output.nodeId !== 'string' || !Object.hasOwn(graph, output.nodeId)
     || output.index !== 0) {
     throw new Error('Choose one output node and image index 0');
@@ -101,14 +83,33 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
     connectionId: connectionId.trim(),
     graph,
     promptTargets: promptTargets.map((target: ComfyInputTarget) => ({ nodeId: target.nodeId, input: target.input })),
+    ...(parameters.length ? { parameters } : {}),
     output: { nodeId: output.nodeId, index: 0 },
   };
 }
 
 /** A prompt is bound only to confirmed literal paths in a fresh graph copy. */
 export function bindComfyPrompt(draft: ComfyWorkflowDraft, prompt: string): ComfyApiGraph {
+  return bindComfyInputs(draft, prompt);
+}
+
+/** Request values can change declared literals only; omitted/unknown keys fail closed. */
+export function bindComfyInputs(draft: ComfyWorkflowDraft, prompt: string, workflowInputs: unknown = {}): ComfyApiGraph {
   if (!prompt.trim()) throw new Error('Image prompt is required');
   const validated = validateComfyWorkflowDraft(draft);
+  if (!record(workflowInputs)) throw new Error('workflowInputs must be an object');
+  const bindings = validated.parameters ?? [];
+  const names = new Set(bindings.map((binding) => binding.name));
+  for (const name of Object.keys(workflowInputs)) if (!names.has(name)) throw new Error(`Unknown workflow input: ${name}`);
+  for (const binding of bindings) {
+    const original = validated.graph[binding.nodeId]!.inputs[binding.input];
+    const value = workflowInputs[binding.name];
+    if (!Object.hasOwn(workflowInputs, binding.name)) throw new Error(`Required workflow input: ${binding.name}`);
+    if (!isComfyLiteral(value) || typeof value !== typeof original || (typeof value === 'string' && value.length > 65_536)) {
+      throw new Error(`Workflow input ${binding.name} must be a bounded ${typeof original}`);
+    }
+    validated.graph[binding.nodeId]!.inputs[binding.input] = value;
+  }
   for (const target of validated.promptTargets) {
     validated.graph[target.nodeId]!.inputs[target.input] = prompt;
   }

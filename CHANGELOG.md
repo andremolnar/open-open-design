@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- [Added] Settings → Media providers can save a ComfyUI server, import and validate named API-format image workflows, and run an explicit single-PNG test into the open project. Matching `od media comfyui` commands manage the same configuration; known submitted jobs can recover their recorded result without another GPU submission. Experimental: prompt-only workflows, with graph dimensions preserved.
+- [Fixed] ComfyUI imports populate the JSON editor, workflow Save explains missing setup instead of staying silently disabled, and changing the image destination preserves the unsaved workflow. Bare `comfyui` generation requests now explain how to select a saved, enabled workflow and list available versioned IDs rather than failing later as an unknown model.
+
+- [Fixed] Image-generation agents preserve ComfyUI workflow dimensions instead of adding unsupported generic options. Rejected options have a distinct correction path, and configuration errors no longer automatically produce a missing-API-key diagnosis.
+
+- [Added] Settings → Media providers has a top-level Configure ComfyUI button. Import or paste an API graph to build a form, lock in values such as aspect ratio, explicitly bind the image prompt and named request inputs, and choose the PreviewImage/SaveImage output to import. Validate and enable immutable versions, then run a single-PNG test into a selected project. Matching `od media comfyui` commands and `media generate --workflow-inputs-file` use the same API; known submitted jobs can recover without another GPU submission. Experimental: text/number/boolean inputs and one PNG; image-reference uploads are not supported.
 
 - [Changed] Contributor and translation entry points now identify this fork's sole maintainer and link to this repository instead of implying upstream governance, paid programs, review guarantees, or release plans.
 - [Removed] The inherited product roadmap and upstream-only contribution workflow are no longer presented as plans or submission paths for this fork. Historical release credits remain available below.

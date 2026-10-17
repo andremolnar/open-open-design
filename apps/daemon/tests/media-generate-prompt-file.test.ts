@@ -38,6 +38,12 @@ beforeEach(async () => {
     req.on('end', () => {
       seen.push({ url: req.url ?? '', body });
       if (req.method === 'POST' && (req.url ?? '').includes('/media/generate')) {
+        if (JSON.parse(body).aspect) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: { code: 'COMFY_UNSUPPORTED_OPTIONS',
+            message: 'Generation did not start: omit aspect overrides.', nextStep: 'revise-options', retryable: false } }));
+          return;
+        }
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ taskId: 'task-1', status: 'queued' }));
         return;
@@ -68,7 +74,7 @@ const LONG_PROMPT =
   'A sweeping cinematic vista of a neon city at dusk, rain-slicked streets,\n' +
   'volumetric fog, 85mm, shallow depth of field — line two of a long prompt.';
 
-async function runCli(args: string[], input?: string): Promise<void> {
+async function runCli(args: string[], input?: string, expectedCode = 0): Promise<string> {
   const { code, stderr } = await new Promise<{ code: number; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', cliEntry, ...args], {
       cwd: daemonRoot,
@@ -88,10 +94,32 @@ async function runCli(args: string[], input?: string): Promise<void> {
   // stderr) so a non-zero exit AFTER the POST — a failure during polling or
   // result handling — fails the spec instead of passing on the recorded request
   // alone.
-  expect(code, `od media generate exited ${code}; stderr:\n${stderr}`).toBe(0);
+  expect(code, `od media generate exited ${code}; stderr:\n${stderr}`).toBe(expectedCode);
+  return stderr;
 }
 
 describe('od media generate --prompt-file', () => {
+  it('reports unsupported options as a pre-submission correction, without retrying or guessing credentials', async () => {
+    const args = ['media', 'generate', '--surface', 'image', '--model', 'comfyui/workflow@1',
+      '--prompt', 'a cup', '--json', '--daemon-url', baseUrl];
+    const stderr = await runCli([...args, '--aspect', '16:9'], undefined, 4);
+    expect(JSON.parse(stderr)).toMatchObject({ error: { code: 'COMFY_UNSUPPORTED_OPTIONS', nextStep: 'revise-options', retryable: false } });
+    expect(seen).toHaveLength(1);
+    await runCli(args);
+    const requests = seen.filter((r) => r.url.includes('/media/generate')).map((r) => JSON.parse(r.body));
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({ model: requests[0].model, prompt: requests[0].prompt });
+    expect(requests[1]).not.toHaveProperty('aspect');
+  });
+  it('passes typed workflow inputs from a JSON file through the existing media endpoint', async () => {
+    const inputsFile = path.join(tmp, 'inputs.json');
+    await writeFile(inputsFile, JSON.stringify({ seed: 456, resolution: 'medium', enabled: false }));
+    await runCli(['media', 'generate', '--surface', 'image', '--model', 'comfyui/workflow@1',
+      '--prompt', 'a cup', '--workflow-inputs-file', inputsFile, '--json', '--daemon-url', baseUrl]);
+    const request = JSON.parse(seen.find((r) => r.url.includes('/media/generate'))!.body);
+    expect(request.workflowInputs).toEqual({ seed: 456, resolution: 'medium', enabled: false });
+    expect(request.prompt).toBe('a cup');
+  });
   it('reads a long-form prompt from a file and posts it to media/generate', async () => {
     const promptFile = path.join(tmp, 'prompt.txt');
     await writeFile(promptFile, LONG_PROMPT, 'utf8');
