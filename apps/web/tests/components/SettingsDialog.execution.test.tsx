@@ -4379,6 +4379,21 @@ describe('SettingsDialog media providers interactions', () => {
     cleanup();
   });
 
+  it('groups ComfyUI with providers and shows only the selected provider configuration', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ connections: [], workflows: [] })));
+    renderSettingsDialog({ mode: 'daemon', agentId: 'codex',
+      mediaProviders: { openai: { apiKey: 'fixture', baseUrl: 'https://example.invalid' } } }, { initialSection: 'media' });
+    expect(screen.getByLabelText('OpenAI API key')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'ComfyUI' })).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /ComfyUI/ }));
+    expect(await screen.findByRole('region', { name: 'ComfyUI' })).toBeTruthy();
+    expect(screen.queryByLabelText('OpenAI API key')).toBeNull();
+    expect(screen.queryByLabelText('ComfyUI manual-test destination project')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /OpenAI/ }));
+    expect(screen.queryByRole('region', { name: 'ComfyUI' })).toBeNull();
+    expect(screen.getByLabelText('OpenAI API key')).toBeTruthy();
+  });
+
   it('sorts configured providers ahead of unconfigured ones and shows configured badges', () => {
     renderSettingsDialog(
       {

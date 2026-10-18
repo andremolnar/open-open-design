@@ -20,9 +20,15 @@ import {
  *      (`contact-support`)
  */
 describe('mediaFailureNextStep', () => {
+  it('separates pre-submission unsupported options from credentials, content safety and unknown remote outcomes', () => {
+    expect(mediaFailureNextStep({ code: 'COMFY_UNSUPPORTED_OPTIONS', status: 400 })).toBe('revise-options');
+    expect(mediaFailureNextStep({ code: 'COMFY_INVALID', status: 400 })).toBe('open-settings');
+    expect(mediaFailureNextStep({ code: 'COMFY_OUTCOME_UNKNOWN' })).not.toBe('revise-options');
+  });
   it('publishes a closed vocabulary that covers the run-error ladder', () => {
     expect(MEDIA_FAILURE_NEXT_STEPS).toEqual([
       'revise-request',
+      'revise-options',
       'switch-model',
       'open-settings',
       'sign-in',

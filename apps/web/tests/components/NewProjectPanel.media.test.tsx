@@ -19,6 +19,28 @@ describe('NewProjectPanel media provider badges', () => {
     vi.unstubAllGlobals();
   });
 
+  it('selects an enabled OpenDesign-managed ComfyUI workflow without an API key workaround', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url === '/api/media/models' ? {
+      image: [{ id: 'comfyui/workflow@1', label: 'Krea fixture · v1', provider: 'comfyui', hint: 'Saved workflow', caps: ['t2i'] }],
+    } : { models: [] })));
+    const onCreate = vi.fn();
+    render(<NewProjectPanel skills={[]} designSystems={[]} defaultDesignSystemId={null} templates={[]}
+      onDeleteTemplate={vi.fn()} promptTemplates={[]} onCreate={onCreate} mediaProviders={{}} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('model-picker-trigger'));
+    fireEvent.click(await screen.findByTestId('model-picker-option-comfyui/workflow@1'));
+    expect(screen.getByTestId('model-picker-trigger').textContent).toContain('Krea fixture');
+    fireEvent.change(screen.getByTestId('new-project-name'), { target: { value: 'Local workflow image' } });
+    fireEvent.click(screen.getByTestId('create-project'));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ kind: 'image', imageModel: 'comfyui/workflow@1' }) }));
+    // A remount fetches the catalog again. A previously selected local workflow
+    // must not be replaced by the first available Cloud model in the meantime.
+    fireEvent.click(screen.getByRole('tab', { name: 'Video' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    await waitFor(() => expect(screen.getByTestId('model-picker-trigger').textContent).toContain('Krea fixture'));
+  });
+
   it('treats daemon-restored apiKeyConfigured providers as configured', () => {
     render(
       <NewProjectPanel

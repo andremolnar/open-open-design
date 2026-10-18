@@ -60,6 +60,8 @@ export interface ProjectMediaTaskFile {
 export const MEDIA_FAILURE_NEXT_STEPS = [
   /** The request itself was refused. Reword it / swap the reference image. */
   'revise-request',
+  /** Unsupported options were rejected before provider submission; correct, not blindly retry. */
+  'revise-options',
   /** This model cannot serve the request; another one can. */
   'switch-model',
   /** A credential or endpoint is missing or wrong in Settings. */
@@ -145,6 +147,7 @@ export interface MediaFailureSignal {
 const MEDIA_FAILURE_NEXT_STEP_BY_CODE: Readonly<Record<string, MediaFailureNextStep>> = {
   // Content policy. The one code that licenses "reword it".
   safety_rejection: 'revise-request',
+  COMFY_UNSUPPORTED_OPTIONS: 'revise-options',
   // Daemon/dispatcher policy for this run.
   MEDIA_EXECUTION_DISABLED: 'unsupported',
   MEDIA_SURFACE_DENIED: 'unsupported',
@@ -153,6 +156,12 @@ const MEDIA_FAILURE_NEXT_STEP_BY_CODE: Readonly<Record<string, MediaFailureNextS
   // No renderer is wired for the selected model: a Settings problem, whether
   // the fix is a key or a different provider entry.
   STUB_PROVIDER_DISABLED: 'open-settings',
+  COMFY_INVALID: 'open-settings',
+  COMFY_PROMPT_REJECTED: 'open-settings',
+  COMFY_SCHEMA_DRIFT: 'open-settings',
+  COMFY_OUTCOME_UNKNOWN: 'open-settings',
+  COMFY_NETWORK_BLOCKED: 'open-settings',
+  COMFY_UNREACHABLE: 'open-settings',
   // Local plumbing. Nothing upstream is wrong and nothing is spent.
   MEDIA_DISPATCHER_UNREACHABLE: 'retry-later',
   DAEMON_RESTART: 'retry-later',
@@ -245,6 +254,7 @@ export function mediaFailureNextStep(signal: MediaFailureSignal): MediaFailureNe
 
 /** A project media task snapshot consumed by ChatPanel's per-output progress row. */
 export interface ProjectMediaTask {
+  comfy?: import('./comfyui.js').ComfyExecutionSummary;
   taskId: string;
   /**
    * Creation order within the daemon's media task store. Compare it, never

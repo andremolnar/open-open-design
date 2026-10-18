@@ -1,5 +1,6 @@
 import type { ApiFailureDetail } from './api/failure-detail.js';
 import type { JsonValue } from './common.js';
+import type { MediaFailureNextStep } from './api/media.js';
 
 export const API_ERROR_CODES = [
   // Generic HTTP/API failures.
@@ -114,6 +115,7 @@ export const API_ERROR_CODES = [
   'MEDIA_EXECUTION_DISABLED',
   'MEDIA_SURFACE_DENIED',
   'MEDIA_MODEL_DENIED',
+  'COMFY_UNSUPPORTED_OPTIONS',
   // Live artifact validation, storage, preview, and refresh failures.
   'LIVE_ARTIFACT_NOT_FOUND',
   'LIVE_ARTIFACT_INVALID',
@@ -203,6 +205,8 @@ export interface ApiError {
   retryable?: boolean;
   requestId?: string;
   taskId?: string;
+  /** Media preflight can return the same action vocabulary as a persisted media task. */
+  nextStep?: MediaFailureNextStep;
   /** Optional closed-token classification; see `api/failure-detail.ts`. */
   failure?: ApiFailureDetail;
 }

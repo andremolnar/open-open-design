@@ -66,6 +66,7 @@ const SECTION_MARKERS = [
   ['maybe-deck-framework', '## If this brief is a slide deck / keynote / presentation'],
   ['media-generation-contract', '## Media generation contract'],
   ['media-dispatch-hint', '## Media generation (if asked)'],
+  ['comfyui-dispatch', '## ComfyUI workflow dispatch'],
   ['critique-panel', '## Panelist role definitions'],
   ['active-ds-visual-direction-override', '## Active design system visual direction'],
   ['filesystem-handoff-override', '## Filesystem handoff'],

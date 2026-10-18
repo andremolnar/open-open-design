@@ -68,6 +68,7 @@ import {
 import { ExportDiagnosticsRow } from './ExportDiagnosticsButton';
 import { Icon } from './Icon';
 import { LabsSection } from './LabsSection';
+import { ComfySettings } from './ComfySettings';
 import { defaultAgentModelId, effectiveAgentModelChoice } from './agentModelSelection';
 import {
   CUSTOM_MODEL_SENTINEL,
@@ -5836,8 +5837,10 @@ export function SettingsDialog({
           ) : null}
 
           {activeSection === 'media' ? (
+            <>
             <MediaProvidersSection
               cfg={cfg}
+              workspaceContext={workspaceContext}
               setCfg={setCfg}
               mediaProvidersNotice={mediaProvidersNotice}
               onReloadMediaProviders={onReloadMediaProviders}
@@ -5852,6 +5855,7 @@ export function SettingsDialog({
                 });
               }}
             />
+            </>
           ) : null}
           {activeSection === 'integrations' ? <IntegrationsSection /> : null}
 
@@ -7644,6 +7648,7 @@ function OrbitSection({
 
 function MediaProvidersSection({
   cfg,
+  workspaceContext,
   setCfg,
   mediaProvidersNotice,
   onReloadMediaProviders,
@@ -7653,6 +7658,7 @@ function MediaProvidersSection({
   onChange,
 }: {
   cfg: AppConfig;
+  workspaceContext: WorkspaceCollabContext | null;
   setCfg: Dispatch<SetStateAction<AppConfig>>;
   mediaProvidersNotice?: string | null;
   onReloadMediaProviders?: () => Promise<AppConfig['mediaProviders'] | null>;
@@ -7664,6 +7670,7 @@ function MediaProvidersSection({
   const { t } = useI18n();
   const analytics = useAnalytics();
   const [reloadRunning, setReloadRunning] = useState(false);
+  const [comfyConfigured, setComfyConfigured] = useState(false);
   const [reloadNotice, setReloadNotice] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -7881,8 +7888,8 @@ function MediaProvidersSection({
             {availableProviders.map((provider) => {
               const active = activeProvider?.id === provider.id;
               const entry = cfg.mediaProviders?.[provider.id];
-              const connected = provider.credentialsRequired === false
-                || isStoredMediaProviderEntryPresent(entry);
+              const connected = provider.id === 'comfyui' ? comfyConfigured
+                : provider.credentialsRequired === false || isStoredMediaProviderEntryPresent(entry);
               const statusLabel = connected
                 ? t('settings.mediaProviderConfigured')
                 : t('settings.mediaProviderUnset');
@@ -7908,7 +7915,7 @@ function MediaProvidersSection({
           </div>
         </div>
       </div>
-      {activeProvider && activeEntry ? (
+      {activeProvider?.id === 'comfyui' ? <ComfySettings onConfiguredChange={setComfyConfigured} workspaceContext={workspaceContext} /> : activeProvider && activeEntry ? (
         <article className="media-provider-detail">
           <div className="media-provider-detail-head">
             <div className="media-provider-meta">

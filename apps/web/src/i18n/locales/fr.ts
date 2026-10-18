@@ -1,6 +1,8 @@
 import type { Dict } from '../types';
+import { comfyuiEnglish } from '../comfyui-en';
 
 export const fr: Dict = {
+  ...comfyuiEnglish,
   'billing.wallet': 'Solde du portefeuille',
   'billing.codingPlanDesignPlan': 'Design Plan',
   'billing.codingPlanPeriodHours': '{count} heures',

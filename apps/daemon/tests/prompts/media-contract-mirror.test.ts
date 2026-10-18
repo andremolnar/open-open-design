@@ -54,14 +54,15 @@ describe('MEDIA_USER_REPLY_CONTRACT mirrors', () => {
     expect(daemonBody).toContain('提示词没通过内容审核 —— 换个说法、去掉敏感内容再试。');
     expect(daemonBody).toContain('参考图没通过内容审核 —— 换一张参考图再试。');
     expect(daemonBody).toContain('这个图片模型用不了 —— 换一个图片模型再试。');
-    expect(daemonBody).toContain('图片模型的 API key 还没填 —— 在设置里填好就能用。');
+    expect(daemonBody).toContain('图片生成设置需要调整 —— 在设置里检查所选模型或工作流后再试。');
+    expect(daemonBody).toContain('生成选项不受支持,图片还没开始生成 —— 调整选项后再试。');
     expect(daemonBody).toContain('图片模型的额度用完了 —— 重试不会恢复,去充值或换一个图片模型。');
     expect(daemonBody).toContain('图片生成这会儿不稳定 —— 不是你的问题,过一会儿再试通常就好。');
     expect(daemonBody).toContain('需要更新 Open Design 才能生成图片。');
     expect(daemonBody).toContain('这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。');
     expect(normalized).toContain('Reword it, drop the sensitive details, and try again.');
     expect(normalized).toContain('Pick a different image model and try again.');
-    expect(normalized).toContain('Fill it in under Settings and it will work.');
+    expect(normalized).toContain('Check the selected model or workflow configuration in Settings before trying again.');
     expect(normalized).toContain('top up, or switch to another image model.');
     expect(normalized).toContain('trying again shortly usually works.');
     expect(daemonBody).toContain('error.subject');

@@ -72,6 +72,7 @@ import {
 } from '../i18n/content';
 import { fetchElevenLabsVoiceOptions } from '../providers/elevenlabs-voices';
 import { IMAGE_MODELS } from '../media/models';
+import { useComfyImageModels } from '../media/comfyui-models';
 import {
   mergeAihubmixImageModels,
   useAIHubMixImageModels,
@@ -832,9 +833,10 @@ export function HomeView({
   // Live AIHubMix image catalogue merged into the home media composer's model
   // picker (replaces the static aihubmix seeds when the fetch resolves).
   const aihubmixImageModels = useAIHubMixImageModels();
+  const comfyImageModels = useComfyImageModels(active?.mediaSurface === 'image');
   const composerImageModels = useMemo(
-    () => mergeAihubmixImageModels(IMAGE_MODELS, aihubmixImageModels),
-    [aihubmixImageModels],
+    () => mergeAihubmixImageModels([...IMAGE_MODELS, ...comfyImageModels], aihubmixImageModels),
+    [aihubmixImageModels, comfyImageModels],
   );
   const [elevenLabsVoicesLoaded, setElevenLabsVoicesLoaded] = useState(false);
   const [elevenLabsVoicesError, setElevenLabsVoicesError] = useState<string | null>(null);

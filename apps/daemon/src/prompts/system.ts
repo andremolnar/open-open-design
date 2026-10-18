@@ -52,6 +52,7 @@ import {
   normalizePromptLocale,
   PROMPT_LOCALE_EXEMPT_TERMS_SENTENCE,
   promptLanguageName,
+  renderComfyWorkflowDispatchContract,
   SETTINGS_MEDIA_PROVIDERS_PATH,
   type ByokMediaDefaults,
   type ChatSessionMode,
@@ -483,8 +484,7 @@ out=\$("$OD_NODE_BIN" "$OD_BIN" media generate \\
   --project "$OD_PROJECT_ID" \\
   --surface image \\
   --model "$IMAGE_MODEL" \\
-  --prompt "..." \\
-  --aspect 16:9)
+  --prompt "...")
 ec=\$?
 if [ "\$ec" -ne 0 ]; then echo "\$out" >&2; exit "\$ec"; fi
 last=\$(printf '%s\\n' "\$out" | tail -1)
@@ -961,6 +961,7 @@ export function composeSystemPrompt({
       // stay byte-identical.
       planToolNote,
       sessionMode,
+      mediaExecution,
       locale,
       deckIntent: odNextStrategyRecipe.taskType !== 'ppt' && freeformDeckSignal === true,
       deckFrameworkMode,
@@ -1441,6 +1442,8 @@ export function composeSystemPrompt({
       renderMediaDispatchHint(byokMediaDefaults, runtimeMediaDefaults),
     );
   }
+  const comfyDispatchContract = renderComfyWorkflowDispatchContract(mediaExecution, sessionMode);
+  if (comfyDispatchContract) parts.push(comfyDispatchContract);
 
   // Critique Theater addendum. When cfg.enabled is true the panel protocol
   // is pinned last so it overrides any softer critique wording earlier in the

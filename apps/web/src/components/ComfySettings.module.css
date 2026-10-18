@@ -1,0 +1,24 @@
+.panel { display: grid; gap: 16px; margin-top: 24px; }
+.panel p { color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
+.panel fieldset { display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel label { display: grid; gap: 6px; font-size: 13px; }
+.panel input:not([type='checkbox']), .panel select, .panel textarea { width: 100%; box-sizing: border-box; padding: 8px; background: var(--bg-subtle); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+.panel .check { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; }
+.panel .check input { width: 16px; height: 16px; margin: 2px 0 0; flex: 0 0 16px; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.storedValues { color: var(--text-muted); font-size: 12px; }
+.storedValues summary { cursor: pointer; padding: 8px 0; }
+.storedValues dl { margin: 8px 0; }
+.storedValues dl > div { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 12px; padding: 4px 0; }
+.storedValues dd { margin: 0; overflow-wrap: anywhere; }
+.cards { display: grid; gap: 12px; }
+.panel article { padding: 16px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.panel code { display: block; font-size: 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
+.builder { display: grid; gap: 12px; }
+.node { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.inputRow { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.panel .inputRow code { margin-bottom: 0; }
+.builder h4 { margin: 0; }
+.panel textarea { resize: vertical; }
+.requirements { padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.requirements ul { margin: 8px 0 0; padding-inline-start: 20px; }

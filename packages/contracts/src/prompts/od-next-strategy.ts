@@ -13,6 +13,8 @@ import {
 } from '../plugins/strategy-v2.js';
 import { renderChatTurnHostProtocolInstructions } from './chat-turn-host-protocol.js';
 import type { ChatSessionMode } from '../api/chat.js';
+import type { MediaExecutionPolicy } from '../api/media.js';
+import { renderComfyWorkflowDispatchContract } from './comfyui-dispatch.js';
 import {
   renderDeckFrameworkDirective,
   renderLegacyDeckCompatibilityDirective,
@@ -74,6 +76,7 @@ export interface OdNextStrategyRequestRecipeV2 {
 export interface OdNextStrategyStableRequestContextV2 {
   agentId?: string | null | undefined;
   sessionMode?: ChatSessionMode | undefined;
+  mediaExecution?: MediaExecutionPolicy | undefined;
   locale?: string | undefined;
   /**
    * The name of the plan tool THIS runtime actually has, as one sentence the
@@ -580,6 +583,7 @@ export function composeOdNextStrategyStableRequestContextV2(
   // sentence naming a tool has no such excuse, and a note that ever did
   // contain post-Build semantics should stop the run rather than ship.
   instructionText('runtime-plan-tool', context.planToolNote ?? undefined);
+  instructionText('comfyui-dispatch', renderComfyWorkflowDispatchContract(context.mediaExecution, context.sessionMode));
   const deckFrameworkMode = context.deckFrameworkMode
     ?? (context.deckIntent ? 'canonical' : undefined);
   if (deckFrameworkMode) {

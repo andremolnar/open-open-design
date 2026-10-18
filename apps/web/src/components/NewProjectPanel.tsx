@@ -24,6 +24,7 @@ import type { Dict } from '../i18n/types';
 import { fetchPromptTemplate, openFolderDialog } from '../providers/registry';
 import { isStoredMediaProviderEntryPresent } from '../state/config';
 import { isMediaProviderPickerReady } from '../media/provider-readiness';
+import { useComfyImageModels } from '../media/comfyui-models';
 import type {
   AudioKind,
   DesignSystemSummary,
@@ -578,7 +579,7 @@ export function NewProjectPanel({
     const m = normalizedModel;
     // Accept catalogued ids plus any live AIHubMix catalogue id (aihubmix-*),
     // which renders dynamically and won't appear in the static IMAGE_MODELS.
-    if (m && (IMAGE_MODELS.some((x) => x.id === m) || m.startsWith('aihubmix-'))) setImageModel(m);
+    if (m && (IMAGE_MODELS.some((x) => x.id === m) || m.startsWith('aihubmix-') || m.startsWith('comfyui/'))) setImageModel(m);
     const a = pick?.summary.aspect;
     if (a && (MEDIA_ASPECTS as readonly string[]).includes(a)) {
       setImageAspect(a as MediaAspect);
@@ -2671,6 +2672,7 @@ function MediaProjectOptions(props:
 ) {
   const t = useT();
   const aihubmixImageModels = useAIHubMixImageModels();
+  const comfyImageModels = useComfyImageModels(props.surface === 'image');
   const aihubmixVideoModels = useAIHubMixVideoModels();
   const aihubmixAudioModels = useAIHubMixAudioModels();
 
@@ -2679,7 +2681,7 @@ function MediaProjectOptions(props:
       <div className="newproj-media-options">
         <MediaModelCards
           label={t('newproj.modelLabel')}
-          models={supportedModels('image', mergeAihubmixModels(IMAGE_MODELS, aihubmixImageModels))}
+          models={supportedModels('image', mergeAihubmixModels([...IMAGE_MODELS, ...comfyImageModels], aihubmixImageModels))}
           mediaProviders={props.mediaProviders}
           value={props.imageModel}
           onChange={props.onImageModel}
@@ -2771,7 +2773,7 @@ function MediaProjectOptions(props:
 
 export function supportedModels(surface: 'image' | 'video' | 'audio', models: MediaModel[]): MediaModel[] {
   const supportedProviders: Record<'image' | 'video' | 'audio', Set<string>> = {
-    image: new Set(['vela', 'openai', 'volcengine', 'grok', 'nanobanana', 'openrouter', 'imagerouter', 'leonardo', 'custom-image', 'aihubmix', 'minimax']),
+    image: new Set(['vela', 'openai', 'comfyui', 'volcengine', 'grok', 'nanobanana', 'openrouter', 'imagerouter', 'leonardo', 'custom-image', 'aihubmix', 'minimax']),
     video: new Set(['volcengine', 'hyperframes', 'grok', 'openrouter', 'imagerouter', 'aihubmix']),
     audio: new Set(['minimax', 'fishaudio', 'senseaudio', 'elevenlabs', 'openai', 'volcengine', 'aihubmix']),
   };
@@ -2850,6 +2852,9 @@ function MediaModelCards({
 
   useEffect(() => {
     if (selected) return;
+    // Saved workflows load asynchronously and may be disabled later. Never
+    // replace an explicitly chosen local workflow with a paid/cloud provider.
+    if (value.startsWith('comfyui/')) return;
     if (firstAvailableModelId) {
       onChange(firstAvailableModelId);
       return;

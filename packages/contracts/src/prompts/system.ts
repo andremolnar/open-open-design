@@ -38,6 +38,8 @@ import {
   type DeckFrameworkMode,
 } from './deck-framework.js';
 import { MEDIA_GENERATION_CONTRACT } from './media-contract.js';
+import { renderComfyWorkflowDispatchContract } from './comfyui-dispatch.js';
+import type { MediaExecutionPolicy } from '../api/media.js';
 import {
   composeOdNextStrategyRequestPromptV2,
   type OdNextStrategyRequestRecipeV2,
@@ -265,6 +267,7 @@ export interface ComposeInput {
   // chat mode keeps the same context/tools but answers like a standard
   // multi-turn assistant unless the user explicitly asks to build.
   sessionMode?: ChatSessionMode | undefined;
+  mediaExecution?: MediaExecutionPolicy | undefined;
   // UI locale selected by the client. User-visible generated form copy
   // must follow this locale even when the user's initial prompt is brief.
   locale?: string | undefined;
@@ -309,6 +312,7 @@ export function composeSystemPrompt({
   audioVoiceOptionsError,
   streamFormat,
   sessionMode,
+  mediaExecution,
   locale,
   freeformDeckSignal,
   deckFrameworkMode,
@@ -329,6 +333,7 @@ export function composeSystemPrompt({
       // prose branch to fall into instead.
       planToolNote,
       sessionMode,
+      mediaExecution,
       locale,
       deckIntent: odNextStrategyRecipe.taskType !== 'ppt' && freeformDeckSignal === true,
       deckFrameworkMode,
@@ -581,6 +586,8 @@ export function composeSystemPrompt({
   if (!isAskMode && isMediaSurfaceEarly) {
     parts.push(MEDIA_GENERATION_CONTRACT);
   }
+  const comfyDispatchContract = renderComfyWorkflowDispatchContract(mediaExecution, sessionMode);
+  if (comfyDispatchContract) parts.push(comfyDispatchContract);
 
   if (!isAskMode && !isWebCloneRun && activeDesignSystemBody && activeDesignSystemBody.length > 0) {
     parts.push(ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE);

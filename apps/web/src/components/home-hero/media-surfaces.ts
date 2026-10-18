@@ -1,4 +1,5 @@
 import type { InputFieldSpec, ProjectKind } from '@open-design/contracts';
+import { parseComfyWorkflowModelId } from '@open-design/contracts';
 import type { AudioKind, ProjectMetadata, PromptTemplateSummary } from '../../types';
 import {
   AUDIO_DURATIONS_SEC,
@@ -95,7 +96,10 @@ export function normalizeHomeMediaInputs(
       aspect: ratio,
       template: validTemplateId(surface, stringValue(raw.template), promptTemplates),
       designSystem: stringValue(raw.designSystem) || 'the active project design system',
-      model: validOption(stringValue(raw.model), imageModels.map((m) => m.id), DEFAULT_IMAGE_MODEL),
+      // Keep an explicit local workflow while discovery loads or when it becomes
+      // unavailable; generation must fail clearly, not silently use Cloud.
+      model: parseComfyWorkflowModelId(stringValue(raw.model)) ? stringValue(raw.model)
+        : validOption(stringValue(raw.model), imageModels.map((m) => m.id), DEFAULT_IMAGE_MODEL),
       ratio,
       resolution: validOption(stringValue(raw.resolution), MEDIA_RESOLUTIONS, DEFAULT_MEDIA_RESOLUTION),
     };

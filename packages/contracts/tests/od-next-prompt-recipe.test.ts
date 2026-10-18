@@ -49,6 +49,29 @@ const recipe: OdNextStrategyRequestRecipeV2 = {
 };
 
 describe('OD Next V2 prompt recipe', () => {
+  it('carries the same ComfyUI dispatch constraints in BYOK legacy and OD Next prompts', () => {
+    for (const prompt of [
+      composeSystemPrompt({ metadata: { kind: 'image' } }),
+      composeSystemPrompt({ odNextStrategyRecipe: recipe }),
+      composeOdNextStrategyStableRequestContextV2({ sessionMode: 'design' }),
+    ]) {
+      expect(prompt).toContain('## ComfyUI workflow dispatch');
+      expect(prompt).toContain('Do not pass `--aspect`, `--quality`, `--resolution`, `--image`, or `--output`');
+      expect(prompt).toContain('outcome unknown');
+      expect(prompt).toContain('media comfyui discover --json');
+      expect(prompt).toContain('--comfy-server <discovered-server-id>');
+      expect(prompt).toContain('Recovery always uses');
+      expect(prompt).toContain('separate sequential image jobs');
+      expect(prompt).toContain('required:false');
+    }
+  });
+  it('does not add ComfyUI dispatch to chat-only or media-disabled prompts', () => {
+    for (const context of [{ sessionMode: 'chat' as const }, { mediaExecution: { mode: 'disabled' as const } }]) {
+      expect(composeSystemPrompt(context)).not.toContain('## ComfyUI workflow dispatch');
+      expect(composeSystemPrompt({ odNextStrategyRecipe: recipe, ...context })).not.toContain('## ComfyUI workflow dispatch');
+      expect(composeOdNextStrategyStableRequestContextV2(context)).not.toContain('## ComfyUI workflow dispatch');
+    }
+  });
   // OPEND-2589. The strategy admits a turn on the project's task type, not on
   // what this turn said, so a greeting or a stray keystroke enters the same
   // Full Plan route as a real brief. The prompt taught only three outcomes —
@@ -284,6 +307,8 @@ describe('OD Next V2 prompt recipe', () => {
         "## Native filesystem execution",
         "## Versioned recipe identity",
         "## Discovery, planning, and Build surface",
+        "## Stable request planning and Build context",
+        "## ComfyUI workflow dispatch",
         "## OD Next core strategy",
         "# Core",
         "## OD Next general orchestration",
@@ -818,7 +843,7 @@ describe('handheld device shell in the stable request context', () => {
   it('omits both facts when no shell was resolved', () => {
     expect(composeOdNextStrategyStableRequestContextV2({ memoryBody: 'Remember the operator audience.' }))
       .not.toContain('device-frame');
-    expect(composeOdNextStrategyStableRequestContextV2({})).toBe('');
+    expect(composeOdNextStrategyStableRequestContextV2({})).not.toContain('device-frame');
   });
 });
 

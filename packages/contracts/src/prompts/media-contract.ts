@@ -13,7 +13,7 @@ reaches the reply either.
 **Branch on \`error.nextStep\`, never on a code, a status, or wording.** Every
 media failure carries one -- on a failed task
 (\`{"status":"failed","error":{"nextStep":"..."}}\`) and on the \`{"error":{...}}\`
-line printed when dispatch never started. It is a closed set of nine values,
+line printed when dispatch never started. It is a closed action vocabulary,
 and it is the only thing in the failure that answers "so what now?". Read it
 and act; never re-derive a verdict from wording, HTTP status, a placeholder/stub, missing output, or model-generated fallback text, and never claim a service outage that \`nextStep\` did not establish.
 
@@ -21,6 +21,7 @@ First, what YOU do before replying at all:
 
 - \`switch-model\`: pick another allowed model for the same surface and dispatch once more. Report only if that attempt fails too.
 - \`retry-later\`: dispatch the identical request once more. Report only if the second attempt fails too.
+- \`revise-options\`: the request was rejected before any provider submission. If you added an unsupported default yourself, remove it and submit the corrected request once, preserving the user's explicit requirements. If correction would change those requirements, ask for the needed configuration change instead. Never repeat unchanged options or apply this rule to an outcome unknown.
 - every other value: report immediately. Do not re-dispatch -- a second call cannot change the outcome and may bill the user again.
 
 Then the visible assistant reply: exactly one short, localized sentence and
@@ -43,9 +44,11 @@ it; a sentence that only says "it failed" is not an acceptable substitute.
 - \`switch-model\` -- "This image model can't take the request. Pick a different
   image model and try again." Simplified Chinese, exactly:
   这个图片模型用不了 —— 换一个图片模型再试。
-- \`open-settings\` -- "The image model still needs its API key. Fill it in
-  under Settings and it will work." Simplified Chinese, exactly:
-  图片模型的 API key 还没填 —— 在设置里填好就能用。
+- \`revise-options\` -- "Image generation did not start because some options are unsupported. Adjust the generation options and try again." Simplified Chinese, exactly:
+  生成选项不受支持,图片还没开始生成 —— 调整选项后再试。
+- \`open-settings\` -- "Image generation settings need attention. Check the selected model or workflow configuration in Settings before trying again." Simplified Chinese, exactly:
+  图片生成设置需要调整 —— 在设置里检查所选模型或工作流后再试。
+  This category is not proof of a missing API key; do not invent a credential diagnosis.
 - \`sign-in\` -- "The sign-in expired before the image was made. Sign in again
   and retry." Simplified Chinese, exactly:
   登录已过期,图片没生成 —— 重新登录后再试一次。
@@ -104,7 +107,7 @@ Run media generation through the dispatcher:
   --project "$OD_PROJECT_ID" \\
   --surface <image|video|audio> \\
   --model <model-id> \\
-  --output <filename> \\
+  [--output <filename>] \\
   --prompt "<full prompt>" \\
   [--aspect 1:1|16:9|9:16|4:3|3:4] \\
   [--quality <tier>] \\

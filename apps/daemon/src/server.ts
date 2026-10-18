@@ -10783,6 +10783,7 @@ export async function startServer({
     const odNextStableRequestContext = odNextStrategyRecipe
       ? {
           agentId,
+          mediaExecution,
           streamFormat,
           // The runtime's real plan-tool name. OD Next composes its own prompt
           // and never reaches the slim charter that carries this note, so
