@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { comfyWorkflowModelId, parseComfyWorkflowModelId, comfyWorkflowModelHelp } from '@open-design/contracts';
+import { parseComfyWorkflowModelId, comfyWorkflowModelHelp } from '@open-design/contracts';
 import {
   addComfyConnection, addComfyWorkflowDraft, listComfyConnections, listComfyWorkflows,
   getComfyWorkflowSummary, setComfyWorkflowEnabled, updateComfyExecution,
@@ -758,13 +758,14 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     }
   };
   app.get('/api/media/models', (_req, res) => {
+    const comfyui = discoverComfy(db);
     res.json({
       providers: MEDIA_PROVIDERS,
-      comfyui: discoverComfy(db),
-      image: [...IMAGE_MODELS, ...listComfyWorkflows(db).filter((workflow) => workflow.enabled).map((workflow) => ({
-        id: comfyWorkflowModelId(workflow.id, workflow.version), label: `${workflow.name} · v${workflow.version}`,
+      comfyui,
+      image: [...IMAGE_MODELS, ...comfyui.workflows.map((workflow) => ({
+        id: workflow.model, label: `${workflow.name} · v${workflow.version}`,
         provider: 'comfyui', hint: 'ComfyUI workflow', caps: ['t2i'],
-        workflowInputs: (workflow.parameters ?? []).map(({ name, type }) => ({ name, type, required: true })),
+        workflowInputs: workflow.inputs,
       }))],
       video: VIDEO_MODELS,
       audio: AUDIO_MODELS_BY_KIND,

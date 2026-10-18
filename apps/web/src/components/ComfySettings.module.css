@@ -6,6 +6,11 @@
 .panel .check { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; }
 .panel .check input { width: 16px; height: 16px; margin: 2px 0 0; flex: 0 0 16px; }
 .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.storedValues { color: var(--text-muted); font-size: 12px; }
+.storedValues summary { cursor: pointer; padding: 8px 0; }
+.storedValues dl { margin: 8px 0; }
+.storedValues dl > div { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 12px; padding: 4px 0; }
+.storedValues dd { margin: 0; overflow-wrap: anywhere; }
 .cards { display: grid; gap: 12px; }
 .panel article { padding: 16px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
 .panel code { display: block; font-size: 11px; overflow-wrap: anywhere; margin-bottom: 8px; }

@@ -4,7 +4,7 @@ import type {
   ComfyWorkflowDraft,
   ComfyParameterBinding,
 } from '@open-design/contracts';
-import { isComfyLiteral, parseComfyGraphDocument } from '@open-design/contracts';
+import { COMFY_MAX_REQUEST_INPUTS, comfyEditableFields, isComfyLiteral, parseComfyGraphDocument } from '@open-design/contracts';
 
 const MAX_GRAPH_BYTES = 2 * 1024 * 1024;
 
@@ -31,6 +31,7 @@ export function parseComfyApiGraph(raw: unknown): ComfyApiGraph {
 export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
   if (!record(raw)) throw new Error('Workflow must be an object');
   const { name, connectionId, promptTargets, output } = raw;
+  if (raw.inputMode !== undefined && raw.inputMode !== 'automatic') throw new Error('Unsupported workflow input mode');
   if (typeof name !== 'string' || !name.trim() || name.length > 120) {
     throw new Error('Workflow name must be between 1 and 120 characters');
   }
@@ -57,6 +58,9 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
     seen.add(key);
   }
   const parameters: ComfyParameterBinding[] = [];
+  if (raw.inputMode === 'automatic' && Array.isArray(raw.parameters) && raw.parameters.length) {
+    throw new Error('Automatic workflow fields cannot also declare legacy parameter bindings');
+  }
   if (raw.parameters !== undefined) {
     if (!Array.isArray(raw.parameters) || raw.parameters.length > 32) throw new Error('Choose at most 32 request inputs');
     const names = new Set<string>();
@@ -82,6 +86,7 @@ export function validateComfyWorkflowDraft(raw: unknown): ComfyWorkflowDraft {
     name: name.trim(),
     ...(typeof connectionId === 'string' ? { connectionId } : {}),
     graph,
+    ...(raw.inputMode === 'automatic' ? { inputMode: 'automatic' as const } : {}),
     promptTargets: promptTargets.map((target: ComfyInputTarget) => ({ nodeId: target.nodeId, input: target.input })),
     ...(parameters.length ? { parameters } : {}),
     output: { nodeId: output.nodeId, index: 0 },
@@ -93,24 +98,32 @@ export function bindComfyPrompt(draft: ComfyWorkflowDraft, prompt: string): Comf
   return bindComfyInputs(draft, prompt);
 }
 
-/** Request values can change declared literals only; omitted/unknown keys fail closed. */
+/** Automatic fields inherit saved defaults; legacy mappings keep required-input semantics. */
 export function bindComfyInputs(draft: ComfyWorkflowDraft, prompt: string, workflowInputs: unknown = {}): ComfyApiGraph {
   if (!prompt.trim()) throw new Error('Image prompt is required');
   const validated = validateComfyWorkflowDraft(draft);
-  if (!record(workflowInputs)) throw new Error('workflowInputs must be an object');
-  const bindings = validated.parameters ?? [];
+  if (!record(workflowInputs) || Object.keys(workflowInputs).length > COMFY_MAX_REQUEST_INPUTS) throw new Error(`workflowInputs must be an object of at most ${COMFY_MAX_REQUEST_INPUTS} values`);
+  const bindings = validated.inputMode === 'automatic'
+    ? comfyEditableFields(validated.graph, validated.promptTargets)
+    : validated.parameters ?? [];
   const names = new Set(bindings.map((binding) => binding.name));
   for (const name of Object.keys(workflowInputs)) if (!names.has(name)) throw new Error(`Unknown workflow input: ${name}`);
   for (const binding of bindings) {
     const original = validated.graph[binding.nodeId]!.inputs[binding.input];
     const value = workflowInputs[binding.name];
-    if (!Object.hasOwn(workflowInputs, binding.name)) throw new Error(`Required workflow input: ${binding.name}`);
+    if (!Object.hasOwn(workflowInputs, binding.name)) {
+      if (validated.inputMode === 'automatic') continue;
+      throw new Error(`Required workflow input: ${binding.name}`);
+    }
     if (!isComfyLiteral(value) || typeof value !== typeof original || (typeof value === 'string' && value.length > 65_536)) {
       throw new Error(`Workflow input ${binding.name} must be a bounded ${typeof original}`);
     }
+    if ('integer' in binding && binding.integer && !Number.isSafeInteger(value)) throw new Error(`Workflow input ${binding.name} must be a safe integer`);
     validated.graph[binding.nodeId]!.inputs[binding.input] = value;
   }
   for (const target of validated.promptTargets) {
+    if (validated.inputMode === 'automatic' && bindings.some((binding) => binding.nodeId === target.nodeId
+      && binding.input === target.input && Object.hasOwn(workflowInputs, binding.name))) continue;
     validated.graph[target.nodeId]!.inputs[target.input] = prompt;
   }
   return validated.graph;

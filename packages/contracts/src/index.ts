@@ -41,6 +41,7 @@ export * from './api/live-artifacts.js';
 export * from './api/media.js';
 export * from './api/comfyui.js';
 export * from './api/comfyui-graph.js';
+export * from './api/comfyui-fields.js';
 export * from './api/mcp.js';
 export * from './api/memory.js';
 export * from './api/next-step-marker.js';

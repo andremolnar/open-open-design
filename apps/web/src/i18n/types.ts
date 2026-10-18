@@ -57,6 +57,12 @@ export interface Dict {
   'comfy.paste': string;
   'comfy.readGraph': string;
   'comfy.inputs': string;
+  'comfy.promptField': string;
+  'comfy.promptDefaultHint': string;
+  'comfy.storedValues': string;
+  'comfy.promptableFields': string;
+  'comfy.legacyFields': string;
+  'comfy.workflowDetails': string;
   'comfy.inputsHint': string;
   'comfy.source': string;
   'comfy.fixed': string;

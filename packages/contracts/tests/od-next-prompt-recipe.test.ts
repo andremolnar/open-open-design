@@ -61,6 +61,8 @@ describe('OD Next V2 prompt recipe', () => {
       expect(prompt).toContain('media comfyui discover --json');
       expect(prompt).toContain('--comfy-server <discovered-server-id>');
       expect(prompt).toContain('Recovery always uses');
+      expect(prompt).toContain('separate sequential image jobs');
+      expect(prompt).toContain('required:false');
     }
   });
   it('does not add ComfyUI dispatch to chat-only or media-disabled prompts', () => {

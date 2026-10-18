@@ -34,9 +34,28 @@ export interface ComfyWorkflowParameter {
   name: string;
   type: 'string' | 'number' | 'boolean';
   defaultValue: ComfyLiteral;
+  required?: boolean;
+  nodeId?: string;
+  nodeType?: string;
+  input?: string;
+  label?: string;
+  role?: 'prompt' | 'seed' | 'width' | 'height';
+  integer?: boolean;
+  usesPrompt?: boolean;
+}
+
+/** Derived editor/discovery field; each editable default has a concrete graph target. */
+export interface ComfyEditableField extends ComfyWorkflowParameter {
+  nodeId: string;
+  nodeType: string;
+  input: string;
+  label: string;
+  required: false;
+  usesPrompt: boolean;
 }
 
 export type ComfyWorkflowInputs = Record<string, ComfyLiteral>;
+export const COMFY_MAX_REQUEST_INPUTS = 256;
 
 /** Additional fields on the existing media generation request, not a new dispatcher. */
 export interface ComfyMediaRequestInputs {
@@ -58,8 +77,10 @@ export interface ComfyWorkflowDraft {
   /** Optional preferred server. Kept under its existing wire name for saved configuration compatibility. */
   connectionId?: string;
   graph: ComfyApiGraph;
+  /** New versions derive conservative editable inputs with optional saved defaults. Omitted preserves legacy mappings. */
+  inputMode?: 'automatic';
   promptTargets: ComfyInputTarget[];
-  /** All declared parameters must be supplied by a generation call. */
+  /** Legacy explicit mappings; required when inputMode is omitted. */
   parameters?: ComfyParameterBinding[];
   output: { nodeId: string; index: number };
 }
@@ -72,6 +93,7 @@ export interface ComfyWorkflowSummary {
   connectionId?: string;
   graphSha256: string;
   enabled: boolean;
+  inputMode?: 'automatic';
   schemaCheckedAt?: number;
   parameters?: ComfyWorkflowParameter[];
   output?: { nodeId: string; index: number };
@@ -84,12 +106,12 @@ export interface ComfySettingsResponse {
   executions?: Array<ComfyExecutionSummary & { running: boolean }>;
 }
 
-/** Agent-safe discovery: no URLs, credentials, graph, or private locked literals. */
+/** Agent-safe discovery: editable defaults only, never URLs, credentials, private graph or read-only literals. */
 export interface ComfyDiscovery {
   servers: Array<{ id: string; name: string }>;
   workflows: Array<{
     id: string; version: number; name: string; model: string; preferredServerId?: string;
-    inputs: Array<{ name: string; type: 'string' | 'number' | 'boolean'; required: true }>;
+    inputs: Array<Omit<ComfyWorkflowParameter, 'defaultValue' | 'required'> & { required: boolean; defaultValue?: ComfyLiteral }>;
   }>;
 }
 
@@ -127,7 +149,7 @@ export function comfyWorkflowModelHelp(workflows: ComfyWorkflowSummary[]): strin
   if (!enabled.length) return `${COMFY_WORKFLOW_MODEL_HELP} No workflows are currently enabled.`;
   return `${COMFY_WORKFLOW_MODEL_HELP} Enabled workflow choices: ${JSON.stringify(enabled.map((workflow) => ({
     model: comfyWorkflowModelId(workflow.id, workflow.version),
-    requiredWorkflowInputs: (workflow.parameters ?? []).map(({ name, type }) => ({ name, type })),
+    requiredWorkflowInputs: (workflow.parameters ?? []).filter((input) => input.required !== false).map(({ name, type }) => ({ name, type })),
   })))}`;
 }
 

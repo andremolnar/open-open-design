@@ -71,17 +71,16 @@ test('[P1] ComfyUI provider settings persist reusable workflows and a selected s
     const importedJson = JSON.stringify({ prompt: comfyGraph });
     await workflow.getByLabel('Import API JSON').setInputFiles({ name: 'fixture-api.json', mimeType: 'application/json', buffer: Buffer.from(importedJson) });
     await expect(workflow.getByLabel('Paste API graph or /prompt request JSON')).toHaveValue(importedJson);
-    await workflow.getByRole('combobox', { name: 'Source · 1.prompt', exact: true }).selectOption('prompt');
-    await workflow.getByLabel('Locked value · 20.width', { exact: true }).fill('640');
-    await workflow.getByLabel('Locked value · 20.height', { exact: true }).fill('480');
-    await workflow.getByRole('combobox', { name: 'Source · 1.seed', exact: true }).selectOption('parameter');
-    await workflow.getByLabel('Request input name · 1.seed', { exact: true }).fill('seed');
+    await workflow.getByLabel('width · node 20', { exact: true }).fill('640');
+    await workflow.getByLabel('height · node 20', { exact: true }).fill('480');
+    await expect(workflow.getByLabel('seed · node 1', { exact: true })).toHaveValue('123');
+    await expect(workflow.getByLabel(/Source ·/)).toHaveCount(0);
     await workflow.getByLabel('Final image output').selectOption('5');
     await workflow.getByLabel('I trust this graph').check();
     await expect(workflow.getByLabel('Name', { exact: true })).toHaveValue('Fixture render');
-    await expect(workflow.getByLabel('Locked value · 20.width', { exact: true })).toHaveValue('640');
+    await expect(workflow.getByLabel('width · node 20', { exact: true })).toHaveValue('640');
     await expect(workflow.getByLabel('I trust this graph')).toBeChecked();
-    await workflow.getByRole('button', { name: 'Build input form', exact: true }).scrollIntoViewIfNeeded();
+    await workflow.getByLabel('prompt · node 1').scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath('comfyui-builder.png') });
     const savedWorkflow = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/media/comfyui/workflows'));
     await workflow.getByRole('button', { name: 'Save disabled workflow version' }).click();
@@ -93,20 +92,23 @@ test('[P1] ComfyUI provider settings persist reusable workflows and a selected s
     await panel.getByRole('button', { name: 'Enable', exact: true }).click();
     expect((await enabled).ok()).toBe(true);
     const catalog = await (await page.request.get('/api/media/models')).json() as { image: Array<{ id: string; workflowInputs?: unknown }> };
-    expect(catalog.image.find((model) => model.id === modelId)).toMatchObject({ workflowInputs: [{ name: 'seed', type: 'number', required: true }] });
+    expect(catalog.image.find((model) => model.id === modelId)).toMatchObject({ workflowInputs: expect.arrayContaining([
+      expect.objectContaining({ name: 'node1_seed', type: 'number', defaultValue: 123, required: false }),
+      expect.objectContaining({ name: 'node20_width', type: 'number', defaultValue: 640, required: false }),
+    ]) });
     expect(catalog.image.some((model) => model.id === 'comfyui')).toBe(false);
     const discovery = await (await page.request.get('/api/media/models')).json();
     expect(discovery.comfyui.workflows).toContainEqual(expect.objectContaining({ name: 'Fixture render', preferredServerId: firstServer.id,
-      model: modelId, inputs: [{ name: 'seed', type: 'number', required: true }] }));
+      model: modelId, inputs: expect.arrayContaining([expect.objectContaining({ name: 'node1_seed', type: 'number', required: false })]) }));
     expect(discovery.comfyui.servers).toContainEqual({ id: alternateServer.id, name: 'Alternate fixture GPU' });
-    for (const secret of [fixture.url, alternate.url, 'fixture-token-not-real', 'graph', 'defaultValue']) expect(JSON.stringify(discovery.comfyui)).not.toContain(secret);
+    for (const secret of [fixture.url, alternate.url, 'fixture-token-not-real', 'graph', 'opendesign-test', 'standard']) expect(JSON.stringify(discovery.comfyui)).not.toContain(secret);
     const enabledAlias = await page.request.post(`/api/projects/${projectId}/media/generate`, { data: { surface: 'image', model: 'comfyui', prompt: 'Do not auto-select a workflow' } });
     expect(enabledAlias.status()).toBe(400);
     expect((await enabledAlias.json()).error.message).toContain(modelId);
     for (const overrides of [{ aspect: '16:9' }, { quality: 'high' }, { resolution: '2K' },
       { image: 'reference.png' }, { images: ['reference.png'] }, { output: 'custom.png' }]) {
       const rejected = await page.request.post(`/api/projects/${projectId}/media/generate`, { data: {
-        surface: 'image', model: modelId, prompt: 'A ceramic cup', workflowInputs: { seed: 456 },
+        surface: 'image', model: modelId, prompt: 'A ceramic cup', workflowInputs: { node1_seed: 456 },
         requestId: `${projectId}-rejected-options`, ...overrides,
       } });
       expect(rejected.status()).toBe(400);
@@ -125,7 +127,7 @@ test('[P1] ComfyUI provider settings persist reusable workflows and a selected s
     await current.getByRole('group', { name: 'Active servers' }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath('comfyui-settings.png') });
     const accepted = await page.request.post(`/api/projects/${projectId}/media/generate`, { data: {
-      surface: 'image', model: modelId, prompt: 'A ceramic cup', workflowInputs: { seed: 456 },
+      surface: 'image', model: modelId, prompt: 'A ceramic cup', workflowInputs: { node1_seed: 456 },
       comfyServerId: alternateServer.id, requestId: `${projectId}-selected-server`,
     } });
     expect(accepted.status()).toBe(202);
@@ -150,6 +152,31 @@ test('[P1] ComfyUI provider settings persist reusable workflows and a selected s
     const bytes = await page.request.get(`/api/projects/${projectId}/raw/${task!.file!.name}`);
     expect(bytes.ok()).toBe(true);
     expect(await bytes.body()).toEqual(comfyPng);
+    // These are deliberate independent jobs, not batch_size changes or retries.
+    // Omitted inputs inherit saved defaults on each graph copy.
+    const variants = [11, 22, 33, 44, 55].map((seed) => ({ node1_seed: seed }));
+    const ratios = [[1024, 1024], [1024, 768], [768, 1024], [1024, 576], [576, 1024], [1152, 768]];
+    const overrides = [...variants, ...ratios.map(([width, height]) => ({ node20_width: width!, node20_height: height! }))];
+    for (const [index, workflowInputs] of overrides.entries()) {
+      const response = await page.request.post(`/api/projects/${projectId}/media/generate`, { data: {
+        surface: 'image', model: modelId, prompt: `Cup variant ${index + 1}`, workflowInputs,
+        comfyServerId: alternateServer.id, requestId: `${projectId}-variant-${index}`,
+      } });
+      expect(response.status(), await response.text()).toBe(202);
+      const variantTask = (await response.json()).taskId;
+      await expect.poll(async () => (await (await page.request.get(`/api/projects/${projectId}/media/tasks?includeDone=1`)).json()).tasks
+        .find((item: { taskId: string }) => item.taskId === variantTask)?.status, { timeout: T.long }).toBe('done');
+    }
+    expect(alternate.submissions).toHaveLength(12);
+    for (const [index, seed] of [11, 22, 33, 44, 55].entries()) {
+      expect(alternate.submissions[index + 1]).toMatchObject({ prompt: { '1': { inputs: { seed } }, '20': { inputs: { width: 640, height: 480 } } } });
+    }
+    for (const [index, [width, height]] of ratios.entries()) {
+      expect(alternate.submissions[index + 6]).toMatchObject({ prompt: { '1': { inputs: { seed: 123 } }, '20': { inputs: { width, height } } } });
+    }
+    const finalTasks = (await (await page.request.get(`/api/projects/${projectId}/media/tasks?includeDone=1`)).json()).tasks;
+    expect(new Set(finalTasks.map((item: { file?: { name: string } }) => item.file?.name)).size).toBe(12);
+    expect(fixture.submissions).toHaveLength(0);
     const otherFiles = await page.request.get(`/api/projects/${otherProjectId}/files`);
     expect(await otherFiles.text()).not.toContain(`comfy-${taskId}.png`);
     const config = await page.request.get('/api/media/comfyui');
@@ -157,9 +184,9 @@ test('[P1] ComfyUI provider settings persist reusable workflows and a selected s
     await current.getByRole('button', { name: 'Edit as new version', exact: true }).click();
     const edited = current.getByRole('group', { name: 'Workflow', exact: true });
     await expect(edited.getByLabel('Preferred server')).toHaveValue(firstServer.id);
-    await expect(edited.getByLabel('Locked value · 20.width', { exact: true })).toHaveValue('640');
-    await expect(edited.getByRole('combobox', { name: 'Source · 1.prompt', exact: true })).toHaveValue('prompt');
-    await expect(edited.getByLabel('Request input name · 1.seed', { exact: true })).toHaveValue('seed');
+    await expect(edited.getByLabel('width · node 20', { exact: true })).toHaveValue('640');
+    await expect(edited.getByRole('textbox', { name: 'prompt · node 1', exact: true })).toHaveValue('original');
+    await expect(edited.getByLabel('seed · node 1', { exact: true })).toHaveValue('123');
     await expect(edited.getByLabel('Final image output')).toHaveValue('5');
   } finally { await alternate.close(); await fixture.close(); }
 });

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import type { ComfyConnectionInput, ComfyDiscovery } from '@open-design/contracts';
-import { isComfyLiteral } from '@open-design/contracts';
+import { COMFY_MAX_REQUEST_INPUTS, isComfyLiteral } from '@open-design/contracts';
 
 export const COMFY_CLI_HELP = `Usage: od media comfyui <action> [options]
   list                                      List servers and workflow versions
@@ -19,24 +19,25 @@ All actions accept --json and --daemon-url <url>.
 server-add JSON: {"name":"Studio","baseUrl":"http://127.0.0.1:8188","trustedNetwork":true}
 Keep secrets out of argv; use --token-file (or - for stdin). Tokens are never returned.
 workflow-add JSON contains name, optional preferred connectionId, graph (API export), promptTargets,
-and output {nodeId,index:0}. Optional parameters: [{name,nodeId,input}].
-Fixed values live in graph.inputs; only promptTargets and parameters are overridden.
+and output {nodeId,index:0}. Add inputMode: "automatic" for typed promptable defaults.
+Omit inputMode to preserve legacy required parameters: [{name,nodeId,input}].
 With --workflow, append a new disabled version.
 
 After enablement, submit a real, potentially costly GPU run with:
   od media generate --surface image --project <id> --model comfyui/<id>@<version> --prompt-file <path|-> --json
-For declared parameters add --workflow-inputs-file <json|->, e.g. {"resolution":"medium"}.
+For discovered overrides add --workflow-inputs-file <json|->, e.g. {"node3_seed":456}.
 Select a different saved server with --comfy-server <id>. If omitted, use the
 workflow preference or the sole saved server; multiple servers require a choice.
-All declared parameters are required. Use the existing media wait command to check
+Automatic fields are optional and inherit saved defaults. Legacy inputs marked required
+in discovery must still be supplied. Use the existing media wait command to check
 the returned task. Generic aspect/quality/resolution flags and image references are unsupported.`;
 
 export async function readComfyWorkflowInputs(file: string): Promise<Record<string, string | number | boolean>> {
   const raw = file === '-' ? readFileSync(0, 'utf8') : await readFile(file, 'utf8');
   if (Buffer.byteLength(raw) > 2 * 1024 * 1024) throw new Error('Workflow inputs exceed 2 MiB');
   const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 32
-    || !Object.values(value).every(isComfyLiteral)) throw new Error('Workflow inputs must be an object of at most 32 text, number or boolean values');
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > COMFY_MAX_REQUEST_INPUTS
+    || !Object.values(value).every(isComfyLiteral)) throw new Error(`Workflow inputs must be an object of at most ${COMFY_MAX_REQUEST_INPUTS} text, number or boolean values`);
   return value as Record<string, string | number | boolean>;
 }
 

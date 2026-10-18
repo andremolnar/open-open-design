@@ -2303,7 +2303,7 @@ Common options:
   --prompt-file <path|->     Read the prompt from a file, or - for stdin (for long-form prompts).
   --resume-task <taskId>     ComfyUI only: recover a known submitted job without another GPU submission.
   --request-id <id>          ComfyUI only: reuse this ID on transport retries; generated if omitted.
-  --workflow-inputs-file <path|->  ComfyUI only: JSON values for every declared named input.
+  --workflow-inputs-file <path|->  ComfyUI only: typed overrides; omitted automatic fields use saved defaults.
   --comfy-server <server-id>     ComfyUI only: override the preferred server for a new job.
   --output <filename>       File to write under the project. Auto-named if omitted.
   --aspect 1:1|16:9|9:16|4:3|3:4

@@ -146,14 +146,15 @@ export function ComfySettingsPanel({ onConfiguredChange, workspaceContext }: Com
           setDraft((current) => ({ ...current, name: current.name || file.name.replace(/\.json$/i, '').slice(0, 120) }));
         });
       }} /></label>
+      <details open={!builder} className={styles.storedValues}><summary>{t('comfy.paste')}</summary>
       <label>{t('comfy.paste')}<textarea rows={5} value={graphText} onChange={(event) => {
         setGraphText(event.target.value); setBuilder(null); setOutput(''); setGraphTrusted(false);
       }} /></label>
       <Button variant="secondary" disabled={!graphText.trim()} onClick={() => void act(async () => {
         setBuilder(null); setOutput(''); setGraphTrusted(false); loadGraph(graphText);
       })}>{t('comfy.readGraph')}</Button>
+      </details>
       {builder && <>
-        <p>{t('comfy.reviewSuggested')}</p>
         <ComfyWorkflowBuilder value={builder} onChange={(value) => { setBuilder(value); setGraphText(JSON.stringify(value.graph, null, 2)); setGraphTrusted(false); }} />
       </>}
       <label>{t('comfy.output')}<select value={output} onChange={(event) => setOutput(event.target.value)}><option value="">—</option>
@@ -180,15 +181,17 @@ export function ComfySettingsPanel({ onConfiguredChange, workspaceContext }: Com
         <strong>{workflow.name} · v{workflow.version}</strong>
         <p>{workflow.enabled ? t('comfy.enabled') : t('comfy.disabled')}</p>
         <p>{t('comfy.preferredServer')}: {data.connections.find((connection) => connection.id === workflow.connectionId)?.name || t('comfy.noPreference')}</p>
-        <code>{comfyWorkflowModelId(workflow.id, workflow.version)}</code>
-        <p>{t('comfy.modelIdHint')}</p>
-        {workflow.output && <p>{t('comfy.output')}: {workflow.output.nodeId} · PNG #{workflow.output.index}</p>}
-        {!!workflow.parameters?.length && <p>{t('comfy.requestInputs')}: {workflow.parameters.map((parameter) => `${parameter.name} (${parameter.type})`).join(', ')}</p>}
+        <p>{workflow.inputMode === 'automatic' ? `${workflow.parameters?.length ?? 0} ${t('comfy.promptableFields')}` : t('comfy.legacyFields')}</p>
+        <details className={styles.storedValues}><summary>{t('comfy.workflowDetails')}</summary>
+          <code>{comfyWorkflowModelId(workflow.id, workflow.version)}</code>
+          <p>{t('comfy.modelIdHint')}</p>
+          {workflow.output && <p>{t('comfy.output')}: {workflow.output.nodeId} · PNG #{workflow.output.index}</p>}
+        </details>
         <div className={styles.row}>
           <Button disabled={busy} variant="secondary" onClick={() => void act(async () => {
             const draft = await request<ComfyWorkflowDraft>(`/api/media/comfyui/workflows/${workflow.id}/${workflow.version}`);
             setName(draft.name); setConnectionId(draft.connectionId ?? ''); setRevisionId(workflow.id);
-            setBuilder({ graph: draft.graph, promptTargets: draft.promptTargets, parameters: draft.parameters ?? [] });
+            setBuilder({ graph: draft.graph, promptTargets: draft.promptTargets, inputMode: 'automatic' });
             setOutput(draft.output.nodeId); setGraphText(JSON.stringify(draft.graph, null, 2)); setGraphTrusted(false);
           })}>{t('comfy.editVersion')}</Button>
           <Button disabled={busy} variant="secondary" onClick={() => void act(async () => {

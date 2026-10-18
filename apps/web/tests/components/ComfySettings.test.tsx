@@ -32,6 +32,27 @@ function mockRequests(configuration: ComfySettingsResponse = settings) {
 }
 
 describe('ComfyUI provider settings', () => {
+  it('shows typed defaults without source/key selectors and keeps ambiguous stored values read-only', async () => {
+    mockRequests();
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    const form = within(screen.getByRole('group', { name: 'Workflow' }));
+    fireEvent.change(form.getByLabelText('Paste API graph or /prompt request JSON'), { target: { value: JSON.stringify({
+      '6': { class_type: 'CLIPTextEncode', inputs: { text: 'cup' } },
+      '7': { class_type: 'KSampler', inputs: { seed: 123, cfg: 7.5, enabled: false, sampler_name: 'euler' } },
+      '9': { class_type: 'SaveImage', inputs: { images: ['6', 0], filename_prefix: 'saved-name' } },
+    }) } });
+    fireEvent.click(form.getByRole('button', { name: 'Build input form' }));
+    await waitFor(() => expect(form.getByLabelText('seed · node 7')).toBeTruthy());
+    expect((form.getByLabelText('seed · node 7') as HTMLInputElement).type).toBe('number');
+    expect((form.getByLabelText('seed · node 7') as HTMLInputElement).value).toBe('123');
+    expect((form.getByLabelText('text · node 6') as HTMLTextAreaElement).value).toBe('cup');
+    expect((form.getByLabelText('enabled · node 7') as HTMLInputElement).type).toBe('checkbox');
+    expect((form.getByLabelText('enabled · node 7') as HTMLInputElement).checked).toBe(false);
+    expect(form.queryByLabelText(/Source ·/)).toBeNull();
+    expect(form.queryByLabelText(/Request input name/)).toBeNull();
+    expect(form.queryByLabelText('sampler_name · node 7')).toBeNull();
+    expect(form.getByText('euler')).toBeTruthy();
+  });
   it('shows active servers and reveals the add-server form only on request', async () => {
     mockRequests();
     render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
@@ -51,7 +72,7 @@ describe('ComfyUI provider settings', () => {
       '5': { class_type: 'PreviewImage', inputs: { images: ['6', 0] } } });
     fireEvent.change(form().getByLabelText('Paste API graph or /prompt request JSON'), { target: { value: json } });
     fireEvent.click(form().getByRole('button', { name: 'Build input form' }));
-    await waitFor(() => expect(form().getByLabelText('Source · 6.text')).toBeTruthy());
+    await waitFor(() => expect(form().getByLabelText('text · node 6')).toBeTruthy());
     fireEvent.click(form().getByLabelText(/I trust this graph/));
     fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
     expect(screen.queryByRole('group', { name: 'Workflow' })).toBeNull();
@@ -71,6 +92,26 @@ describe('ComfyUI provider settings', () => {
     });
     expect(suggestion.builder.promptTargets).toEqual([]);
     expect(suggestion.output).toBe('');
+  });
+
+  it('uses one explicit image-prompt chooser for ambiguous positive/negative encoders', async () => {
+    const { writes } = mockRequests();
+    render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
+    const form = within(screen.getByRole('group', { name: 'Workflow' }));
+    fireEvent.change(form.getByLabelText('Name', { exact: true }), { target: { value: 'Two encoders' } });
+    fireEvent.change(form.getByLabelText('Paste API graph or /prompt request JSON'), { target: { value: JSON.stringify({
+      '6': { class_type: 'CLIPTextEncode', inputs: { text: 'positive' } },
+      '7': { class_type: 'CLIPTextEncode', inputs: { text: 'negative' } },
+      '9': { class_type: 'SaveImage', inputs: { images: ['6', 0] } },
+    }) } });
+    fireEvent.click(form.getByRole('button', { name: 'Build input form' }));
+    const primary = await form.findByLabelText('Image prompt field');
+    expect((primary as HTMLSelectElement).value).toBe('');
+    fireEvent.change(primary, { target: { value: '6.text' } });
+    fireEvent.click(form.getByLabelText(/I trust this graph/));
+    fireEvent.click(form.getByRole('button', { name: 'Save disabled workflow version' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]?.body).toMatchObject({ inputMode: 'automatic', promptTargets: [{ nodeId: '6', input: 'text' }] });
   });
   it('keeps Save actionable and explains missing mappings instead of silently disabling it', async () => {
     const { writes } = mockRequests();
@@ -96,11 +137,11 @@ describe('ComfyUI provider settings', () => {
     fireEvent.change(form.getByLabelText('Import API JSON'), { target: { files: [file] } });
     await waitFor(() => expect((form.getByLabelText('Paste API graph or /prompt request JSON') as HTMLTextAreaElement).value).toBe(json));
     expect((form.getByLabelText('Name', { exact: true }) as HTMLInputElement).value).toBe('sample-workflow');
-    expect((form.getByLabelText('Source · 6.text') as HTMLSelectElement).value).toBe('prompt');
+    expect((form.getByLabelText('text · node 6') as HTMLTextAreaElement).value).toBe('YOUR PROMPT HERE');
     expect((form.getByLabelText('Final image output to import') as HTMLSelectElement).value).toBe('5');
     expect(screen.queryByRole('button', { name: 'Run image test' })).toBeNull();
   });
-  it('builds a form from an envelope, locks dimensions and saves explicit prompt, parameter and PreviewImage mappings', async () => {
+  it('saves typed editable defaults from an envelope without requiring binding modes or request names', async () => {
     const { writes } = mockRequests();
     render(<I18nProvider initial="en"><ComfySettingsPanel /></I18nProvider>);
     const form = within(screen.getByRole('group', { name: 'Workflow' }));
@@ -111,20 +152,18 @@ describe('ComfyUI provider settings', () => {
     };
     fireEvent.change(form.getByLabelText('Paste API graph or /prompt request JSON'), { target: { value: JSON.stringify({ prompt: graph }) } });
     fireEvent.click(form.getByRole('button', { name: 'Build input form' }));
-    await waitFor(() => expect(form.getByLabelText('Source · 21.text')).toBeTruthy());
+    await waitFor(() => expect(form.getByLabelText('text · node 21')).toBeTruthy());
     fireEvent.change(form.getByLabelText('Name', { exact: true }), { target: { value: 'Sample workflow' } });
-    fireEvent.change(form.getByLabelText('Locked value · 20.width'), { target: { value: '640' } });
-    fireEvent.change(form.getByLabelText('Locked value · 20.height'), { target: { value: '480' } });
-    fireEvent.change(form.getByLabelText('Source · 21.text'), { target: { value: 'prompt' } });
-    fireEvent.change(form.getByLabelText('Source · 20.preset'), { target: { value: 'parameter' } });
-    fireEvent.change(form.getByLabelText('Request input name · 20.preset'), { target: { value: 'preset' } });
+    fireEvent.change(form.getByLabelText('width · node 20'), { target: { value: '640' } });
+    fireEvent.change(form.getByLabelText('height · node 20'), { target: { value: '480' } });
+    expect(form.queryByLabelText('preset · node 20')).toBeNull();
     fireEvent.change(form.getByLabelText('Final image output to import'), { target: { value: '30' } });
     fireEvent.click(form.getByLabelText(/I trust this graph/));
     fireEvent.click(form.getByRole('button', { name: 'Save disabled workflow version' }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toMatchObject({ url: '/api/media/comfyui/workflows', body: {
       name: 'Sample workflow', promptTargets: [{ nodeId: '21', input: 'text' }],
-      parameters: [{ name: 'preset', nodeId: '20', input: 'preset' }], output: { nodeId: '30', index: 0 },
+      inputMode: 'automatic', output: { nodeId: '30', index: 0 },
       graph: { ...graph, '20': { ...graph['20'], inputs: { width: 640, height: 480, preset: 'standard' } } },
     } });
     expect(form.queryByLabelText('Source · 30.images')).toBeNull();

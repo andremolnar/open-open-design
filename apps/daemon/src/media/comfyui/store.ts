@@ -12,7 +12,7 @@ import type {
   ComfyDiscovery,
 } from '@open-design/contracts';
 import { validateComfyWorkflowDraft } from './workflow.js';
-import { comfyWorkflowModelId } from '@open-design/contracts';
+import { comfyEditableFields, comfyWorkflowModelId } from '@open-design/contracts';
 
 type ConnectionRow = {
   id: string;
@@ -33,6 +33,7 @@ type WorkflowRow = {
   outputJson: string;
   enabled: number;
   schemaCheckedAt: number | null;
+  inputMode: 'automatic' | null;
 };
 
 export function migrateComfyWorkflows(db: Database.Database): void {
@@ -87,6 +88,9 @@ export function migrateComfyWorkflows(db: Database.Database): void {
   if (!columns.some((column) => column.name === 'parameters_json')) {
     db.exec("ALTER TABLE comfy_workflow_versions ADD COLUMN parameters_json TEXT NOT NULL DEFAULT '[]'");
   }
+  if (!columns.some((column) => column.name === 'input_mode')) {
+    db.exec('ALTER TABLE comfy_workflow_versions ADD COLUMN input_mode TEXT');
+  }
   // Retain every immutable graph/version and the old server as its preference.
   // Only the NOT NULL constraint changes; executions retain their original server.
   if (columns.find((column) => column.name === 'connection_id')?.notnull) {
@@ -96,12 +100,12 @@ export function migrateComfyWorkflows(db: Database.Database): void {
         connection_id TEXT REFERENCES comfy_connections(id) ON DELETE RESTRICT,
         graph_json TEXT NOT NULL, graph_sha256 TEXT NOT NULL, bindings_json TEXT NOT NULL,
         output_json TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, schema_checked_at INTEGER,
-        created_at INTEGER NOT NULL, schema_fingerprint TEXT, parameters_json TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL, schema_fingerprint TEXT, parameters_json TEXT NOT NULL DEFAULT '[]', input_mode TEXT,
         PRIMARY KEY(config_id, version)
       );
       INSERT INTO comfy_workflow_versions_reusable SELECT config_id, version, name, connection_id,
         graph_json, graph_sha256, bindings_json, output_json, enabled, schema_checked_at,
-        created_at, schema_fingerprint, parameters_json FROM comfy_workflow_versions;
+        created_at, schema_fingerprint, parameters_json, input_mode FROM comfy_workflow_versions;
       DROP TABLE comfy_workflow_versions;
       ALTER TABLE comfy_workflow_versions_reusable RENAME TO comfy_workflow_versions;
       CREATE INDEX idx_comfy_workflows_connection ON comfy_workflow_versions(connection_id, config_id);
@@ -289,10 +293,10 @@ export function getComfyConnectionToken(db: Database.Database, id: string): stri
 
 const WORKFLOW_COLS = `config_id AS configId, version, name, connection_id AS connectionId,
   graph_json AS graphJson, graph_sha256 AS graphSha256, bindings_json AS bindingsJson,
-  parameters_json AS parametersJson, output_json AS outputJson, enabled, schema_checked_at AS schemaCheckedAt`;
+  parameters_json AS parametersJson, output_json AS outputJson, enabled, schema_checked_at AS schemaCheckedAt, input_mode AS inputMode`;
 
 function workflowSummary(row: WorkflowRow): ComfyWorkflowSummary {
-  const draft = { graph: JSON.parse(row.graphJson), parameters: JSON.parse(row.parametersJson) } as ComfyWorkflowDraft;
+  const draft = { graph: JSON.parse(row.graphJson), parameters: JSON.parse(row.parametersJson), promptTargets: JSON.parse(row.bindingsJson) } as ComfyWorkflowDraft;
   return {
     id: row.configId,
     version: row.version,
@@ -300,10 +304,11 @@ function workflowSummary(row: WorkflowRow): ComfyWorkflowSummary {
     ...(row.connectionId ? { connectionId: row.connectionId } : {}),
     graphSha256: row.graphSha256,
     enabled: row.enabled === 1,
+    ...(row.inputMode ? { inputMode: row.inputMode } : {}),
     output: JSON.parse(row.outputJson),
-    parameters: (draft.parameters ?? []).map((binding) => {
+    parameters: row.inputMode === 'automatic' ? comfyEditableFields(draft.graph, draft.promptTargets) : (draft.parameters ?? []).map((binding) => {
       const defaultValue = draft.graph[binding.nodeId]!.inputs[binding.input] as ComfyLiteral;
-      return { name: binding.name, type: typeof defaultValue as 'string' | 'number' | 'boolean', defaultValue };
+      return { name: binding.name, type: typeof defaultValue as 'string' | 'number' | 'boolean', defaultValue, required: true };
     }),
     ...(row.schemaCheckedAt !== null ? { schemaCheckedAt: row.schemaCheckedAt } : {}),
   };
@@ -322,7 +327,8 @@ export function discoverComfy(db: Database.Database): ComfyDiscovery {
       id: workflow.id, version: workflow.version, name: workflow.name,
       model: comfyWorkflowModelId(workflow.id, workflow.version),
       ...(workflow.connectionId ? { preferredServerId: workflow.connectionId } : {}),
-      inputs: (workflow.parameters ?? []).map(({ name, type }) => ({ name, type, required: true as const })),
+      inputs: (workflow.parameters ?? []).map(({ defaultValue, ...field }) => ({ ...field, required: field.required !== false,
+        ...(workflow.inputMode === 'automatic' ? { defaultValue } : {}) })),
     })),
   };
 }
@@ -344,9 +350,9 @@ function insertWorkflowVersion(
   if (draft.connectionId && !getComfyConnection(db, draft.connectionId)) throw new Error('Preferred ComfyUI server was not found. Choose a saved server or leave the preference empty.');
   db.prepare(`INSERT INTO comfy_workflow_versions
     (config_id, version, name, connection_id, graph_json, graph_sha256,
-      bindings_json, output_json, parameters_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      bindings_json, output_json, parameters_json, created_at, input_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(configId, version, draft.name, draft.connectionId ?? null, graphJson, graphSha256,
-      JSON.stringify(draft.promptTargets), JSON.stringify(draft.output), JSON.stringify(draft.parameters ?? []), Date.now());
+      JSON.stringify(draft.promptTargets), JSON.stringify(draft.output), JSON.stringify(draft.parameters ?? []), Date.now(), draft.inputMode ?? null);
 }
 
 /** A changed graph never rewrites a published or in-flight version. */
@@ -375,6 +381,7 @@ export function getComfyWorkflowDraft(db: Database.Database, id: string, version
     name: row.name,
     ...(row.connectionId ? { connectionId: row.connectionId } : {}),
     graph: JSON.parse(row.graphJson),
+    ...(row.inputMode ? { inputMode: row.inputMode } : {}),
     promptTargets: JSON.parse(row.bindingsJson),
     parameters: JSON.parse(row.parametersJson),
     output: JSON.parse(row.outputJson),

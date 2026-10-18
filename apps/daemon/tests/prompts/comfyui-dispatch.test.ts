@@ -14,6 +14,8 @@ describe('ComfyUI host dispatch constraints', () => {
         expect(prompt).toContain('media comfyui discover --json');
         expect(prompt).toContain('--comfy-server <discovered-server-id>');
         expect(prompt).toContain('No automatic cross-server retry');
+        expect(prompt).toContain('separate sequential image jobs');
+        expect(prompt).toContain('required:false');
         expect(prompt).not.toContain('--aspect 16:9)');
       });
     }

@@ -30,8 +30,14 @@ servers or providers. No automatic cross-server retry. Recovery always uses
 the original recorded server and prompt ID, with no new server flag.
 Do not call ComfyUI directly or modify its graph yourself. Image media only.
 
-The saved graph owns dimensions, aspect ratio and seed unless explicitly mapped
-as named request inputs; all other values stay locked.
+Discovery lists each editable field's exact key, type, node identity, default,
+semantic role and whether it receives the main image prompt. Automatic fields
+have required:false: supply only intentional overrides; omitted fields keep the
+saved default. A usesPrompt field normally receives --prompt-file; an explicit
+named override takes precedence. Legacy versions may still list required:true
+inputs; supply those, or ask the operator to edit/save a new default-based version.
+Never request or modify read-only model/file/enum values, graph links or batch
+controls. Their absence from discovery is intentional, not a reason to edit JSON.
 Do not pass \`--aspect\`, \`--quality\`, \`--resolution\`, \`--image\`, or \`--output\`
 for this adapter; also omit image lists and generic output/size overrides from
 HTTP requests. Do not inherit a default 16:9 flag from a generic example.
@@ -46,12 +52,27 @@ Minimal invocation (replace the model placeholder with the real selected ID):
   --prompt-file ./image-prompt.txt --json
 \`\`\`
 
-Only declared named inputs can vary: provide every required catalog input as
+Only discovered named inputs can vary: provide required inputs and chosen overrides as
 typed JSON via \`--workflow-inputs-file <path>\` (HTTP: \`workflowInputs\`).
 The image prompt goes through \`--prompt-file\` or \`--prompt\`. Leave locked
 settings alone. The dispatcher chooses the local filename and imports the
 selected image output; no \`--output\` flag is needed. Follow the returned
 task through \`media wait\` until it ends; dispatch acceptance is not an image.
+
+For "five versions with a random seed each", discover the numeric seed field(s),
+choose a concrete distinct nonnegative safe-integer seed per job (prefer the
+portable 0..4294967295 range), and include it in that job's typed input JSON.
+Do not send "random" as a numeric value or rely on an undocumented -1 sentinel.
+For different aspect ratios, use discovered width/height fields with explicit
+integer dimension pairs (e.g. 1024/768 for 4:3), not generic --aspect flags.
+Use node identities/types to avoid changing an unrelated resize stage; ask if
+the relevant size controls are ambiguous or unavailable. Do not invent presets.
+Generate the requested number as separate sequential image jobs, each with its
+own output/task and request ID; wait for completion before the next submission.
+Do not increase batch_size: only image index 0 is imported. Reuse a request ID
+only for a transport retry of the exact same job. Stop on failures/unknown
+outcomes and report completed versus remaining variants; never auto-resubmit
+an uncertain job or silently charge ahead on another server/provider.
 
 For \`error.nextStep: "revise-options"\`, the request was rejected before any
 provider submission. Correct an agent-added unsupported default once, without

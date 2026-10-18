@@ -95,7 +95,7 @@ to the **host**, not to either strategy — if a strategy is retired, these stay
 | `@media print` block | Share → PDF multi-page stitching | ✅ | ✅ |
 | `<question-form>` | `AssistantMessage.tsx` → `QuestionFormView`; `runAskedUserQuestion` analytics | ✅ `discovery.ts` | ✅ `od-next-strategy.ts:434` |
 | `.od-frames/` device shells | prototype device frames | ❌ | ✅ OD Next only |
-| ComfyUI dispatch constraints | discovery resolves saved workflows/servers; explicit server override; graph owns locked settings; recovery keeps original server/job | ✅ shared `comfyui-dispatch.ts` | ✅ shared `comfyui-dispatch.ts` in stable request context |
+| ComfyUI dispatch constraints | discovery resolves workflows/servers and typed defaults; optional field overrides; sequential seed/size variants; recovery keeps original server/job | ✅ shared `comfyui-dispatch.ts` | ✅ shared `comfyui-dispatch.ts` in stable request context |
 
 Two things to read off this table.
 
