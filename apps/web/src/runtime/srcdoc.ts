@@ -31,6 +31,7 @@ import {
   buildPreviewBaseHrefBridge,
   buildPreviewObservabilityBridge,
 } from '@open-design/contracts/runtime/preview-observability';
+import { buildPreviewHistoryBridge } from '@open-design/contracts/runtime/preview-history';
 import {
   PREVIEW_RUNTIME_STATE_LIMITS,
   PREVIEW_RUNTIME_STATE_VERSION,
@@ -82,6 +83,8 @@ export type SrcdocOptions = {
   /** Install the live-preview error and white-screen reporting bridge. Keep
    * this disabled for exports, captures, thumbnails, and historical previews. */
   previewObservability?: boolean;
+  /** Enable in-frame Back for the live artifact viewer, not exports. */
+  previewHistory?: boolean;
   /** Let trusted font-CDN stylesheets load without blocking the live preview's
    * first paint. Keep disabled for exports and other capture surfaces. */
   deferFontStylesheets?: boolean;
@@ -377,7 +380,10 @@ export function buildSrcdoc(
   const withObservability = options.previewObservability
     ? injectAfterHeadOpen(withRedirectGuard, buildPreviewObservabilityBridge())
     : withRedirectGuard;
-  const withKeydownRegistry = options.deck ? injectDeckKeydownRegistryHook(withObservability) : withObservability;
+  const withHistory = options.previewHistory
+    ? injectAfterHeadOpen(withObservability, buildPreviewHistoryBridge())
+    : withObservability;
+  const withKeydownRegistry = options.deck ? injectDeckKeydownRegistryHook(withHistory) : withHistory;
   const withFocusGuard = options.previewFocusGuard
     ? injectPreviewFocusGuard(withKeydownRegistry)
     : withKeydownRegistry;

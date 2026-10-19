@@ -1028,6 +1028,77 @@ test('[P1] a linked page in a document preview can return to the document by too
   await expect(preview.getByRole('heading', { name: 'Original document' })).toBeVisible();
 });
 
+for (const [label, query] of [['URL-loaded', ''], ['inline', '?forceInline=1']] as const) {
+  test(`[P1] ${label} prototype preview Back returns across linked mockup files`, async ({ page }, testInfo) => {
+    await routeMockAgents(page);
+    const projectId = await createProjectViaApi(page, `Linked mockup Back ${label}`);
+    await seedHtmlArtifact(page, projectId, 'first.html', '<!doctype html><html><body><h1>First mockup</h1><a href="second.html">Next mockup</a></body></html>');
+    await seedHtmlArtifact(page, projectId, 'second.html', '<!doctype html><html><body><h1>Second mockup</h1><button onclick="location.hash=\'section\'">Jump to section</button><div id="section">Section</div><a href="third.html">Next mockup</a></body></html>');
+    await seedHtmlArtifact(page, projectId, 'third.html', '<!doctype html><html><body><h1>Third mockup</h1></body></html>');
+    await page.goto(`/projects/${projectId}${query}`, { waitUntil: 'domcontentloaded' });
+    await expectWorkspaceReady(page);
+    await openDesignFile(page, 'first.html');
+    const preview = page.frameLocator('[data-testid="artifact-preview-frame"]');
+    const back = page.locator('.html-viewer .viewer-toolbar-left').getByRole('button', { name: 'Go Back' });
+    await expect(preview.getByRole('heading', { name: 'First mockup' })).toBeVisible();
+    await expect(back).toBeDisabled();
+    await preview.getByRole('link', { name: 'Next mockup' }).click();
+    await expect(preview.getByRole('heading', { name: 'Second mockup' })).toBeVisible();
+    await expect(back).toBeEnabled();
+    if (label === 'URL-loaded') {
+      await back.hover();
+      await page.screenshot({ path: testInfo.outputPath('preview-back-linked-documents.png'), animations: 'disabled' });
+    }
+    await preview.getByRole('button', { name: 'Jump to section' }).click();
+    await expect.poll(() => preview.locator('body').evaluate(() => location.hash).catch(() => null)).toBe('#section');
+    await expect(preview.getByRole('heading', { name: 'Second mockup' })).toBeVisible();
+    await back.click();
+    await expect.poll(() => preview.locator('body').evaluate(() => location.hash).catch(() => null)).toBe('');
+    await expect(preview.getByRole('heading', { name: 'Second mockup' })).toBeVisible();
+    await preview.getByRole('link', { name: 'Next mockup' }).click();
+    await expect(preview.getByRole('heading', { name: 'Third mockup' })).toBeVisible();
+    await back.click();
+    await expect(preview.getByRole('heading', { name: 'Second mockup' })).toBeVisible();
+    await back.click();
+    await expect(preview.getByRole('heading', { name: 'First mockup' })).toBeVisible();
+    await expect(back).toBeDisabled();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
+  });
+}
+
+for (const [label, query] of [['URL-loaded', ''], ['inline', '?forceInline=1']] as const) {
+  test(`[P1] ${label} prototype preview Back traverses iframe history without leaving the project`, async ({ page }, testInfo) => {
+    await routeMockAgents(page);
+    const projectId = await createProjectViaApi(page, `Preview Back ${label}`);
+    await seedHtmlArtifact(page, projectId, 'prototype.html', `<!doctype html><html><body>
+      <h1>First screen</h1><button onclick="location.hash='second'">Next screen</button>
+      <script>
+        function render(){ document.querySelector('h1').textContent = location.hash ? 'Second screen' : 'First screen'; }
+        window.addEventListener('hashchange', render);
+      </script>
+    </body></html>`);
+    await page.goto(`/projects/${projectId}${query}`, { waitUntil: 'domcontentloaded' });
+    await expectWorkspaceReady(page);
+    await openDesignFile(page, 'prototype.html');
+
+    const back = page.locator('.html-viewer .viewer-toolbar-left').getByRole('button', { name: 'Go Back' });
+    const preview = page.frameLocator('[data-testid="artifact-preview-frame"]');
+    await expect(preview.getByRole('heading', { name: 'First screen' })).toBeVisible();
+    await expect(back).toBeDisabled();
+    await preview.getByRole('button', { name: 'Next screen' }).click();
+    await expect(preview.getByRole('heading', { name: 'Second screen' })).toBeVisible();
+    await expect(back).toBeEnabled();
+    if (label === 'URL-loaded') {
+      await back.hover();
+      await page.screenshot({ path: testInfo.outputPath('preview-back-prototype.png'), animations: 'disabled' });
+    }
+    await back.click();
+    await expect(preview.getByRole('heading', { name: 'First screen' })).toBeVisible();
+    await expect(back).toBeDisabled();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
+  });
+}
+
 test('[P0] @critical white-screen monitoring recovers layout stalls and confirms persistent blanks', async ({ page }) => {
   const safetyEvents = await captureSafetyTelemetry(page);
   await routeMockAgents(page);

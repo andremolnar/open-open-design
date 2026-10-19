@@ -1,6 +1,23 @@
 # Release note source contract
 
-The existing versioned notes in this directory are inherited from the original project. They preserve historical attribution but do not announce releases by this fork's maintainer. See the root [CHANGELOG](../../CHANGELOG.md) for this fork's unreleased changes.
+## Fork releases — 1.0.0 onward
+
+This fork's product versions start at **1.0.0**. The first fork release collects
+all fork-owned changes since the upstream baseline recorded in the root
+[CHANGELOG](../../CHANGELOG.md#fork-release-history). Its sources are
+[`v1.0.0/en.md`](v1.0.0/en.md) and [`v1.0.0/zh-CN.md`](v1.0.0/zh-CN.md).
+It is **in preparation**; these files do not publish a release or establish a
+publication date. See [CONTRIBUTING](../../CONTRIBUTING.md#fork-versioning-and-release-notes)
+for the versioning policy.
+
+## Pre-fork history — inherited 0.x versions
+
+The existing `v0.*` notes are inherited from the original project. Their version
+numbers, text, links, and contributor credits are retained for history and
+attribution; they do not announce releases by this fork's maintainer. They are
+not renamed or renumbered into the fork's release sequence.
+
+## Source format
 
 Release note content is stored under `docs/CHANGELOG/v<releaseVersion>/<locale>.md`.
 The directory name must contain the exact full release version, including its

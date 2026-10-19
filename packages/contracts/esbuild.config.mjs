@@ -19,6 +19,7 @@ await build({
     "./src/runtime/deck-stage-fallback.ts",
     "./src/runtime/deck-protocol.ts",
     "./src/runtime/preview-observability.ts",
+    "./src/runtime/preview-history.ts",
     "./src/runtime/preview-build-focus.ts",
     "./src/runtime/preview-runtime-state.ts",
     "./src/runtime/preview-guards.ts",

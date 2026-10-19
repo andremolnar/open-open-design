@@ -14,6 +14,10 @@ import {
   buildPreviewObservabilityBridge,
 } from '@open-design/contracts/runtime/preview-observability';
 import {
+  PREVIEW_HISTORY_BRIDGE_MARKER,
+  buildPreviewHistoryBridge,
+} from '@open-design/contracts/runtime/preview-history';
+import {
   PREVIEW_BUILD_FOCUS_BRIDGE_MARKER,
   buildPreviewBuildFocusBridge,
 } from '@open-design/contracts/runtime/preview-build-focus';
@@ -1687,6 +1691,10 @@ function wantsUrlPreviewObservabilityBridge(value: unknown): boolean {
   return previewBridgeTokens(value).some((token) => token === 'observability' || token === 'errors' || token === 'diagnostics');
 }
 
+function wantsUrlPreviewHistoryBridge(value: unknown): boolean {
+  return previewBridgeTokens(value).includes('history');
+}
+
 /** The build-focus bridge: lets the host park a cursor on the part of the page
  *  the agent is writing right now (see the contracts module for the protocol). */
 function wantsUrlPreviewBuildFocusBridge(value: unknown): boolean {
@@ -1752,6 +1760,7 @@ function injectUrlPreviewBridge(
     | 'selection'
     | 'snapshot'
     | 'observability'
+    | 'history'
     | 'buildfocus'
     | 'sandbox'
     | 'focus'
@@ -1778,6 +1787,9 @@ function injectUrlPreviewBridge(
       PREVIEW_OBSERVABILITY_BRIDGE_MARKER,
       buildPreviewObservabilityBridge(),
     );
+  }
+  if (bridge === 'history') {
+    return injectAfterHeadOpen(html, PREVIEW_HISTORY_BRIDGE_MARKER, buildPreviewHistoryBridge());
   }
   if (bridge === 'buildfocus') {
     // Before </body>, like the scroll bridge: it walks the rendered DOM, so it
@@ -1808,6 +1820,7 @@ function applyUrlPreviewBridgesToHtml(
       wantsUrlPreviewSelectionBridge(requestedBridge) ||
       wantsUrlPreviewSnapshotBridge(requestedBridge) ||
       wantsUrlPreviewObservabilityBridge(requestedBridge) ||
+      wantsUrlPreviewHistoryBridge(requestedBridge) ||
       wantsUrlPreviewBuildFocusBridge(requestedBridge) ||
       wantsUrlPreviewSandboxGuard(requestedBridge) ||
       wantsUrlPreviewFocusGuard(requestedBridge) ||
@@ -1831,6 +1844,9 @@ function applyUrlPreviewBridgesToHtml(
   }
   if (wantsUrlPreviewObservabilityBridge(requestedBridge)) {
     html = injectUrlPreviewBridge(html, 'observability');
+  }
+  if (wantsUrlPreviewHistoryBridge(requestedBridge)) {
+    html = injectUrlPreviewBridge(html, 'history');
   }
   if (wantsUrlPreviewRedirectGuard(requestedBridge)) {
     html = injectUrlPreviewBridge(html, 'redirect');

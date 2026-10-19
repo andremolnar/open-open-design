@@ -30,6 +30,12 @@ import {
   type WorkspaceCollabContext,
 } from '@open-design/contracts';
 import { PREVIEW_OBSERVABILITY_HOST_STATE_MESSAGE_TYPE } from '@open-design/contracts/runtime/preview-observability';
+import {
+  PREVIEW_HISTORY_BACK,
+  PREVIEW_HISTORY_PROBE,
+  PREVIEW_HISTORY_READY,
+  PREVIEW_HISTORY_STATE,
+} from '@open-design/contracts/runtime/preview-history';
 import { PREVIEW_URL_GUARD_MAX_HTML_BYTES } from '@open-design/contracts/runtime/preview-guards';
 import {
   isPreviewRuntimeState,
@@ -392,7 +398,7 @@ const POWERED_PREVIEW_SANDBOX =
   'allow-scripts allow-same-origin allow-downloads allow-popups allow-forms allow-modals allow-pointer-lock';
 const POWERED_PREVIEW_ALLOW =
   'accelerometer; autoplay; camera; cross-origin-isolated; fullscreen; gamepad; gyroscope; microphone; xr-spatial-tracking';
-const BASE_PREVIEW_BRIDGE_QUERY = 'odPreviewBridge=scroll&odPreviewBridge=selection&odPreviewBridge=snapshot&odPreviewBridge=observability';
+const BASE_PREVIEW_BRIDGE_QUERY = 'odPreviewBridge=scroll&odPreviewBridge=selection&odPreviewBridge=snapshot&odPreviewBridge=observability&odPreviewBridge=history';
 const HTML_PASSIVE_PREVIEW_FULL_TEXT_LIMIT = 2 * 1024 * 1024;
 const HTML_ROUTING_TEXT_PREVIEW_LIMIT = 96 * 1024;
 const HTML_PREVIEW_ASSET_PREFLIGHT_LIMIT = 32;
@@ -1732,7 +1738,10 @@ interface Props {
   // Open `openName` as a tab (focusing it) and close `closeName` in one
   // atomic tab-state update. The React module pointer uses this to jump to the
   // HTML entry that renders a module and drop the dead-end module tab.
-  onOpenFileReplacing?: (openName: string, closeName: string) => void;
+  onOpenFileReplacing?: (openName: string, closeName: string, fromPreviewLink?: boolean) => void;
+  /** Linked mockup files replace the viewer, so their history lives in the workspace. */
+  previewFileBackAvailable?: boolean;
+  onPreviewFileBack?: (fileName: string) => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
   // Bumped nonce asking this viewer to open its Share/Export menu (chat-side
@@ -1827,6 +1836,8 @@ export const FileViewer = memo(function FileViewer({
   onFileWritten,
   onBrandExtractionStopRequest,
   onOpenFileReplacing,
+  previewFileBackAvailable = false,
+  onPreviewFileBack,
   commentPortalId,
   onCommentModeChange,
   shareRequest,
@@ -1917,6 +1928,8 @@ export const FileViewer = memo(function FileViewer({
         onFileSaved={onFileSaved}
         onBrandExtractionStopRequest={onBrandExtractionStopRequest}
         onOpenFileReplacing={onOpenFileReplacing}
+        previewFileBackAvailable={previewFileBackAvailable}
+        onPreviewFileBack={onPreviewFileBack}
         commentPortalId={commentPortalId}
         onCommentModeChange={onCommentModeChange}
         shareRequest={shareRequest}
@@ -7351,6 +7364,8 @@ function HtmlViewer({
   onFileSaved,
   onBrandExtractionStopRequest,
   onOpenFileReplacing,
+  previewFileBackAvailable = false,
+  onPreviewFileBack,
   commentPortalId,
   onCommentModeChange,
   shareRequest,
@@ -7387,7 +7402,9 @@ function HtmlViewer({
   onSendBoardCommentAttachments?: (attachments: ChatCommentAttachment[], images?: File[]) => Promise<CommentSendResult> | CommentSendResult;
   onFileSaved?: () => Promise<void> | void;
   onBrandExtractionStopRequest?: () => void;
-  onOpenFileReplacing?: (openName: string, closeName: string) => void;
+  onOpenFileReplacing?: (openName: string, closeName: string, fromPreviewLink?: boolean) => void;
+  previewFileBackAvailable?: boolean;
+  onPreviewFileBack?: (fileName: string) => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
   shareRequest?: { nonce: number; anchorId?: string } | null;
@@ -8404,6 +8421,59 @@ function HtmlViewer({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const urlPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const srcDocPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [previewBackAvailable, setPreviewBackAvailable] = useState({ url: false, srcdoc: false });
+  const previewHistoryRequestsRef = useRef(new WeakMap<HTMLIFrameElement, string>());
+  const previewHistorySequenceRef = useRef(0);
+  const probePreviewHistory = useCallback((frame: HTMLIFrameElement | null) => {
+    if (!frame || !workspaceActive) return;
+    const kind = frame === urlPreviewIframeRef.current ? 'url'
+      : frame === srcDocPreviewIframeRef.current ? 'srcdoc' : null;
+    if (!kind) return;
+    const requestId = `preview-history-${++previewHistorySequenceRef.current}`;
+    previewHistoryRequestsRef.current.set(frame, requestId);
+    setPreviewBackAvailable((current) => ({ ...current, [kind]: false }));
+    frame.contentWindow?.postMessage({ type: PREVIEW_HISTORY_PROBE, requestId }, '*');
+  }, [workspaceActive]);
+  useEffect(() => {
+    if (!workspaceActive) return;
+    const onMessage = (event: MessageEvent) => {
+      const frame = event.source === urlPreviewIframeRef.current?.contentWindow
+        ? urlPreviewIframeRef.current
+        : event.source === srcDocPreviewIframeRef.current?.contentWindow
+          ? srcDocPreviewIframeRef.current : null;
+      if (!frame) return;
+      const data = event.data as { type?: unknown; requestId?: unknown; canGoBack?: unknown } | null;
+      if (data?.type === PREVIEW_HISTORY_READY) {
+        probePreviewHistory(frame);
+        return;
+      }
+      if (
+        data?.type !== PREVIEW_HISTORY_STATE ||
+        data.requestId !== previewHistoryRequestsRef.current.get(frame) ||
+        typeof data.canGoBack !== 'boolean'
+      ) return;
+      const kind = frame === urlPreviewIframeRef.current ? 'url' : 'srcdoc';
+      setPreviewBackAvailable((current) => current[kind] === data.canGoBack
+        ? current : { ...current, [kind]: data.canGoBack as boolean });
+    };
+    window.addEventListener('message', onMessage);
+    probePreviewHistory(urlPreviewIframeRef.current);
+    probePreviewHistory(srcDocPreviewIframeRef.current);
+    return () => window.removeEventListener('message', onMessage);
+  }, [probePreviewHistory, workspaceActive]);
+  useEffect(() => {
+    previewHistoryRequestsRef.current = new WeakMap();
+    setPreviewBackAvailable({ url: false, srcdoc: false });
+  }, [projectId, file.name, reloadKey]);
+  const goBackInPreview = () => {
+    const frame = useUrlLoadPreview ? urlPreviewIframeRef.current : srcDocPreviewIframeRef.current;
+    const requestId = frame && previewHistoryRequestsRef.current.get(frame);
+    if (requestId && (useUrlLoadPreview ? previewBackAvailable.url : previewBackAvailable.srcdoc)) {
+      frame?.contentWindow?.postMessage({ type: PREVIEW_HISTORY_BACK, requestId }, '*');
+    } else if (previewFileBackAvailable) {
+      onPreviewFileBack?.(file.name);
+    }
+  };
   const viewerRootRef = useRef<HTMLDivElement | null>(null);
   const srcDocNavigationCommittedRef = useRef<{
     frame: HTMLIFrameElement;
@@ -10861,6 +10931,7 @@ function HtmlViewer({
           paletteBridge: false,
           previewFocusGuard: true,
           previewObservability: true,
+          previewHistory: true,
           deferFontStylesheets: true,
           // Embed the reload counter so the srcdoc string differs across reloads
           // even when the fetched HTML bytes are identical (issue #4650).
@@ -12122,7 +12193,7 @@ function HtmlViewer({
       ) {
         return;
       }
-      onOpenFileReplacing?.(data.fileName, file.name);
+      onOpenFileReplacing?.(data.fileName, file.name, true);
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
@@ -16529,6 +16600,19 @@ function HtmlViewer({
               <Icon name="panel-left" size={15} />
             </button>
           ) : null}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="od-tooltip"
+            onClick={goBackInPreview}
+            title={t('designBrowser.goBack')}
+            data-tooltip={t('designBrowser.goBack')}
+            data-tooltip-placement="bottom"
+            aria-label={t('designBrowser.goBack')}
+            disabled={mode !== 'preview' || !(previewFileBackAvailable || (useUrlLoadPreview ? previewBackAvailable.url : previewBackAvailable.srcdoc))}
+          >
+            <Icon name="chevron-left" size={16} />
+          </Button>
           <button
             type="button"
             className="icon-only od-tooltip"
@@ -17521,6 +17605,7 @@ function HtmlViewer({
                           src={urlFrameSrc}
                           onLoad={() => {
                             const frame = urlPreviewIframeRef.current;
+                            probePreviewHistory(frame);
                             markManualEditUrlStandbyReady(frame);
                             if (useUrlLoadPreview) iframeRef.current = frame;
                             if (frame) frame.dataset.odLoadedSrc = frame.getAttribute('src') ?? '';
@@ -17567,6 +17652,7 @@ function HtmlViewer({
                           src={urlFrameSrc}
                           onLoad={() => {
                             const frame = urlPreviewIframeRef.current;
+                            probePreviewHistory(frame);
                             markManualEditUrlStandbyReady(frame);
                             if (useUrlLoadPreview) iframeRef.current = frame;
                             if (frame) frame.dataset.odLoadedSrc = frame.getAttribute('src') ?? '';
@@ -17616,6 +17702,7 @@ function HtmlViewer({
                         srcDoc={srcDocTransportUrl ? undefined : srcDocTransportContent}
                         onLoad={() => {
                           const frame = srcDocPreviewIframeRef.current;
+                          probePreviewHistory(frame);
                           // Record whether this load ever saw a real layout
                           // pass — a load completing in a hidden browser tab
                           // did not, and decks then need a fresh parse on

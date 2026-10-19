@@ -7,37 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- [Changed] ComfyUI workflow setup uses simple typed default fields instead of per-field source selectors and request-key naming. Every editable field is discoverable and optionally overridable; omitted values keep their saved defaults. Prompt text, seed, dimensions and other numeric/boolean values are editable, while unclear text choices, links and batch-output controls remain read-only. Assistants receive guidance for separate seed/size variation jobs. Existing published versions retain their original required-input semantics; edit and save a new version to adopt defaults.
+No additional changes beyond the prepared 1.0.0 baseline are recorded yet.
 
-- [Changed] ComfyUI is grouped with the other Media provider tabs and shows only its own settings. Active servers have individual connection tests and a separate Add server screen; the Settings-only generation test and destination-project selector are removed. OpenDesign-managed image workflows can use an optional preferred server or a per-generation override, with safe agent/CLI discovery and recovery tied to the original server and project. Existing workflows and credentials are preserved.
+## Fork release history
 
-- [Fixed] ComfyUI imports populate the JSON editor, workflow Save explains missing setup instead of staying silently disabled, and opening/cancelling Add server preserves unsaved workflow fields. Bare `comfyui` generation requests now explain how to select a saved, enabled workflow and list available versioned IDs rather than failing later as an unknown model.
+**Independent fork versions start at 1.0.0.** This is a new product release
+sequence, not a renumbering of upstream releases or a claim of production
+readiness. The inherited product version was `0.23.1`; the upstream commit at
+the fork boundary is
+[`5b19dfa4351b3eed33826ee72746a7c653c23a54`](https://github.com/nexu-io/open-design/commit/5b19dfa4351b3eed33826ee72746a7c653c23a54).
+All fork-owned work since that boundary, including preview Back navigation,
+is collected below. Fork references link to this repository; pre-fork text,
+version numbers, links, and credits remain in the historical section.
 
-- [Fixed] Image-generation agents preserve ComfyUI workflow dimensions instead of adding unsupported generic options. Rejected options have a distinct correction path, and configuration errors no longer automatically produce a missing-API-key diagnosis.
+## [1.0.0] — First fork release (in preparation)
 
-- [Added] Settings → Media providers → ComfyUI manages servers and named image workflows. Import or paste an API graph to build a default-value form, choose the image prompt field when ambiguous, and select the PreviewImage/SaveImage output to import. Enable immutable versions and generate into the requesting project through the image interface or matching `od media comfyui` / `media generate` commands; known submitted jobs can recover without another GPU submission. Experimental: text/number/boolean inputs and one PNG per job; image-reference uploads are not supported.
+No release date, tag, or binary publication is implied by this prepared version.
+Release-note sources: [English](docs/CHANGELOG/v1.0.0/en.md) · [简体中文](docs/CHANGELOG/v1.0.0/zh-CN.md).
 
-- [Fixed] OpenCode model discovery preserves provider namespaces, configured aliases and model names containing spaces. These names work unchanged in the model picker, custom ID field, connection test and generation; malformed explicit selections fail rather than silently using the CLI default. (#10)
-- [Changed] Contributor and translation entry points now identify this fork's sole maintainer and link to this repository instead of implying upstream governance, paid programs, review guarantees, or release plans.
-- [Removed] The inherited product roadmap and upstream-only contribution workflow are no longer presented as plans or submission paths for this fork. Historical release credits remain available below.
-- [Removed] This repository no longer runs GitHub Actions for validation, release publishing, scheduled refreshes, or automatic updates to pull requests. Contributors and release operators must run checks and publication explicitly; manual packaging and release tools remain available.
-- [Changed] Home now opens directly for both fresh and returning local users, even when an old setup flag is incomplete or Cloud sign-in has expired. Old onboarding links return to Home; signing out leaves local projects and settings accessible instead of reopening the welcome screen.
-- [Changed] MCP guidance now distinguishes previews authored in the current coding session from delegated OpenDesign generation. Saving a preview into a connected project needs no Cloud sign-in; available local agent CLIs remain an option for delegated runs.
-- [Fixed] OpenCode MCP connections no longer expire after 30 idle minutes, and MCP clients can list resource templates without a protocol error.
-- [Fixed] Explicitly recovered local-only Personal projects remain visible without sign-in instead of being silently claimed by a later Personal-workspace read. Existing project files and assets stay in place.
-- [Added] Coding agents can discover authorized OpenDesign project and app connections from their current folder through MCP or `od project discover-context`, choose explicitly when several match, and prepare design guidance in the same coding session without copying project IDs first. (#6)
-- [Added] Connected projects can prepare design guidance and original image assets for the coding session already open in their source repository, track progress across restarts, and register a finished design through MCP or `od project work-here` without starting a separate OpenDesign run. (#5)
-- [Fixed] OpenCode agent runs now attach selected images as actual files rather than passing image paths as text. (#5)
-- [Added] Settings → MCP server now includes copyable global OpenCode configuration, and the daemon background-work guide explains scheduled tasks and team collaboration data flow. (#4)
-- [Fixed] Packaged MCP registrations keep working across app updates and temporary socket changes by launching through a stable installed-app path and discovering the active daemon at startup. (#4)
-- [Changed] New local installations open Home without Cloud sign-in and select an available local agent instead of the signed-out Cloud agent. (#1)
-- [Fixed] Updated the OpenCode integration for V2 sessions, models, permissions, MCP servers, tool previews, and BYOK configuration. (#1)
-- [Added] A signed macOS build can be launched directly without installing it; contributors can use `/shipit` to document, validate, and propose changes through a PR. (#1)
-- [Added] Connect an existing project to a local codebase from its project menus, optionally choosing a nested app folder. The connection survives restarts, shows when the source is unavailable, and can be reconnected without moving design files or modifying the source. The same status and binding actions are available through the `od` CLI. (#2)
-- [Added] Connected projects can use bounded, read-only instructions, relevant components, and design tokens from their codebase when generating designs. Artifacts still land in the design workspace; generation does not modify or run the connected source. (#3)
-- [Added] External tools can resolve a project from its exact connected source or app folder and inspect its validated design context through MCP or the `od` CLI. Missing, moved, or ambiguous connections require an explicit choice instead of silently selecting a project. (#3)
-- [Changed] Detached builds no longer send automatic analytics, traces, or crash diagnostics or check upstream update and offer feeds. Explicit account, provider, and diagnostic-export actions remain available. (644b0134f)
-- [Added] `pnpm tools-pack mac deploy` builds a locally signed app and installs it in `/Applications`, verifying the signature and existing app identity before replacement. (644b0134f)
+### Added
+
+- **Durable codebase connections:** connect a design project to a local repository and optional nested app from project menus or `od`. Connections survive restarts, report unavailable sources, and support reconnecting without moving design files or modifying the source. ([PR #2](https://github.com/andremolnar/open-open-design/pull/2))
+- **Read-only design context:** generation can use bounded project instructions, relevant components, and design tokens from connected source. MCP and CLI clients can resolve exact source/app folders and inspect validated context; missing, moved, or ambiguous connections require an explicit choice. Generated artifacts stay in OpenDesign; the connection does not run code or install dependencies. ([PR #3](https://github.com/andremolnar/open-open-design/pull/3))
+- **Work in the current coding session:** prepare design guidance and original image assets, track progress across restarts, and register a finished design through MCP or `od project work-here` without launching a second OpenDesign run. Coding agents can discover authorized project/app connections from their actual current folder through MCP or `od project discover-context`. ([PR #5](https://github.com/andremolnar/open-open-design/pull/5), [PR #6](https://github.com/andremolnar/open-open-design/pull/6))
+- **OpenCode MCP setup:** Settings → MCP server includes copyable global OpenCode configuration; new guides document background tasks, collaboration data flow, connected-codebase context, in-session design, and image transport. ([PR #4](https://github.com/andremolnar/open-open-design/pull/4))
+- **Local ComfyUI image workflows:** Settings → Media providers → ComfyUI manages servers and named OpenDesign-owned workflows. Import or paste an API graph, choose the prompt field when ambiguous, and select the PreviewImage/SaveImage output. Enable immutable `comfyui/<workflow-id>@<version>` models and generate into the requesting project through the image interface or `od media comfyui` / `od media generate`; recorded submissions can recover without another GPU submission. ([PR #9](https://github.com/andremolnar/open-open-design/pull/9))
+- **Prototype and linked-document Back:** the HTML preview toolbar has a Go Back control for known SPA/hash history and linked mockup files, in both URL-loaded and inline previews. Back stays disabled without known preview-local history and never intentionally traverses the host's history; Return to document remains available. ([#12](https://github.com/andremolnar/open-open-design/issues/12), [PR #13](https://github.com/andremolnar/open-open-design/pull/13))
+- **Manual macOS delivery and PR workflow:** signed builds can launch without installation; `pnpm tools-pack mac deploy` verifies signing and existing app identity before installation. `/shipit` provides scoped documentation, validation, commits, and PR handoff. ([PR #1](https://github.com/andremolnar/open-open-design/pull/1), [commit 644b0134f](https://github.com/andremolnar/open-open-design/commit/644b0134f))
+
+### Changed
+
+- **Local-first entry:** fresh and returning users open Home without mandatory Cloud sign-in, including expired sessions, incomplete legacy setup flags, and old onboarding URLs. Signing out leaves local projects and settings accessible; new installations select an available local agent rather than the signed-out Cloud agent. ([PR #1](https://github.com/andremolnar/open-open-design/pull/1))
+- **No automatic call-home:** detached builds no longer send product analytics, session replay, traces, or automatic crash/startup diagnostics, or check upstream update, offer, and hosted highlights feeds by default. Deliberate account, provider, and diagnostic-export actions remain available; optional network integrations are not claimed to be offline. ([commit 644b0134f](https://github.com/andremolnar/open-open-design/commit/644b0134f))
+- **Promptable ComfyUI defaults:** new workflow versions expose optional typed overrides for prompt text, seeds, dimensions, other numeric values, and booleans. Omitted values keep stored defaults; unclear strings, model/file/enum choices, links, structured values, and batch-output controls stay read-only. Discovery exposes stable field keys, defaults, node identity/type, semantic roles, and prompt usage without graphs, credentials, or read-only values. Legacy published versions keep required-input semantics until edited, saved, and enabled as a new version. ([PR #9](https://github.com/andremolnar/open-open-design/pull/9))
+- **Explicit ComfyUI server and variation selection:** workflows are not pinned to servers. A request override wins over the optional workflow preference, then a sole saved server; ambiguity requires a choice. Each server has its own connection test and a separate Add server screen. Seed/size variations use sequential jobs with distinct request IDs; recovery retains the original server and prompt identity. Settings-only generation testing and its destination-project selector are removed. ([PR #9](https://github.com/andremolnar/open-open-design/pull/9))
+- **Host-authored versus delegated design:** MCP guidance makes clear that an existing coding session can author and save a preview without Cloud sign-in; delegated generation can use available local agent CLIs and is a separate choice.
+- **Fork ownership and versioning:** contributor, translation, privacy, and deployment entry points identify this independent fork, its sole maintainer, and its own direction. Product-versioned manifests start at 1.0.0; future user-visible shipments use SemVer. Independent library/vendor versions and all inherited release numbers remain unchanged.
+
+### Fixed
+
+- **OpenCode V2 compatibility:** sessions/resume, models and variants, permissions, MCP configuration, tool events/previews, and BYOK configuration use V2 shapes. Selected image attachments are passed as actual files instead of image paths embedded in text. ([PR #1](https://github.com/andremolnar/open-open-design/pull/1), [PR #5](https://github.com/andremolnar/open-open-design/pull/5))
+- **Unambiguous model names:** discovery preserves provider namespaces, configured aliases, and names containing spaces across the model picker, custom IDs, connection tests, and generation. Malformed explicit selections fail instead of silently choosing the CLI default. ([#10](https://github.com/andremolnar/open-open-design/issues/10), [PR #11](https://github.com/andremolnar/open-open-design/pull/11))
+- **Resilient MCP connections:** packaged registrations use a stable installed-app launch path and discover the active daemon across app updates and temporary socket changes. OpenCode MCP connections no longer expire after 30 idle minutes, and resource-template listing no longer produces a protocol error. ([PR #4](https://github.com/andremolnar/open-open-design/pull/4))
+- **Local-only project recovery:** explicitly recovered Personal projects remain visible without sign-in instead of being silently claimed by a later workspace read; existing project files and assets stay in place.
+- **Return to saved documents:** after following a link inside a document preview, the toolbar or design-file thumbnail can reopen the original document without leaving the project.
+- **Actionable ComfyUI setup failures:** imports populate the JSON editor, Save explains missing setup, cancelling Add server preserves unsaved fields, and bare `comfyui` requests list enabled versioned model choices instead of silently choosing a workflow. Image-generation guidance preserves workflow dimensions, distinguishes rejected options, and does not automatically diagnose every configuration failure as a missing API key. ([PR #9](https://github.com/andremolnar/open-open-design/pull/9))
+
+### Removed
+
+- Repository-owned GitHub Actions validation, publishing, scheduled refreshes, and PR automation. Checks and release publication must be run explicitly; manual packaging/release tools remain available.
+- The upstream-only contribution workflow and inherited roadmap as active fork policy. Paid programs, review guarantees, and upstream release plans are not commitments by this fork; historical attribution is preserved.
+
+### Known limitations
+
+- ComfyUI is experimental and image-only: one standard PNG output per job, no image-reference uploads, video/audio, multi-output/non-PNG import, automatic restart reconciliation, compatibility routing, or blind submission retries. Protocol fixtures are not live GPU acceptance; live inference and originating-project import remain unverified.
+- Preview Back uses a conservative safe baseline for ambiguous authored traversal. Linked-file Back reopens saved content rather than restoring in-memory DOM/SPA state; its transient history is capped at 64 transitions and clears when leaving the active project/file chain.
+- Optional hosted integrations remain. Bring-your-own cloud/collaboration and complete offline or enterprise-certified operation are goals, not features promised by the 1.0.0 number.
+
+---
+
+## Pre-fork history — original OpenDesign
+
+**Everything below this boundary is inherited upstream history, not fork-owned
+work or releases.** Original version numbers, release text, links, and
+contributor credits are preserved. Additional upstream 0.x release notes,
+including versions newer than the root changelog's last numbered entry, remain
+under [`docs/CHANGELOG/`](docs/CHANGELOG/README.md#pre-fork-history--inherited-0x-versions).
+
+### Upstream Unreleased entries at the fork boundary
+
 - [Fixed] Long speaker notes are now scrollable inside the presenter view instead of being clipped when notes push the layout past the viewport. (#6271)
 - [Changed] Retired the official Nix flake, Home Manager/NixOS modules, and lockfile-coupled Nix CI maintenance. OpenDesign still discovers agent CLIs installed through Nix profiles on NixOS and nix-darwin hosts.
 
@@ -1271,6 +1309,7 @@ First public release of OpenDesign — a local-first, open-source alternative to
 - Git commit co-author policy. ([#131])
 
 [Unreleased]: https://github.com/andremolnar/open-open-design/commits/main/
+[1.0.0]: docs/CHANGELOG/v1.0.0/en.md
 [0.9.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.9.0
 [0.8.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.8.0
 [0.7.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.7.0
