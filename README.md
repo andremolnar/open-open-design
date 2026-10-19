@@ -108,8 +108,9 @@ There is no automatic CI safety net in this repository. Read [CONTRIBUTING.md](C
 
 OpenDesign exists because of the work of the original [nexu-io/open-design](https://github.com/nexu-io/open-design) team and [its contributors](https://github.com/nexu-io/open-design/graphs/contributors). Thank you for building and sharing it. This fork builds on their work; its choices about sign-in, telemetry, and infrastructure are my own, not theirs. [References and third-party provenance](docs/references.md) remain credited. The code retains the [Apache 2.0 license](LICENSE).
 
-## A personal note
+## Project status
 
-This works for me, in my workflow, on my Mac. I can't guarantee it'll work for your workflow or your machine. Take it, fork it, and make it your own.
-
-This is a YOLO experiment and proof of concept, not a polished product. If I decide to take it more seriously, I'll make my agent workflows more robust, with more deliberate review and testing.
+This fork is an experimental proof of concept, not a polished product.
+Compatibility depends on the platform, configured providers, and integrations;
+validate the intended deployment before relying on it. Contributions and
+independent forks are welcome.
