@@ -39,6 +39,32 @@ pnpm --filter @open-design/web build  # web package build when needed
 
 Node `~24` and pnpm `10.33.x` are required. `nvm` / `fnm` are optional; use `nvm install 24 && nvm use 24` or `fnm install 24 && fnm use 24` if you prefer managing Node that way. macOS, Linux, and WSL2 are the primary paths. Windows native is supported; see [`docs/windows-troubleshooting.md`](docs/windows-troubleshooting.md) for the common setup gotchas.
 
+## Fork versioning and release notes
+
+This fork's product release sequence starts at **1.0.0**. That first release
+collects all fork-owned changes since upstream commit
+[`5b19dfa43`](https://github.com/nexu-io/open-design/commit/5b19dfa4351b3eed33826ee72746a7c653c23a54).
+See the [changelog](CHANGELOG.md#fork-release-history) for the consolidated summary.
+
+- User-visible shipments advance the product version using SemVer: patch for
+  fixes, minor for backward-compatible enhancements, major for breaking changes.
+  Work already covered by an explicitly prepared release does not need another
+  bump. Internal-only documentation, tests, and refactors may omit a bump with
+  an explanation in the PR.
+- Update the root manifest and every workspace manifest sharing its product
+  version together. Independently versioned libraries, tools, templates, and
+  vendored packages keep their own versions. Run `pnpm install` afterward.
+- Keep a cumulative version summary in `CHANGELOG.md` and matching release-note
+  sources in `docs/CHANGELOG/v<full-version>/`; prepare `en.md` and `zh-CN.md`
+  for stable releases. Keep `Unreleased` for work not yet assigned to a version.
+- Preserve inherited version numbers, release text, links, and contributor
+  credits beneath the pre-fork history boundary. Do not relabel upstream changes
+  as fork work. Older versioned notes in `docs/CHANGELOG/` remain historical.
+- Mark a prepared release as **in preparation** until publication; only then
+  record the real release date. A version bump, commit, PR merge, or note source
+  does not publish a tag, binary, feed, or hosted highlight. Publication always
+  requires a separate explicit authorization and manual validation.
+
 ## Docker Setup
 
 The Docker instructions below use an **upstream image**, not a build of this fork. To try this fork, use the source setup above or build and identify your own image before using Docker; upstream images are maintained separately.

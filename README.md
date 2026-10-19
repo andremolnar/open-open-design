@@ -10,6 +10,14 @@ The point of this fork is to let you explore OpenDesign **without signing in to 
 
 ## New in this fork
 
+The fork's own product versioning starts at **1.0.0**, currently in preparation.
+Its [release notes](docs/CHANGELOG/v1.0.0/en.md) collect the work since the fork
+began, including local-first entry, OpenCode V2, connected-codebase workflows,
+ComfyUI image generation, and preview Back navigation. The
+[changelog](CHANGELOG.md) keeps pre-fork versions and credits in a separate
+historical section. This version number is not an upstream release or a claim
+of production readiness; no binary is published just by updating these files.
+
 - **Full OpenCode V2 integration.** The upstream OpenDesign releases this fork branched from were incompatible with OpenCode V2. In this fork, select or rescan OpenCode from **Settings → Models & providers → Local CLI**, choose its models and supported reasoning variants, and configure the OpenCode models and BYOK provider settings used by OpenDesign. OpenDesign can run and resume OpenCode V2 sessions with compatible permissions, tool events, MCP servers, and image attachments. **Settings → OpenDesign MCP** also offers a copyable V2 configuration snippet to connect your own OpenCode session to OpenDesign; it does not silently edit your OpenCode config.
 - **Connect a design project to an existing code repository.** Choose **Connect codebase…** from an OpenDesign project's menu, then select a local repository and, if useful, a specific app or package. Prototype in OpenDesign using bounded, read-only source evidence—such as project instructions, components, and design tokens—while artifacts stay in the project's Design Files. The connection does **not** run code, install dependencies, or edit the repository. Or, from a coding-agent session already in that repository, use OpenDesign MCP or the `od` CLI to discover the connected project, obtain its selected design guidance and original image assets from its Design Files, and implement with your agent's own tools and permissions. You can optionally save a separate preview back to OpenDesign; this does not require a second generation run or automatically copy assets into the repository. See [connected codebase context](docs/codebase-context.md) and [Work here](docs/work-here.md).
 

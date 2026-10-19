@@ -152,6 +152,10 @@ explicitly. Do not assume a GitHub push runs any checks or publishes artifacts.
 
 ## Release channels
 
+Fork product versions start at **1.0.0**. Follow `CONTRIBUTING.md` section
+"Fork versioning and release notes" for SemVer bumps, synchronized product
+manifests, prepared release notes, and preservation of pre-fork history.
+
 The manual release tooling in `tools/pack` and `tools/release` retains distinct
 `beta`, `prerelease`, `preview`, and `stable` identities. Stable metadata
 validation requires signed macOS arm64 and Intel prerelease artifacts;
