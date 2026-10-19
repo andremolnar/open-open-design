@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- [Added] HTML previews have a Go Back toolbar button for navigating prototype screens and linked mockup files without leaving the project. It supports URL-loaded and inline previews, stays disabled when no preview-local history is known, and preserves the existing Return to document action. (#12)
+
 - [Changed] ComfyUI workflow setup uses simple typed default fields instead of per-field source selectors and request-key naming. Every editable field is discoverable and optionally overridable; omitted values keep their saved defaults. Prompt text, seed, dimensions and other numeric/boolean values are editable, while unclear text choices, links and batch-output controls remain read-only. Assistants receive guidance for separate seed/size variation jobs. Existing published versions retain their original required-input semantics; edit and save a new version to adopt defaults.
 
 - [Changed] ComfyUI is grouped with the other Media provider tabs and shows only its own settings. Active servers have individual connection tests and a separate Add server screen; the Settings-only generation test and destination-project selector are removed. OpenDesign-managed image workflows can use an optional preferred server or a per-generation override, with safe agent/CLI discovery and recovery tied to the original server and project. Existing workflows and credentials are preserved.

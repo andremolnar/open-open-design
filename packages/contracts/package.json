@@ -66,6 +66,10 @@
       "types": "./dist/runtime/preview-observability.d.ts",
       "default": "./dist/runtime/preview-observability.mjs"
     },
+    "./runtime/preview-history": {
+      "types": "./dist/runtime/preview-history.d.ts",
+      "default": "./dist/runtime/preview-history.mjs"
+    },
     "./runtime/preview-build-focus": {
       "types": "./dist/runtime/preview-build-focus.d.ts",
       "default": "./dist/runtime/preview-build-focus.mjs"

@@ -1413,6 +1413,16 @@ describe('GET /api/projects/:id/raw/* range request route', () => {
     expect(html.indexOf('data-od-preview-observability')).toBeLessThan(html.indexOf('<body>'));
   });
 
+  it('installs history navigation only on requested preview documents', async () => {
+    const plain = await fetch(rawUrl('body.html'));
+    expect(await plain.text()).not.toContain('data-od-preview-history');
+
+    const bridged = await fetch(`${rawUrl('body.html')}?odPreviewBridge=history`);
+    const html = await bridged.text();
+    expect(html).toContain('data-od-preview-history');
+    expect(html.indexOf('data-od-preview-history')).toBeLessThan(html.indexOf('<body>'));
+  });
+
   it('injects passive URL guards before authored scripts', async () => {
     const bridged = await fetch(
       `${rawUrl('guarded.html')}?odPreviewBridge=sandbox&odPreviewBridge=focus&odPreviewBridge=redirect`,

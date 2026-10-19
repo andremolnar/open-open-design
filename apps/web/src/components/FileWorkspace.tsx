@@ -1440,6 +1440,18 @@ export function FileWorkspace({
   // Opening a thumbnail is an explicit request for the saved artifact, unlike
   // switching tabs (which intentionally preserves a live preview's state).
   const [previewReopenRequests, setPreviewReopenRequests] = useState<Record<string, number>>({});
+  // Preview links replace file tabs (and their iframes). Keep those transitions
+  // separately from iframe history, which only covers one document's navigation.
+  const [previewFileHistory, setPreviewFileHistory] = useState<{
+    projectId: string;
+    current: string;
+    previous: string[];
+  } | null>(null);
+  const previewFileHistoryRef = useRef(previewFileHistory);
+  function commitPreviewFileHistory(next: typeof previewFileHistory) {
+    previewFileHistoryRef.current = next;
+    setPreviewFileHistory(next);
+  }
   // `materializationPending` can briefly become true again while the router
   // commits a file-tab URL. Once this project has rendered real workspace
   // content, that transient revalidation must not tear down retained viewers:
@@ -1455,6 +1467,12 @@ export function FileWorkspace({
     materializationPending && materializedProjectRef.current !== projectId;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+  useEffect(() => {
+    const history = previewFileHistoryRef.current;
+    if (history && (history.projectId !== projectId || history.current !== activeTab)) {
+      commitPreviewFileHistory(null);
+    }
+  }, [activeTab, projectId]);
   const fileSyncBadgeLabel = fileSyncBadge
     ? fileSyncBadge === 'downloading'
       ? t('workspace.fileSyncDownloading')
@@ -2335,8 +2353,19 @@ export function FileWorkspace({
   // dropped. Done atomically because calling openFile() then closeTab() would
   // each read the same stale `persistedTabs` prop and the second would clobber
   // the first.
-  function openFileReplacing(openName: string, closeName: string) {
+  function openFileReplacing(openName: string, closeName: string, fromPreviewLink = false) {
     afterActiveManualEditSettles(() => {
+      if (fromPreviewLink && activeTabRef.current !== closeName) return;
+      if (fromPreviewLink && openName !== closeName) {
+        const history = previewFileHistoryRef.current;
+        const previous = history?.projectId === projectId && history.current === closeName
+          ? history.previous : [];
+        commitPreviewFileHistory({
+          projectId,
+          current: openName,
+          previous: [...previous, closeName].slice(-64),
+        });
+      }
       setUploadError(null);
       const currentTabs = tabsStateRef.current.tabs;
       const withoutClosed = currentTabs.filter((tabName) => tabName !== closeName);
@@ -2345,6 +2374,32 @@ export function FileWorkspace({
         : [...withoutClosed, openName];
       commitTabsState(workspaceTabsState(nextTabs, openName));
       setActiveTab(openName);
+    });
+  }
+
+  function goBackToPreviewFile(fileName: string) {
+    afterActiveManualEditSettles(() => {
+      const history = previewFileHistoryRef.current;
+      if (history?.projectId !== projectId || history.current !== fileName || activeTabRef.current !== fileName) return;
+      const previous = [...history.previous];
+      let destination: string | undefined;
+      while (previous.length > 0) {
+        const candidate = previous.pop()!;
+        if (visibleFiles.some((file) => file.name === candidate && file.kind === 'html')) {
+          destination = candidate;
+          break;
+        }
+      }
+      if (!destination) {
+        commitPreviewFileHistory(null);
+        return;
+      }
+      const currentTabs = tabsStateRef.current.tabs;
+      const withoutCurrent = currentTabs.filter((tabName) => tabName !== fileName);
+      const nextTabs = withoutCurrent.includes(destination) ? withoutCurrent : [...withoutCurrent, destination];
+      commitPreviewFileHistory({ projectId, current: destination, previous });
+      commitTabsState(workspaceTabsState(nextTabs, destination));
+      setActiveTab(destination);
     });
   }
 
@@ -3445,6 +3500,7 @@ export function FileWorkspace({
     [slideNavRequest, activeViewerFile?.name, slideNavDeliverableNonce],
   );
   const stableOpenFileReplacing = useStableHandler(openFileReplacing);
+  const stableGoBackToPreviewFile = useStableHandler(goBackToPreviewFile);
   const renderFileViewer = (file: ProjectFile, workspaceActive: boolean) => (
     <FileViewer
       projectId={projectId}
@@ -3467,6 +3523,9 @@ export function FileWorkspace({
       onFileSaved={refreshFilesWithoutResult}
       onFileWritten={onManualFileWritten}
       onOpenFileReplacing={stableOpenFileReplacing}
+      previewFileBackAvailable={workspaceActive && previewFileHistory?.projectId === projectId
+        && previewFileHistory.current === file.name && previewFileHistory.previous.length > 0}
+      onPreviewFileBack={stableGoBackToPreviewFile}
       commentPortalId={workspaceActive ? commentPortalId : undefined}
       onCommentModeChange={workspaceActive ? onCommentModeChange : undefined}
       shareRequest={
