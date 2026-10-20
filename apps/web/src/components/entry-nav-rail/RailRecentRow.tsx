@@ -15,6 +15,7 @@ import { useT } from '../../i18n';
 import { workspaceAccountScopedCacheKey } from '../../collab/workspace-identity';
 import { CodebaseBindingDialog } from '../codebase-binding/CodebaseBindingDialog';
 import { CodebaseBindingMenuItem } from '../codebase-binding/CodebaseBindingEntry';
+import { ProjectRevealMenuItem } from '../project-actions/ProjectRevealMenuItem';
 import { Icon } from '../Icon';
 import {
   hasCompletionNotice,
@@ -423,6 +424,12 @@ export function RailRecentRow({
               setCodebaseTarget({ project, workspaceContext, scopeKey: codebaseScopeKey });
               releasePopup(project.id, 'menu');
             }}
+          />
+          <ProjectRevealMenuItem
+            projectId={project.id}
+            workspaceContext={workspaceContext}
+            disabled={!ownedBySelf}
+            onRevealed={() => releasePopup(project.id, 'menu')}
           />
           {onRename ? (
             <button

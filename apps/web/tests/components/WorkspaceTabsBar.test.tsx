@@ -2063,6 +2063,25 @@ describe('WorkspaceTabsBar dock dropdown project actions', () => {
     return screen.getByRole('menu');
   }
 
+  it('offers native reveal in the in-project switcher menu beside the codebase action', async () => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/version') return new Response(JSON.stringify({
+        version: { version: '1.1.0', channel: 'development', packaged: false, platform: 'darwin', arch: 'arm64' },
+      }));
+      if (String(input).endsWith('/reveal')) return new Response(JSON.stringify({ ok: true, path: 'fixture', platform: 'darwin' }));
+      return previousFetch(input, init);
+    });
+    render(<WorkspaceTabsBar route={projectRoute} projects={[project]} workspaceContext={teamContext} />);
+    const menu = await openRowMenu();
+    expect(within(menu).getByRole('menuitem', { name: 'codebaseBinding.connectAction' })).toBeTruthy();
+    fireEvent.click(await within(menu).findByRole('menuitem', { name: 'designFiles.revealInFinder' }));
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(fetch).toHaveBeenCalledWith(`/api/projects/${project.id}/reveal`, expect.objectContaining({
+      method: 'POST', body: '{}', headers: expect.objectContaining({ 'x-od-workspace-id': teamContext.workspaceId }),
+    }));
+  });
+
   // OPEND-3283: the row menu closed the moment ANYTHING on the page scrolled —
   // the listener was a capturing document `scroll`, and a running turn's
   // transcript auto-scrolls every few hundred milliseconds — so on a project
@@ -2201,6 +2220,7 @@ describe('WorkspaceTabsBar dock dropdown project actions', () => {
     const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
     expect(items).toEqual([
       'codebaseBinding.connectAction',
+      'designFiles.revealInFileManager',
       'designs.menuRename',
       'designs.menuDuplicate',
       'recentProjects.moveToTeam',

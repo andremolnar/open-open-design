@@ -13,6 +13,9 @@ export const API_ERROR_CODES = [
   'UNSUPPORTED_MEDIA_TYPE',
   'VALIDATION_FAILED',
   'AGENT_UNAVAILABLE',
+  // Native host tools used by project open/reveal actions.
+  'EDITOR_NOT_AVAILABLE',
+  'EDITOR_LAUNCH_FAILED',
   'AGENT_AUTH_REQUIRED',
   'AGENT_EXECUTION_FAILED',
   // The agent's connection to its model provider was established and then

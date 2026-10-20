@@ -1,0 +1,9 @@
+.revealError {
+  margin: 0 20px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--red-border, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 12px;
+}

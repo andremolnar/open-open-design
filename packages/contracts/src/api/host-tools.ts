@@ -57,3 +57,14 @@ export interface OpenProjectInEditorResponse {
   editorId: HostEditorId;
   path: string;
 }
+
+/** Reveal the project itself, or a project-relative file/folder, on the daemon host. */
+export interface RevealProjectPathRequest {
+  path?: string;
+}
+
+export interface RevealProjectPathResponse {
+  ok: true;
+  platform: HostEditorsResponse['platform'];
+  path: string;
+}

@@ -83,6 +83,7 @@ import { useLiquidGlass } from '../hooks/useLiquidGlass';
 import { WORKSPACE_CHROME_ACCOUNT_ACTIONS_ID } from './workspaceChromeActions';
 import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
 import { CodebaseBindingIndicator, CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
+import { ProjectRevealMenuItem } from './project-actions/ProjectRevealMenuItem';
 import { useProjectCodebaseBinding } from '../hooks/useProjectCodebaseBinding';
 import codebaseStyles from './codebase-binding/CodebaseBindingDialog.module.css';
 
@@ -2333,6 +2334,12 @@ export function WorkspaceTabsBar({
                   workspaceContext={workspaceContext}
                   ownedBySelf={dockActionsOwnedBySelf}
                   onOpen={() => openCodebase(dockActionsProject)}
+                />
+                <ProjectRevealMenuItem
+                  projectId={dockActionsProject.id}
+                  workspaceContext={workspaceContext}
+                  disabled={!dockActionsOwnedBySelf}
+                  onRevealed={() => { setDockActionsProjectId(null); setDockMenuOpen(false); }}
                 />
                 {onRenameProject ? (
                   <button

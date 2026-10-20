@@ -1028,6 +1028,82 @@ test('[P1] a linked page in a document preview can return to the document by too
   await expect(preview.getByRole('heading', { name: 'Original document' })).toBeVisible();
 });
 
+test('[P1] design files reveal project, file, and folder locations from their context menus', async ({ page }, testInfo) => {
+  await routeMockAgents(page);
+  const projectId = await createProjectViaApi(page, 'Native file browser menus');
+  await seedHtmlArtifact(page, projectId, 'prototype.html', '<!doctype html><html><body><h1>Fixture prototype</h1></body></html>');
+  const folder = await page.request.post(`/api/projects/${projectId}/folders`, { data: { name: 'assets' } });
+  expect(folder.ok()).toBe(true);
+  await page.route('**/api/version', (route) => route.fulfill({ json: {
+    version: { version: '1.1.0', channel: 'development', packaged: false, platform: 'darwin', arch: 'arm64' },
+  } }));
+  const requests: unknown[] = [];
+  // Native process launch is covered at the daemon boundary. Browser coverage
+  // observes the exact request without opening OS windows during every run.
+  await page.route(`**/api/projects/${projectId}/reveal`, async (route) => {
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true, platform: 'darwin', path: 'fixture' } });
+  });
+  await page.goto(`/projects/${projectId}`, { waitUntil: 'domcontentloaded' });
+  await expectWorkspaceReady(page);
+  await openAllProjectFiles(page);
+  await page.getByRole('button', { name: 'Project actions' }).click();
+  const reveal = page.getByRole('menuitem', { name: 'Reveal in Finder' });
+  await expect(reveal).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reveal-project-menu.png'), animations: 'disabled' });
+  const revealed = () => page.waitForResponse((response) => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === `/api/projects/${projectId}/reveal`);
+  const projectResponse = revealed();
+  await reveal.click();
+  expect((await projectResponse).ok()).toBe(true);
+  expect(requests).toEqual([{}]);
+
+  await page.getByTestId('design-files-tab-cat:html').click();
+  await page.getByTestId('design-file-row-prototype.html').click({ button: 'right' });
+  await expect(reveal).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reveal-file-menu.png'), animations: 'disabled' });
+  const fileResponse = revealed();
+  await reveal.click();
+  expect((await fileResponse).ok()).toBe(true);
+  expect(requests.at(-1)).toEqual({ path: 'prototype.html' });
+
+  await page.getByTestId('design-files-tab-folders').click();
+  await page.getByTestId('design-folder-menu-assets').click();
+  const folderResponse = revealed();
+  await reveal.click();
+  expect((await folderResponse).ok()).toBe(true);
+  expect(requests.at(-1)).toEqual({ path: 'assets' });
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
+
+  // The project menu beside Connect/Manage codebase is also reachable from
+  // the in-project switcher, not just the separate Design Files actions menu.
+  await page.getByTestId('workspace-tabs-dropdown-trigger').click();
+  const projectRow = page.getByRole('option', { name: 'Native file browser menus', exact: true }).locator('..');
+  await projectRow.getByTestId('workspace-tabs-dropdown-row-more').click();
+  const switcherMenu = page.getByTestId('workspace-tabs-dropdown-row-menu');
+  await expect(switcherMenu.getByRole('menuitem', { name: /Connect codebase|Manage codebase/ })).toBeVisible();
+  await expect(switcherMenu.getByRole('menuitem', { name: 'Reveal in Finder' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reveal-project-switcher-menu.png'), animations: 'disabled' });
+  const switcherResponse = revealed();
+  await switcherMenu.getByRole('menuitem', { name: 'Reveal in Finder' }).click();
+  expect((await switcherResponse).ok()).toBe(true);
+  expect(requests.at(-1)).toEqual({});
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click();
+  const recentRow = page.getByTestId('entry-nav-recent-item').filter({ hasText: 'Native file browser menus' }).locator('..');
+  await recentRow.hover();
+  await recentRow.getByTestId('entry-nav-recent-more').click();
+  const recentMenu = page.getByTestId('entry-nav-recent-menu');
+  await expect(recentMenu.getByRole('menuitem', { name: /Connect codebase|Manage codebase/ })).toBeVisible();
+  await expect(recentMenu.getByRole('menuitem', { name: 'Reveal in Finder' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reveal-recent-project-menu.png'), animations: 'disabled' });
+  const recentResponse = revealed();
+  await recentMenu.getByRole('menuitem', { name: 'Reveal in Finder' }).click();
+  expect((await recentResponse).ok()).toBe(true);
+  expect(requests.at(-1)).toEqual({});
+});
+
 for (const [label, query] of [['URL-loaded', ''], ['inline', '?forceInline=1']] as const) {
   test(`[P1] ${label} prototype preview Back returns across linked mockup files`, async ({ page }, testInfo) => {
     await routeMockAgents(page);
