@@ -23,9 +23,11 @@ import type {
   HostEditorId,
   HostEditorsResponse,
   OpenProjectInEditorResponse,
+  RevealProjectPathResponse,
 } from '@open-design/contracts';
 import type { RouteDeps } from '../server-context.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
+import { ProjectRevealError, resolveProjectRevealPath } from '../services/project-reveal.js';
 
 export interface RegisterHostToolsRoutesDeps
   extends RouteDeps<'db' | 'http' | 'paths' | 'projectStore' | 'projectFiles'> {
@@ -225,6 +227,23 @@ export async function resolveHostToolLaunchPlan(
   };
 }
 
+/** Reveal never opens the selected file with its associated application. Linux
+ * file managers have no shared selection CLI, so show its containing folder. */
+export async function resolveProjectRevealLaunchPlan(
+  platform: Platform,
+  target: string,
+  projectRoot: boolean,
+): Promise<HostToolLaunchPlan> {
+  const editorId = platform === 'darwin' ? 'finder' : platform === 'win32' ? 'explorer'
+    : platform === 'linux' ? 'file-manager' : null;
+  if (!editorId) return { available: false };
+  const plan = await resolveHostToolLaunchPlan(editorId, target);
+  if (!plan.available) return plan;
+  if (platform === 'win32') return { ...plan, args: projectRoot ? [target] : ['/select,', target] };
+  if (platform === 'linux') return { ...plan, args: [projectRoot ? target : path.dirname(target)] };
+  return plan;
+}
+
 // Spawn a detached host-tool launch and wait for the OS to confirm it
 // actually started. Node emits `spawn` once the child is running and `error`
 // when the launch is refused (missing binary, quarantine, EACCES). The
@@ -379,6 +398,35 @@ export function registerHostToolsRoutes(app: Express, ctx: RegisterHostToolsRout
       res.json(body);
     } catch (err) {
       sendApiError(res, 500, 'INTERNAL_ERROR', String(err));
+    }
+  });
+
+  app.post('/api/projects/:id/reveal', async (req, res) => {
+    try {
+      const project = getProject(db, req.params.id);
+      if (!project) return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
+      if (!await ctx.authorizeProjectRequest(req, res, project.id, { mode: 'read' })) return;
+      if (req.body != null && (typeof req.body !== 'object' || Array.isArray(req.body))) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'request must be an object');
+      }
+      const projectDir = projectHostOpenDir(PROJECTS_DIR, project, resolveProjectDir);
+      const { target, projectRoot } = await resolveProjectRevealPath(projectDir, req.body?.path);
+      const platform = currentPlatform();
+      const plan = await resolveProjectRevealLaunchPlan(platform, target, projectRoot);
+      if (!plan.available || !plan.command || !plan.args) {
+        return sendApiError(res, 409, 'EDITOR_NOT_AVAILABLE', 'native file browser is not available on the daemon host');
+      }
+      const launch = await launchHostTool(plan.command, plan.args);
+      if (!launch.ok) return sendApiError(res, 500, 'EDITOR_LAUNCH_FAILED', 'could not launch the native file browser');
+      const body: RevealProjectPathResponse = { ok: true, platform, path: target };
+      res.json(body);
+    } catch (error) {
+      if (error instanceof ProjectRevealError) {
+        const code = error.status === 404 ? 'NOT_FOUND' : error.status === 403 ? 'FORBIDDEN'
+          : error.status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
+        return sendApiError(res, error.status, code, error.message);
+      }
+      sendApiError(res, 500, 'INTERNAL_ERROR', 'could not reveal the project path');
     }
   });
 }

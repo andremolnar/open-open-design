@@ -32,6 +32,7 @@ import { RemixIcon } from './RemixIcon';
 import { InviteDialog } from './InviteDialog';
 import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
 import { CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
+import { ProjectRevealMenuItem } from './project-actions/ProjectRevealMenuItem';
 import { ProjectDeleteConfirmDialog } from './project-actions/ProjectDeleteConfirmDialog';
 import { useProjectDeleteFlow } from './project-actions/useProjectDeleteFlow';
 import { useProjectDuplicateFlow } from './project-actions/useProjectDuplicateFlow';
@@ -1856,6 +1857,12 @@ export function RecentProjectsStrip({
                           }}
                         />
                       ) : null}
+                      <ProjectRevealMenuItem
+                        projectId={project.id}
+                        workspaceContext={workspaceContext}
+                        disabled={workspaceContextLoading || !creator.ownedBySelf}
+                        onRevealed={() => setMenuOpenId(null)}
+                      />
                       {onRename ? (
                         <button
                           type="button"

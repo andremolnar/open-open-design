@@ -7085,6 +7085,8 @@ async function runProject(args) {
   od project open-in <id> --editor <slug> Open the project's working directory
                                           in the chosen editor (cursor, zed,
                                           vscode, finder, terminal, …).
+  od project reveal <id> [--path <path>] Reveal the project or a relative file/folder
+                                          in the native file browser.
   od project handoff <id> --conversation <id> --api-key <key> --model <model>
                     [--base-url <url>] [--max-tokens <n>]
                     Synthesize a resume-conversation handoff prompt.
@@ -7571,6 +7573,27 @@ Common options:
         const status = ed.available ? 'available' : 'missing';
         console.log(`${ed.id}\t${ed.label}\t${status}`);
       }
+      return;
+    }
+    case 'reveal': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      if (!id) {
+        console.error('Usage: od project reveal <id> [--path <project-relative-path>] [--json]');
+        process.exit(2);
+      }
+      const response = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/reveal`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...workspaceHeaders },
+        body: JSON.stringify(typeof flags.path === 'string' ? { path: flags.path } : {}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (flags.json) process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        else console.error(data?.error?.message ?? `Reveal failed (${response.status})`);
+        process.exit(1);
+      }
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(`[project] revealed ${data.path}`);
       return;
     }
     case 'open-in': {

@@ -46,6 +46,7 @@ vi.mock('../../src/collab/useWorkspaceContext', () => ({
 }));
 
 vi.mock('../../src/providers/registry', () => ({
+  fetchAppVersionInfo: vi.fn(async () => ({ platform: 'unknown' })),
   fetchProjectFileText: vi.fn(async (projectId: string, name: string) => {
     if (projectId === 'project-ds' && name === 'brand.json') {
       return JSON.stringify({

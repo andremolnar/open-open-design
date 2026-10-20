@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No additional changes beyond the prepared 1.0.0 baseline are recorded yet.
+Changes not yet assigned to a prepared release will appear here.
 
 ## Fork release history
 
@@ -19,6 +19,16 @@ the fork boundary is
 All fork-owned work since that boundary, including preview Back navigation,
 is collected below. Fork references link to this repository; pre-fork text,
 version numbers, links, and credits remain in the historical section.
+
+## [1.1.0] — Native file browser actions (in preparation)
+
+### Added
+
+- Project menus alongside Connect/Manage codebase—in the recent-project rail, project cards, in-project switcher, and Design Files—now offer **Reveal in Finder** on macOS, **Reveal in Explorer** on Windows, or **Reveal in file manager** on Linux. File and folder menus, including right-click on rows and preview cards, reveal the selected item rather than opening it in an associated application. Linux opens the containing folder because there is no shared cross-desktop selection command. ([#14](https://github.com/andremolnar/open-open-design/issues/14))
+- `od project reveal <id> [--path <project-relative-path>] [--json]` uses the same project-authorized API. Missing files, unavailable file browsers, and refused native launches produce visible errors. Absolute paths, traversal, and symlinks outside the project are rejected. Native actions run on the computer hosting the OpenDesign daemon, not on a remote browser client.
+
+Release-note sources: [English](docs/CHANGELOG/v1.1.0/en.md) · [简体中文](docs/CHANGELOG/v1.1.0/zh-CN.md).
+This is a prepared source version, not a tag or binary publication.
 
 ## [1.0.0] — First fork release (in preparation)
 
@@ -1310,6 +1320,7 @@ First public release of OpenDesign — a local-first, open-source alternative to
 
 [Unreleased]: https://github.com/andremolnar/open-open-design/commits/main/
 [1.0.0]: docs/CHANGELOG/v1.0.0/en.md
+[1.1.0]: docs/CHANGELOG/v1.1.0/en.md
 [0.9.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.9.0
 [0.8.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.8.0
 [0.7.0]: https://github.com/nexu-io/open-design/releases/tag/open-design-v0.7.0

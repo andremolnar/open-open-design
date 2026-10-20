@@ -10,6 +10,9 @@ It is **in preparation**; these files do not publish a release or establish a
 publication date. See [CONTRIBUTING](../../CONTRIBUTING.md#fork-versioning-and-release-notes)
 for the versioning policy.
 
+The next prepared version, **1.1.0**, adds native file-browser actions:
+[`English`](v1.1.0/en.md) · [`简体中文`](v1.1.0/zh-CN.md).
+
 ## Pre-fork history — inherited 0.x versions
 
 The existing `v0.*` notes are inherited from the original project. Their version

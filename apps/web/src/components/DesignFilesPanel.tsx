@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
+import { Button } from '@open-design/components';
 import { useAnalytics } from '../analytics/provider';
 import { trackFileManagerClick } from '../analytics/events';
 import { useT } from '../i18n';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
-import { projectFileUrl, projectRawUrl } from '../providers/registry';
+import { fetchAppVersionInfo, projectFileUrl, projectRawUrl } from '../providers/registry';
+import { revealProjectPath } from '../providers/project-reveal';
 import {
   appendResourceQuery,
   currentWorkspaceAccountGeneration,
@@ -42,6 +44,7 @@ import { selectBuildPreviewHtmlEntry } from './auto-open-file';
 import type { RunProgressStep } from '../runtime/run-progress';
 import { CodebaseBindingDialog } from './codebase-binding/CodebaseBindingDialog';
 import { CodebaseBindingMenuItem } from './codebase-binding/CodebaseBindingEntry';
+import styles from './DesignFilesPanel.module.css';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
@@ -540,8 +543,8 @@ export function DesignFilesPanel({
   const [dropReadError, setDropReadError] = useState<string | null>(null);
   const dragDepthRef = useRef(0);
   const [hover, setHover] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState<{ name: string; top: number; left: number } | null>(null);
-  const MENU_ESTIMATED_HEIGHT = 180;
+  const [menuPos, setMenuPos] = useState<{ name: string; kind: 'file' | 'folder'; top: number; left: number } | null>(null);
+  const MENU_ESTIMATED_HEIGHT = 220;
   const MENU_SAFE_PADDING = 8;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -557,6 +560,28 @@ export function DesignFilesPanel({
   const codebaseScopeKey = JSON.stringify([
     currentWorkspaceAccountGeneration(), workspaceIdentityCacheKey(workspaceContext), projectId,
   ]);
+  const [revealPlatform, setRevealPlatform] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const revealScopeRef = useRef(codebaseScopeKey);
+  revealScopeRef.current = codebaseScopeKey;
+  const revealBusyRef = useRef(false);
+  const revealSequenceRef = useRef(0);
+  useEffect(() => {
+    revealSequenceRef.current++;
+    setRevealError(null);
+    setRevealing(false);
+    revealBusyRef.current = false;
+    setMenuPos(null);
+  }, [codebaseScopeKey]);
+  useEffect(() => {
+    if ((!projectMenuOpen && !menuPos) || revealPlatform !== null) return;
+    let active = true;
+    void fetchAppVersionInfo().then((info) => {
+      if (active) setRevealPlatform(info?.platform ?? 'unknown');
+    }).catch(() => { if (active) setRevealPlatform('unknown'); });
+    return () => { active = false; };
+  }, [projectMenuOpen, menuPos, revealPlatform]);
   // A team's provisional editable UI is not proof of project ownership.
   // Use the project's exact resource scope and positive writer authority.
   const canManageCodebase = !viewerOnly && !collabViewerOnly && !workspaceContextLoading
@@ -848,7 +873,7 @@ export function DesignFilesPanel({
     setSelected(new Set());
   }
 
-  function openMenuFor(name: string, el: HTMLElement) {
+  function openMenuFor(name: string, el: HTMLElement, kind: 'file' | 'folder' = 'file') {
     const rect = el.closest('.df-row-menu')?.getBoundingClientRect();
     if (!rect) return;
 
@@ -870,7 +895,54 @@ export function DesignFilesPanel({
 
     const left = Math.max(MENU_SAFE_PADDING, rect.right - 160);
 
-    setMenuPos({ name, top, left });
+    setProjectMenuOpen(false);
+    setMenuPos({ name, kind, top, left });
+  }
+
+  function openContextMenu(event: React.MouseEvent, name: string, kind: 'file' | 'folder' = 'file') {
+    if (viewerOnly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setProjectMenuOpen(false);
+    setMenuPos({ name, kind,
+      top: Math.max(MENU_SAFE_PADDING, Math.min(event.clientY, window.innerHeight - MENU_ESTIMATED_HEIGHT - MENU_SAFE_PADDING)),
+      left: Math.max(MENU_SAFE_PADDING, Math.min(event.clientX, window.innerWidth - 200 - MENU_SAFE_PADDING)),
+    });
+  }
+
+  async function handleReveal(relativePath?: string) {
+    if (revealBusyRef.current) return;
+    const scope = codebaseScopeKey;
+    const request = ++revealSequenceRef.current;
+    revealBusyRef.current = true;
+    setRevealing(true);
+    setRevealError(null);
+    setMenuPos(null);
+    setProjectMenuOpen(false);
+    try {
+      await revealProjectPath(projectId, relativePath === undefined ? {} : { path: relativePath }, workspaceContext);
+    } catch (error) {
+      if (revealScopeRef.current === scope && revealSequenceRef.current === request) {
+        setRevealError(error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (revealScopeRef.current === scope && revealSequenceRef.current === request) {
+        revealBusyRef.current = false;
+        setRevealing(false);
+      }
+    }
+  }
+
+  function renderRevealAction(relativePath?: string) {
+    return (
+      <Button role="menuitem" disabled={revealing} onClick={(event) => {
+        event.stopPropagation();
+        void handleReveal(relativePath);
+      }}>
+        {t(revealPlatform === 'darwin' ? 'designFiles.revealInFinder'
+          : revealPlatform === 'win32' ? 'designFiles.revealInExplorer' : 'designFiles.revealInFileManager')}
+      </Button>
+    );
   }
 
   async function copyLocalPath(fileName: string) {
@@ -945,6 +1017,7 @@ export function DesignFilesPanel({
         key={f.name}
         data-testid={`design-file-row-${f.name}`}
         className={`df-row df-file-row ${isSelected ? 'selected' : ''}`}
+        onContextMenu={(event) => openContextMenu(event, f.name)}
         onMouseEnter={() => setHover(f.name)}
         onMouseLeave={() => setHover((c) => (c === f.name ? null : c))}
       >
@@ -1089,6 +1162,7 @@ export function DesignFilesPanel({
         key={f.name}
         data-testid={`design-file-row-${f.name}`}
         className={`df-card ${isSelected ? 'selected' : ''}`}
+        onContextMenu={(event) => openContextMenu(event, f.name)}
       >
         <span
           className="df-card-check"
@@ -1224,6 +1298,7 @@ export function DesignFilesPanel({
         key={f.name}
         data-testid={`design-file-row-${f.name}`}
         className={`df-card df-card--image ${isSelected ? 'selected' : ''}`}
+        onContextMenu={(event) => openContextMenu(event, f.name)}
       >
         <span
           className="df-card-check"
@@ -1287,7 +1362,8 @@ export function DesignFilesPanel({
     const fullPath = currentDir === '' ? dirName : `${currentDir}/${dirName}`;
     const count = descendantFileCountByDir.get(fullPath) ?? 0;
     return (
-      <div key={`dir:${fullPath}`} className="df-row df-dir-row" onClick={() => setCurrentDir(fullPath)}>
+      <div key={`dir:${fullPath}`} className="df-row df-dir-row" onClick={() => setCurrentDir(fullPath)}
+        onContextMenu={(event) => openContextMenu(event, fullPath, 'folder')}>
         <span className="df-row-check" aria-hidden />
         <span className="df-row-icon" data-kind="folder" aria-hidden>
           <Icon name="folder" size={14} />
@@ -1302,7 +1378,13 @@ export function DesignFilesPanel({
         </div>
         <span className="df-row-size" />
         <span className="df-row-time" />
-        <span className="df-row-menu df-row-menu-placeholder" aria-hidden />
+        {viewerOnly ? <span className="df-row-menu df-row-menu-placeholder" aria-hidden /> : (
+          <Button className="df-row-menu" data-testid={`design-folder-menu-${fullPath}`}
+            aria-label={t('designFiles.rowMenu')} aria-haspopup="menu"
+            onClick={(event) => { event.stopPropagation(); openMenuFor(fullPath, event.currentTarget, 'folder'); }}>
+            <Icon name="more-horizontal" size={14} />
+          </Button>
+        )}
       </div>
     );
   }
@@ -1422,6 +1504,7 @@ export function DesignFilesPanel({
         </button>
         {projectMenuOpen ? (
           <div className="df-project-menu" role="menu">
+            {renderRevealAction()}
             <CodebaseBindingMenuItem
               projectId={projectId}
               workspaceContext={workspaceContext}
@@ -1578,6 +1661,9 @@ export function DesignFilesPanel({
           }}
           onDrop={handleDrop}
         >
+          {revealError ? <div className={styles.revealError} role="alert">
+            {t('designFiles.revealFailed')} {revealError}
+          </div> : null}
           {visibleUploadError ? (
             <div className="df-upload-banner" data-testid="upload-error-banner">
               <span>{visibleUploadError}</span>
@@ -1828,6 +1914,7 @@ export function DesignFilesPanel({
                       key={folder.path}
                       className="df-row df-row-plugin-folder"
                       data-testid={`design-plugin-folder-${folder.path}`}
+                      onContextMenu={(event) => openContextMenu(event, folder.path, 'folder')}
                     >
                       <button
                         type="button"
@@ -1932,11 +2019,14 @@ export function DesignFilesPanel({
       {menuPos ? (
         <div
           data-testid="design-file-menu-popover"
+          role="menu"
           className="df-row-popover"
           style={{ top: menuPos.top, left: menuPos.left }}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
+          {renderRevealAction(menuPos.name)}
+          {menuPos.kind === 'file' ? <>
           <button
             type="button"
             onClick={(e) => {
@@ -2000,6 +2090,7 @@ export function DesignFilesPanel({
           >
             {t('designFiles.delete')}
           </button>
+          </> : null}
         </div>
       ) : null}
       {canManageCodebase && codebaseTarget?.scopeKey === codebaseScopeKey ? (

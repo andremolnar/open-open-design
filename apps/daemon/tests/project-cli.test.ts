@@ -52,6 +52,16 @@ async function startProjectStubServer(options: { codebaseConflict?: boolean } = 
       requests.push(captured);
 
       res.setHeader('content-type', 'application/json');
+      if (captured.method === 'POST' && captured.url === '/api/projects/project-1/reveal') {
+        const body = JSON.parse(raw);
+        if (body.path === 'missing.txt') {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'project file or folder is not available locally' } }));
+        } else {
+          res.end(JSON.stringify({ ok: true, platform: 'darwin', path: body.path ?? 'project-root' }));
+        }
+        return;
+      }
       if (captured.url === '/api/projects/project-1/source-context?query=button+tokens'
         || captured.url === '/api/projects/source-context/resolve') {
         res.end(JSON.stringify({ status: 'ready', projectId: 'project-1', bindingRevision: 3, evidence: [] }));
@@ -253,6 +263,23 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe('od project CLI', () => {
+  it.each([undefined, 'nested folder/image & notes.png'])('reveals project locations through the same API: %s', async (relativePath) => {
+    stub = await startProjectStubServer();
+    const result = await runCli(['project', 'reveal', 'project-1', '--json', '--daemon-url', stub.baseUrl,
+      '--workspace', 'workspace-a', '--workspace-member', 'member-a', ...(relativePath ? ['--path', relativePath] : [])]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, platform: 'darwin' });
+    const request = stub.requests.find((request) => request.url.endsWith('/reveal'))!;
+    expect(JSON.parse(request.body)).toEqual(relativePath ? { path: relativePath } : {});
+    expect(request.headers['x-od-workspace-id']).toBe('workspace-a');
+    expect(request.headers['x-od-workspace-member-id']).toBe('member-a');
+  });
+  it('returns structured reveal errors and a nonzero exit status', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli(['project', 'reveal', 'project-1', '--path', 'missing.txt', '--json', '--daemon-url', stub.baseUrl]);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ error: { code: 'NOT_FOUND' } });
+  });
   it('prints source context as JSON with explicit workspace identity', async () => {
     stub = await startProjectStubServer();
     const result = await runCli([

@@ -54,6 +54,7 @@ vi.mock('../../src/state/projects', async (importOriginal) => ({
 }));
 
 vi.mock('../../src/providers/registry', () => ({
+  fetchAppVersionInfo: vi.fn(async () => ({ platform: 'unknown' })),
   fetchProjectFileText: vi.fn(async () => null),
   fetchProjectFiles: vi.fn(async () => []),
   projectFileUrl: (projectId: string, fileName: string) =>

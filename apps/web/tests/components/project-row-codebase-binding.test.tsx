@@ -10,6 +10,7 @@ import type { Project } from '../../src/types';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(), validate: vi.fn(), save: vi.fn(), pick: vi.fn(),
+  reveal: vi.fn(), version: vi.fn(),
   context: null as WorkspaceCollabContext | null,
   loading: false,
 }));
@@ -28,7 +29,9 @@ vi.mock('../../src/providers/registry', async (original) => ({
   ...await original<typeof import('../../src/providers/registry')>(),
   fetchProjectFiles: vi.fn(async () => []),
   fetchProjectFileText: vi.fn(async () => null),
+  fetchAppVersionInfo: mocks.version,
 }));
+vi.mock('../../src/providers/project-reveal', () => ({ revealProjectPath: mocks.reveal }));
 vi.mock('../../src/providers/codebase-binding', async (original) => ({
   ...await original<typeof import('../../src/providers/codebase-binding')>(),
   fetchProjectCodebaseBinding: mocks.get,
@@ -112,6 +115,8 @@ beforeEach(() => {
   window.localStorage.clear();
   mocks.context = context;
   mocks.loading = false;
+  mocks.version.mockResolvedValue({ platform: 'darwin' });
+  mocks.reveal.mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { headers: { 'Content-Type': 'application/json' } })));
   mocks.get.mockImplementation(async (id: string) => status(id, id === 'beta' ? { binding, status: 'connected' } : {}));
   mocks.pick.mockResolvedValue({ ok: true, baseDir: '/source/selected', token: 'picker-token' });
@@ -121,12 +126,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); resetWorkspaceAccountGeneration(); });
 
 describe.each<Surface>(['Home cards', 'recent rail'])('%s codebase action', (surface) => {
+  it('offers native reveal beside Manage codebase and targets the selected project', async () => {
+    const view = renderSurface(surface, { callbacks: true });
+    await openMenu(1);
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Manage codebase…' })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Reveal in Finder' }));
+    await flush();
+    expect(mocks.reveal).toHaveBeenCalledWith('beta', {}, context);
+    expect(view.onOpen).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
   it('opens Manage for the chosen row, dismisses its menu, and preserves other project actions', async () => {
     const view = renderSurface(surface, { callbacks: true });
     const trigger = await openMenu(1);
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Manage codebase…', 'Rename', 'Duplicate project', 'Move to team space', 'Delete',
+      'Manage codebase…', 'Reveal in Finder', 'Rename', 'Duplicate project', 'Move to team space', 'Delete',
     ]);
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Manage codebase…' }));
     await flush();

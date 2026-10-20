@@ -146,12 +146,12 @@ describe('EntryNavRail local (signed-out) shell', () => {
     });
   });
 
-  it('offers only the local row actions: rename / duplicate / delete', () => {
+  it('offers codebase and native reveal alongside the local row actions', () => {
     const { onDuplicate } = renderLocalRail();
     fireEvent.click(screen.getAllByTestId('entry-nav-recent-more')[0]!);
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(
-      ['Rename', 'Duplicate project', 'Delete'],
+      ['Connect codebase…', 'Reveal in file manager', 'Rename', 'Duplicate project', 'Delete'],
     );
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Duplicate project' }));
     expect(onDuplicate).toHaveBeenCalledWith('p1');
