@@ -1,0 +1,7 @@
+# Reviewed 2026-10-21 against official PyPI metadata and OSV (no matches).
+# Requires Python >=3.12. Exact pins are not installation authorization.
+# Use a new isolated environment and hash-verified official binary wheels;
+# do not fall back to source builds or modify the global Python environment.
+Pillow==13.0.0
+numpy==2.5.4
+PyYAML==6.0.3

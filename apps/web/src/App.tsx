@@ -5198,6 +5198,7 @@ function AppInner() {
             action,
             chipId: target.chipId,
             projectKind: target.projectKind,
+            asExample: target.asExample,
           }));
           navigate({ kind: 'home', view: 'home' });
         }}

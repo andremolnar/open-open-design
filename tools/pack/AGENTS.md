@@ -25,6 +25,7 @@ Read `tools/pack/CACHE.md` before changing any build-cache node key, adding a ca
 
 ## Rules
 
+- Packaging, installation, updater acceptance, and cleanup commands below are references, not standing authorization. Obtain explicit user approval before downloads, builds, application installation/launch, live-feed checks, or deletion of runtime/user data; the root **Execution and dependency safety** rules take precedence over validation requirements.
 - Keep cross-platform source responsibilities in named directories such as `cache/`, `config/`, `launcher/`, `resources/`, `updates/`, and `versioning/`; keep platform-owned behavior below `mac/` or `win/`. Mirror those responsibilities in `tests/` when a test set has the same ownership. A new root-level `src/*.ts` file is intentionally treated as unclassified by CI and pays the conservative Windows payload fallback until it is placed in an owned source unit.
 - Tests import source modules through the test-only `@/*` alias. Tests that intentionally inspect source text use the same alias with Vitest's `?raw` suffix; do not reintroduce directory-depth-dependent `../src/` imports or file URLs.
 - Do not hand-build stamp argv, IPC paths, or process matching; use `@open-design/sidecar` launch/discovery/invoke/stop atomics.
@@ -106,13 +107,13 @@ Use this when validating release-channel behavior before handing a Windows beta 
 1. Confirm the latest beta metadata first:
 
 ```bash
-curl.exe --ssl-no-revoke -fsSL https://releases.open-design.ai/beta/latest/metadata.json
+curl.exe -fsSL https://releases.open-design.ai/beta/latest/metadata.json
 ```
 
 For `release-beta-s`, check the internal feed instead:
 
 ```bash
-curl.exe --ssl-no-revoke -fsSL https://s3.nexu.space/od-releases/betas/latest/metadata.json
+curl.exe -fsSL https://s3.nexu.space/od-releases/betas/latest/metadata.json
 ```
 
 2. Build a non-portable Windows beta package with the real beta namespace and a version lower than latest:
@@ -154,15 +155,15 @@ For a clean beta channel result, expect one beta entry with `PSChildName` `Open 
 For the payload path, also expect launcher `active.version` and `lastSuccessful.version` to match the latest beta version, `attempt.json` to be absent, and the running desktop executable to resolve below that version's `payload` directory. `desktop-handoff.json` may be absent for a current outer or `confirmed` for a historical outer; `prepared` and `armed` are not successful terminal states.
 Windows Settings > Apps may cache uninstall metadata within the current view. If Settings still shows the previous beta version after the registry query is correct, switch away from the Apps view and back, or reopen Settings, before treating it as an installer failure. The registry query above is the source of truth for this harness.
 
-6. Avoid leaving validation residue. Stop running app processes first, then use tools-pack uninstall/cleanup for tool-managed namespaces. Only delete explicit temp roots after verifying the resolved path is exactly the intended directory.
+6. Report validation residue and request approval for the exact cleanup scope. With approval, stop only the validation app processes, then use tools-pack uninstall/cleanup for the identified tool-managed namespaces. Do not remove product user data unless that deletion is separately approved. Only delete explicit temp roots after verifying the resolved path is exactly the intended directory.
 `--dir` is an output/runtime root, not the default cache root. Do not add
 `--cache-dir` to routine validation; it is an escape hatch for cache isolation
 or cold-cache validation only.
 
 ```bash
 pnpm tools-pack win stop --dir C:\odtp-beta-release-fixed --namespace release-beta-win --json
-pnpm tools-pack win uninstall --dir C:\odtp-beta-release-fixed --namespace release-beta-win --remove-product-user-data --remove-data --remove-logs --remove-sidecars --json
-pnpm tools-pack win cleanup --dir C:\odtp-beta-release-fixed --namespace release-beta-win --remove-product-user-data --remove-data --remove-logs --remove-sidecars --json
+pnpm tools-pack win uninstall --dir C:\odtp-beta-release-fixed --namespace release-beta-win --remove-data --remove-logs --remove-sidecars --json
+pnpm tools-pack win cleanup --dir C:\odtp-beta-release-fixed --namespace release-beta-win --remove-data --remove-logs --remove-sidecars --json
 ```
 
 ### Validation matrix for updater changes

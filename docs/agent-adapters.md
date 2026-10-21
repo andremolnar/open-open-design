@@ -256,7 +256,7 @@ the active-run staging implementation is in
 ### 5.4 Devin for Terminal
 
 - Invocation: `devin --permission-mode dangerous --respect-workspace-trust false acp`.
-- Install/update: macOS/Linux/WSL users can install with `curl -fsSL https://cli.devin.ai/install.sh | bash`; run `devin update` for existing installs.
+- Install/update is a separate user-approved operation. Obtain an exact release from the vendor's official distribution, verify its integrity and inspect any installer before execution. Do not pipe a remote installer into a shell or run an updater automatically while detecting or auditing an adapter.
 - Version requirement: requires a Devin CLI build with the `devin acp` subcommand (verified with `devin 2026.5.1-1`). Check with `devin acp --help`; if the subcommand is missing, update or reinstall Devin for Terminal.
 - Streaming: Agent Client Protocol JSON-RPC over stdio, handled by the daemon's shared `acp-json-rpc` transport.
 - Skills: selected skills use the shared composition/staging path in §4; no
@@ -379,29 +379,17 @@ the active-run staging implementation is in
 - OpenDesign launches the user's official `dsh` installation; it does not
   bundle Harness or Node. Install the tested DSH release first and use
   `DSH_BIN` only when its executable is outside the daemon's PATH.
-  OpenDesign publishes checksum-verifying bootstrap installers for users who
-  do not already have the compatible Node, DSH, and pnpm toolchain. They place
-  an OD-discoverable launcher in the user's local bin directory and open the
-  Harness Web UI for provider setup after installation:
-
-  ```sh
-  curl -fsSL 'https://open-design.ai/install-dsh.sh?version=1' | sh
-  ```
-
-  ```powershell
-  & ([scriptblock]::Create((irm 'https://open-design.ai/install-dsh.ps1?version=1')))
-  ```
-
-  From Windows Command Prompt, the equivalent bootstrap is:
-
-  ```bat
-  curl -fsSL "https://open-design.ai/install-dsh.cmd?version=1" -o "%TEMP%\install-dsh.cmd" && call "%TEMP%\install-dsh.cmd"
-  ```
-
-  Pass `--no-launch` to the downloaded POSIX script or `-NoLaunch` to the
-  downloaded PowerShell script for unattended installation. The installers
-  pin the exact versions in the adapter's compatibility policy and do not use
-  a global npm install.
+  Bootstrap installation is a separate, explicitly approved operation, not an
+  adapter preflight or audit step. The inherited upstream bootstrap distribution
+  is not a trusted fork distribution merely because its URLs appear in this
+  repository. Select an immutable official release, verify the installer itself
+  against a separately trusted checksum/signature, inspect its downloads,
+  destinations and lifecycle behavior, and obtain approval before executing it.
+  Never pipe fetched shell code into an interpreter, evaluate a downloaded
+  PowerShell scriptblock, or chain a download directly into execution. Verifying
+  payload checksums inside an unverified installer does not establish trust in
+  that installer. Any approved installation must also explicitly authorize
+  launching the Harness Web UI or changing toolchain paths.
 - The adapter also requires an OpenDesign-owned Harness profile named
   `open-design`. The package source lives at
   [`packages/dsh-runtime`](../packages/dsh-runtime). Packaged OD builds embed

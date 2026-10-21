@@ -20,7 +20,7 @@ git clone git@github.com:<your-username>/open-design.git
 cd open-design
 git checkout -b template/<your-template-name>
 
-# 2. Bootstrap (Node 24, pnpm 10.33.x)
+# 2. Bootstrap only with explicit approval (Node 24, pnpm 10.34.7)
 corepack enable
 pnpm install
 
@@ -129,12 +129,11 @@ Full active grammar (`od.mode`, `od.surface`, `od.craft.requires`, `od.critique.
 
 ## 4. Running it locally
 
-You need exactly four commands once your tree is set up.
+Use the following workflow only after the existing toolchain and dependencies have been reviewed. Manifest changes do not authorize installation. Before any setup, explain versions, sources, destinations, and lifecycle side effects and obtain explicit approval under the root `AGENTS.md` execution-safety rules. The root postinstall builds workspace packages and may rebuild native dependencies.
 
 ```bash
-# 1. Bootstrap (only the first time, or after pulling main with manifest changes)
-corepack enable
-pnpm install
+# 1. Check the existing toolchain; report missing dependencies instead of
+#    automatically bootstrapping or installing them.
 
 # 2. Run the daemon + web
 pnpm tools-dev run web

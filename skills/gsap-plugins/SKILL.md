@@ -2,7 +2,14 @@
 name: gsap-plugins
 description: |
   Official GSAP skill for GSAP plugins — registration, ScrollToPlugin, ScrollSmoother, Flip, Draggable, Inertia, Observer, SplitText, ScrambleText, SVG and physics plugins, CustomEase, EasePack, CustomWiggle, CustomBounce, GSDevTools. Use when the user asks about a GSAP plugin, scroll-to, flip animations, draggable, SVG drawing, or plugin registration.
+zh_name: "GSAP · 动效插件"
+zh_description: "GSAP 插件动效：Flip、Draggable、文字、路径等专项动画。"
 triggers:
+  - "动效"
+  - "动画"
+  - "motion"
+  - "动效插件"
+  - "拖拽"
   - "gsap plugins"
   - "gsap plugin registration"
   - "flip animation"
@@ -11,8 +18,9 @@ triggers:
   - "splittext"
 license: MIT
 od:
-  mode: prototype
+  mode: utility
   category: animation-motion
+  source-commit: aed9cfd3277740755f6bfc1155c7aa645403b760
   upstream: "https://github.com/greensock/gsap-skills"
 ---
 
@@ -28,9 +36,9 @@ Apply when using or reviewing code that uses GSAP plugins: registering plugins, 
 
 ## Licensing & Install (important)
 
-Every GSAP plugin is **free**, including for commercial use. Since [Webflow's acquisition of GSAP](https://gsap.com/blog/webflow-GSAP/), Club GSAP is no longer a paid tier and **no plugin requires a membership, license key, or auth token** — this includes formerly Club-only plugins (**SplitText**, **MorphSVG**, etc.).
+GSAP plugins are available without a paid membership under the [GSAP runtime license](https://gsap.com/community/standard-license/), including formerly Club-only plugins (**SplitText**, **MorphSVG**, etc.). This is not an MIT license: review its permitted/prohibited-use restrictions for the actual product. No license key or auth token is required for the public package.
 
-- ✅ Install everything from the public `gsap` npm package: `npm install gsap`. All plugins are included — import them as `gsap/SplitText`, `gsap/MorphSVGPlugin`, etc.
+- Reuse the already approved public `gsap` package. Plugins are included — import them as `gsap/SplitText`, `gsap/MorphSVGPlugin`, etc. If it is missing, report the blocker; do not install automatically. Installation requires explicit approval after exact-version, source, integrity, license, destination and lifecycle review.
 - ❌ Do **not** generate an `.npmrc` with a GreenSock auth token, suggest the private `npm.greensock.com` registry, or tell users to sign up for Club GSAP to access a plugin. Those instructions are outdated.
 
 ## Registering Plugins

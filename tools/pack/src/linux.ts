@@ -159,9 +159,9 @@ export function buildDockerArgs(
   //
   // The pinned version matches the `packageManager` field in the root
   // package.json so reproducibility is preserved.
-  const PNPM_VERSION = "10.33.2";
-  const pnpmLinuxStaticX64Sha256 = "a47be715939bafa420fbdc5e34f7f9d8292c032402162c89ccb611e944e526d6";
-  const pnpmLinuxStaticArm64Sha256 = "4d402d0ef12cdc4d81ca339904e68638d841f4e27c73e460534d06e6b56048a9";
+  const PNPM_VERSION = "10.34.7";
+  const pnpmLinuxStaticX64Sha256 = "5220dfb27d0f49646ee223870ebf987f1e915522a30b0b60f05f5adbd9f234aa";
+  const pnpmLinuxStaticArm64Sha256 = "b2a452487e040539f50ee7b28e43f2cebc35d8f339ffa252be3e69292e2fbd69";
   const pnpmReleaseUrl = `https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}`;
   const setupPnpm =
     `command -v curl >/dev/null || { echo "curl not found in container image" >&2; exit 127; } && ` +

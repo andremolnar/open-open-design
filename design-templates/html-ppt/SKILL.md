@@ -47,13 +47,13 @@ Author professional HTML presentations as static files. One theme file = one
 look. One layout file = one page type. One animation class = one entry effect.
 All pages share a token-based design system in `assets/base.css`.
 
-## Install
+## Use the bundled template
 
-```bash
-npx skills add https://github.com/lewislulu/html-ppt-skill
-```
-
-One command, no build. Pure static HTML/CSS/JS with only CDN webfonts.
+This template is already supplied by the host. Do not run a skill installer or
+fetch an unpinned upstream replacement. If a bundled file is missing, report it.
+Any external dependency or font download requires explicit approval after source,
+version, integrity, license and destination review. Prefer available local fonts.
+The output is static HTML/CSS/JS; loading this skill does not authorize setup.
 
 ## What the skill gives you
 

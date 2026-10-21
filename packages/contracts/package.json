@@ -1,6 +1,6 @@
 {
   "name": "@open-design/contracts",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Shared pure TypeScript contracts for the OpenDesign web/daemon boundary.",
@@ -105,6 +105,10 @@
     "./runtime/html-injection-points": {
       "types": "./dist/runtime/html-injection-points.d.ts",
       "default": "./dist/runtime/html-injection-points.mjs"
+    },
+    "./runtime/motion-source-player": {
+      "types": "./dist/runtime/motion-source-player.d.ts",
+      "default": "./dist/runtime/motion-source-player.mjs"
     }
   },
   "scripts": {
@@ -117,8 +121,8 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "esbuild": "0.28.0",
+    "esbuild": "0.28.2",
     "typescript": "5.9.3",
-    "vitest": "4.1.6"
+    "vitest": "4.1.12"
   }
 }

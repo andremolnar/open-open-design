@@ -10,7 +10,7 @@ For native Windows PowerShell setup, use
 ## Recommended shape
 
 - Clone OpenDesign inside WSL2.
-- Install Node `~24` and the repo-pinned pnpm (`10.33.2`) inside WSL2.
+- Use Node `~24` and the repo-selected pnpm (`10.34.7`) inside WSL2. Missing tooling requires an explicitly approved setup plan under the root `AGENTS.md` safety rules.
 - Put a WSL-native `od` wrapper before `/usr/bin` on `PATH`.
 - Start the daemon from WSL with `od --no-open`.
 - Install MCP entries from the same WSL shell.
@@ -28,7 +28,7 @@ cd ~/tools/open-design
 
 node --version   # should print v24.x.x
 corepack enable
-corepack pnpm --version   # should print 10.33.2
+corepack pnpm --version   # should print 10.34.7
 pnpm install
 ```
 

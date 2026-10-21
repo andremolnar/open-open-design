@@ -72,17 +72,21 @@ describe("win standalone prebundle policy", () => {
     expect(WIN_PREBUNDLE_POLICIES.daemonCli.externals).toEqual([
       "@ffmpeg-installer/ffmpeg",
       "@open-design/sidecar",
+      "@parcel/watcher",
       "better-sqlite3",
       "blake3-wasm",
       "hyperframes",
+      "gsap",
       "node-pty",
     ]);
     expect(WIN_PREBUNDLE_POLICIES.daemonSidecar.externals).toEqual([
       "@ffmpeg-installer/ffmpeg",
       "@open-design/sidecar",
+      "@parcel/watcher",
       "better-sqlite3",
       "blake3-wasm",
       "hyperframes",
+      "gsap",
       "node-pty",
     ]);
     expect(WIN_PREBUNDLE_POLICIES.webSidecar.externals).toEqual(["@open-design/sidecar"]);
@@ -92,11 +96,13 @@ describe("win standalone prebundle policy", () => {
     // the daemon dies at boot with ERR_MODULE_NOT_FOUND (issue #4638).
     expect(WIN_PREBUNDLE_RUNTIME_DEPENDENCIES).toEqual({
       "@ffmpeg-installer/ffmpeg": "1.1.0",
-      "better-sqlite3": "12.10.0",
+      "@parcel/watcher": "2.6.0",
+      "better-sqlite3": "13.0.3",
       "blake3-wasm": "2.1.5",
       "hyperframes": "0.8.1",
+      "gsap": "3.14.2",
       "node-pty": "1.1.0",
-      "sharp": "0.35.3",
+      "sharp": "0.35.5",
     });
     expect(WIN_PREBUNDLED_DAEMON_CLI_RELATIVE_PATH).toBe("app/prebundled/daemon/daemon-cli.mjs");
     expect(WIN_PREBUNDLED_DAEMON_SIDECAR_RELATIVE_PATH).toBe("app/prebundled/daemon/daemon-sidecar.mjs");

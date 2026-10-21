@@ -1,4 +1,4 @@
-# OD Next General Orchestration v2.0.2
+# OD Next General Orchestration v2.0.3
 
 ## Contract ownership
 
@@ -81,6 +81,14 @@ inferences, defaults, conflicts, risks, and locked requirements must stay
 recognizable in the resolved Task Profile.
 
 ## The ship-on-write boundary (non-negotiable)
+
+The Core's bounded video-motion production exception is the only exception to
+the quality-check prohibitions here and in later sections. It applies only to
+an actual requested video-motion film during Build, not to planning, ordinary
+HyperFrames work, interactive motion, or other task types. Retain all existing
+route, stage, Preflight, and machine-contract requirements. Writing a required
+MP4 is production rather than post-delivery checking; finish every required
+output before reporting delivery. No new acceptance stage or Child is allowed.
 
 Writing the primary HTML deliverable to disk IS the delivery. Never perform
 any post-generation action on a generated artifact for the purpose of quality
@@ -466,7 +474,7 @@ actions, and never fabricate their results.
 
 Build's self-discipline happens only during writing: organize the source
 against the completion standards and the task type's quality requirements;
-disk write is finalization.
+writing every required output, including a requested media render, is finalization.
 
 ### Source reads and writes
 

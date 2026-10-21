@@ -40,9 +40,19 @@ This file is the single source of truth for agents entering this repository. Rea
 
 # Development workflow
 
+## Execution and dependency safety
+
+- A request to apply a patch, inspect changes, or audit code authorizes those actions only. Do not install dependencies, execute lifecycle scripts, build, test, launch services, or run imported code as an automatic follow-up.
+- Treat patches, vendored assets, skills, package scripts, and newly introduced dependencies as untrusted until reviewed. Inspect manifest/lockfile changes, lifecycle scripts, executable content, source provenance, integrity hashes, licenses, and relevant advisories before proposing execution.
+- Dependency installation, package-manager/toolchain acquisition, native rebuilds, and lifecycle scripts require explicit user approval for the command and its side effects. Explain download sources, versions, destinations, and scripts first. Missing tooling is a blocker to report, not permission to bootstrap it through `npx`, `npm exec`, Corepack, a global install, or another fallback.
+- When installation is explicitly approved for inspection only, disable lifecycle scripts and lockfile mutation using the selected manager's supported flags. This still downloads untrusted files and requires approval; it does not authorize a later rebuild or script execution.
+- Do not bypass TLS verification, integrity checks, sandboxing, permission prompts, or dependency build approvals to make validation pass. Do not use live credentials, publish artifacts, install applications, or remove user/runtime data without explicit approval for that scope.
+- Do not use `scripts/install-unsafe-dmg.sh`, strip macOS quarantine/provenance attributes, disable Gatekeeper, or use no-sandbox flags as routine setup or validation workarounds. Report the untrusted artifact or unsupported environment instead. Existing product adapter auto-approval flags are implementation facts to review, not permission for this host session to bypass its own controls.
+- Validation requirements below describe readiness evidence, not permission to execute. If execution is not authorized or safe, report the unrun checks and blockers instead of expanding the task.
+
 ## Environment baseline
 
-- Runtime target is Node `~24` and `pnpm@10.33.2`; use Corepack so the pnpm version pinned in `package.json` is selected.
+- Runtime target is Node `~24` and `pnpm@10.34.7` (minimum `10.34.7`, below `11`). Check the existing toolchain; report missing or mismatched tooling rather than automatically installing or activating it.
 - New project-owned entrypoints, modules, scripts, tests, reporters, and configs should default to TypeScript.
 - Residual JavaScript is limited to generated output, vendored dependencies, explicitly documented compatibility build artifacts, and the allowlist in `scripts/guard.ts`.
 
@@ -50,8 +60,8 @@ This file is the single source of truth for agents entering this repository. Rea
 
 - macOS, Linux, and WSL2 are the primary supported paths. Windows native is best-effort — file an issue if it doesn't work.
 - Historical Windows-specific friction is documented in closed issues #10, #96, #100, #203, and #315; check the issue tracker for the current state before filing new reports.
-- Install Node 24. Either `winget install OpenJS.NodeJS.LTS` (currently Node 24.x) or download from https://nodejs.org. After install, verify with `node --version` — the WinGet LTS pointer rolls to the next major in October 2026, so re-verify if you re-run the install command later. Do not use Node 22 — see FAQ.
-- `corepack enable` fails with EPERM on Windows (cannot write shims to `Program Files`). Use `npm install -g pnpm@10.33.2` instead.
+- Node 24 is required. If it is missing, ask the user to approve a toolchain setup plan using an exact version and official source; do not run WinGet, global npm installs, or Corepack activation automatically. Do not use Node 22 — see FAQ.
+- `corepack enable` can fail with EPERM on Windows because it cannot write shims to `Program Files`. Report the blocker; do not escalate privileges or substitute a global installation without approval.
 - `better-sqlite3` has no prebuilt binary for win32/Node 24; `pnpm install` will compile it from source via node-gyp (~2 min). Requires Visual Studio Build Tools 2022 or newer. This is expected — not a sign of version incompatibility.
 - For `tools-dev` start/stop/status usage, see "Local lifecycle" below.
 
@@ -299,7 +309,7 @@ Before changing any prompt text — in any of those locations — read `docs/pro
   [`docs/testing/test-efficiency.zh-CN.md`](docs/testing/test-efficiency.zh-CN.md)
   for completion signals, virtual-clock usage, isolation, and performance
   validation.
-- After package, workspace, or command-entry changes, run `pnpm install` so workspace links and generated dist entries stay fresh.
+- After package, workspace, or command-entry changes, inspect the dependency and lifecycle changes and report whether workspace links or generated outputs need refreshing. Do not install or rebuild automatically; follow **Execution and dependency safety** above.
 - For agent-stream / parser changes (`apps/daemon/src/runtimes/claude-stream.ts`, `json-event-stream.ts`, `qoder-stream.ts`, etc.), replay a recorded session through the mock CLIs in `mocks/` to verify event shapes round-trip without burning provider budget. PATH-overlay activation: `export PATH="$PWD/mocks/bin:$PATH" OD_MOCKS_TRACE=<8-char-id> OD_MOCKS_NO_DELAY=1`. See `mocks/README.md` for the trace catalog and selection knobs.
 - Before marking regular work ready, run at least `pnpm guard` and `pnpm typecheck`, plus the package-scoped tests/builds that match the files changed. Do not use or add root `pnpm test`/`pnpm build` aliases.
 - For local web runtime loops, prefer `pnpm tools-dev run web --daemon-port <port> --web-port <port>`.
@@ -318,7 +328,7 @@ The following is a working playbook for routine bug follow-ups, distilled from r
 - **Try the cheapest layer first.** Reach for the lightest test layer that can still see the symptom (e2e Vitest at the daemon HTTP boundary → app-local Vitest → Playwright UI → platform-native harnesses), and drop down only when the cheaper layer can't.
 - **Hold the spec's scope.** Defects discovered outside the bug's described boundary belong in a follow-up — their own red spec, their own PR — not in this fix. List them in the PR body's "Adjacent issues" section with the rationale and move on.
 - **Let the fix read as an invariant.** Prefer a named helper whose docblock describes what must hold over a bolt-on `if` guard with apologetic history-comments. The call site should read as intent.
-- **Diff against the baseline.** When neighboring suites have pre-existing failures, stash or check out upstream before claiming "no new failures."
+- **Diff against the baseline.** When neighboring suites have pre-existing failures, use read-only baseline inspection or an explicitly approved isolated worktree before claiming "no new failures." Do not stash, overwrite, or switch away from user changes to obtain a baseline.
 - **Link the issue from the PR body.** Use `Fixes #N` / `Closes #N` / `Resolves #N` so the issue auto-closes on merge and the release-time reverse lookup (`gh issue view N --json closedByPullRequestsReferences` → `git tag --contains <merge sha>`) actually has a chain to follow. The repo's PR template prompts for this; deleting the prompt is fine when the PR genuinely closes nothing.
 - **Stage human verification for visible bugs.** When the symptom needs an eye to confirm — UI, platform-native behavior, animations, race conditions a unit test can't see — green specs alone aren't acceptance. Stand up a buggy-vs-fix comparison the reviewer can drive themselves (typical shape: two namespaced runtimes, one on `main`, one on the fix branch), and seed any required data only through production HTTP APIs; source-level test backdoors invalidate the verification because they prove a fake flow rather than the real one.
 
@@ -326,8 +336,9 @@ For a worked example of one full loop (red e2e spec → fix → green), see `e2e
 
 # Common commands
 
+These are command references, not authorization. Apply **Execution and dependency safety** before running them; install/cleanup commands require approval for their specific side effects.
+
 ```bash
-pnpm install
 pnpm tools-dev
 pnpm tools-serve start updater
 pnpm tools-dev start web
@@ -387,9 +398,9 @@ Desktop queries runtime status through its sidecar client. The web URL comes fro
 
 `@open-design/sidecar-proto` owns OpenDesign business action names and DTO/status shapes. `@open-design/sidecar` is the unique truth source for five-field argv stamps, private IPC, OS resources, process discovery, launch, invocation, and terminal lifecycle. `@open-design/platform` provides generic OS process primitives beneath sidecar and must not leak those implementation details into apps or orchestrators.
 
-## When is `pnpm install` required?
+## Do manifest changes authorize `pnpm install`?
 
-Run `pnpm install` after changing package manifests, workspace layout, command entrypoints, bin/link-related content, or after adding/removing workspace packages.
+No. Manifest, workspace, and entrypoint changes may make installed links or generated outputs stale, but they do not authorize downloads or code execution. Review the changes and the existing root `postinstall` (which builds workspace packages and may rebuild native dependencies), then request explicit approval before any installation or script execution.
 
 ## Can I use Node 22 instead of Node 24?
 

@@ -1,4 +1,6 @@
 import { finalizeRuntimeManifest } from "../resources/runtime-manifest.js";
+import { readRuntimeNpmOverrides } from "../resources/npm-overrides.js";
+import { sqliteRuntimePath } from "../resources/sqlite-runtime.js";
 import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
@@ -64,7 +66,7 @@ async function runPnpm(config: ToolPackConfig, args: string[], extraEnv: NodeJS.
 
 async function runNpmInstall(appRoot: string): Promise<void> {
   const invocation = createCommandInvocation({
-    args: ["install", "--omit=dev", "--no-package-lock"],
+    args: ["install", "--omit=dev", "--no-package-lock", "--ignore-scripts", "--no-audit", "--no-fund"],
     command: process.platform === "win32" ? "npm.cmd" : "npm",
   });
   await execFileAsync(invocation.command, invocation.args, {
@@ -79,6 +81,11 @@ async function runEsbuild(config: ToolPackConfig, args: string[]): Promise<void>
 }
 
 async function runElectronRebuild(config: ToolPackConfig, appRoot: string): Promise<void> {
+  if (ELECTRON_REBUILD_NATIVE_MODULES.length === 0) {
+    const validationError = await validateNativeRebuildOutput(appRoot);
+    if (validationError != null) throw new Error(validationError);
+    return;
+  }
   const foundModules = new Set<string>();
   const rebuildResult = rebuild({
     arch: "x64",
@@ -103,7 +110,7 @@ async function runElectronRebuild(config: ToolPackConfig, appRoot: string): Prom
 }
 
 function nativeRebuildOutputPath(appRoot: string): string {
-  return join(appRoot, "node_modules", "better-sqlite3", "build", "Release", "better_sqlite3.node");
+  return sqliteRuntimePath(appRoot, 'win32', 'x64');
 }
 
 async function validateNativeRebuildOutput(appRoot: string): Promise<string | null> {
@@ -245,6 +252,7 @@ async function writeAssembledAppEntrypoints(
     `${JSON.stringify(
       {
         dependencies: options.dependencies ?? createAssembledAppDependencies(config, paths, packedTarballs),
+        overrides: await readRuntimeNpmOverrides(config.workspaceRoot),
         description: "Open Design packaged runtime",
         main: "./main.cjs",
         name: "open-design-packaged-app",
@@ -397,8 +405,9 @@ export async function createWinPackagedAppCacheKey(
     packedTarballs,
     platform: "win32",
     prebundle: shouldUseWinStandalonePrebundle(config.webOutputMode),
+    runtimeOverrides: await readRuntimeNpmOverrides(config.workspaceRoot),
     runtimeDependencies: shouldUseWinStandalonePrebundle(config.webOutputMode) ? runtimeDependencies : null,
-    schemaVersion: 7,
+    schemaVersion: 8,
     tarballsKey,
     webOutputMode: config.webOutputMode,
   });

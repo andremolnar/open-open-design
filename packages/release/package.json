@@ -1,6 +1,6 @@
 {
   "name": "@open-design/release",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Open Design release domain primitives.",
@@ -24,10 +24,10 @@
   },
   "devDependencies": {
     "@types/node": "24.12.2",
-    "esbuild": "0.28.0",
+    "esbuild": "0.28.2",
     "tsx": "4.22.3",
     "typescript": "6.0.3",
-    "vitest": "4.1.6"
+    "vitest": "4.1.12"
   },
   "engines": {
     "node": "~24"

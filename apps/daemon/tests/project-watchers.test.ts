@@ -2,7 +2,6 @@ import { lstat, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import type { FSWatcher } from 'chokidar';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -12,14 +11,15 @@ import {
   subscribe,
   type ProjectWatchEvent,
   type ProjectWatcherOptions,
+  type ProjectFilesystemWatcher,
 } from '../src/project-watchers.js';
 
 type WatcherFactoryOptions = Required<Pick<ProjectWatcherOptions, 'ignored' | 'awaitWriteFinish'>>;
 
-function createMockWatcher(): FSWatcher {
+function createMockWatcher(): ProjectFilesystemWatcher {
   const watcher = new EventEmitter() as EventEmitter & { close: () => Promise<void> };
   watcher.close = async () => { factoryCloses++; };
-  return watcher as unknown as FSWatcher;
+  return watcher;
 }
 
 function fakeFactory() {
@@ -96,7 +96,7 @@ function recordEvent(events: ProjectWatchEvent[]) {
   };
 }
 
-function assertWatcher(watcher: FSWatcher | undefined): asserts watcher is FSWatcher {
+function assertWatcher(watcher: ProjectFilesystemWatcher | undefined): asserts watcher is ProjectFilesystemWatcher {
   expect(watcher).toBeDefined();
 }
 

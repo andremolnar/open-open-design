@@ -26,7 +26,8 @@ export const WEB_STANDALONE_RESOURCE_NAME = "open-design-web-standalone";
 export const ELECTRON_BUILDER_ASAR = false;
 export const ELECTRON_BUILDER_BUILD_DEPENDENCIES_FROM_SOURCE = false;
 export const ELECTRON_REBUILD_MODE = "sequential" as const;
-export const ELECTRON_REBUILD_NATIVE_MODULES = ["better-sqlite3"] as const;
+// SQLite 13 and node-pty ship prebuilt Node-API runtimes; validate, never ABI-rebuild them.
+export const ELECTRON_REBUILD_NATIVE_MODULES: readonly string[] = [];
 export const ELECTRON_BUILDER_FILE_PATTERNS = [
   "**/*",
   "!**/node_modules/.bin",

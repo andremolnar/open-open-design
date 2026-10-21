@@ -20,6 +20,35 @@ All fork-owned work since that boundary, including preview Back navigation,
 is collected below. Fork references link to this repository; pre-fork text,
 version numbers, links, and credits remain in the historical section.
 
+## [1.2.0] — Upstream motion capabilities and security hardening (in preparation)
+
+### Added
+
+- Motion Design on Home and Community, five bundled examples, and curated `@` motion helpers, selectively ported from [upstream #8619](https://github.com/nexu-io/open-design/pull/8619) as shipped in 0.25.0.
+- Editable visible HTML/assets plus HyperFrames MP4 output for video briefs; runnable HTML for interactive animation. Includes local audio, synchronized source playback, decoded-output checks, and CLI parity. MP4 rendering is agent-driven; download the resulting video artifact, not an MP4 option in the HTML export menu.
+
+### Changed
+
+- Preserve the fork's no-call-home defaults, task orchestration, Back navigation and native Reveal while selectively importing the main project's motion workflow. New upstream motion telemetry and unrelated Vela installation changes are excluded; telemetry-bearing third-party code is not claimed to be fully removed.
+- Update reviewed dependencies and pin pnpm 10.34.7. Consolidate dependency policy, retain it in assembled app payloads, and support Electron 45 with SQLite 13's stable Node-API binaries and a native macOS watcher.
+
+### Removed
+
+- Unsafe setup guidance that pipes downloaded shell scripts into interpreters, dynamically evaluates fetched PowerShell, bypasses TLS/sandbox checks, or tells agents to install missing tools and floating-version CLIs automatically. Setup now requires a separately reviewed and explicitly approved plan.
+
+### Security
+
+- Audit imported assets and package provenance, verify registry integrity/signatures, pin optional Python dependencies with platform-specific wheel hashes, and use scripts-disabled controlled installs. The final dependency check found no OSV matches across 1,225 locked npm versions or 158 npm versions in the signed macOS app; this is not a blanket security certification.
+- Preserve macOS security attributes during build/artifact finalization instead of automatically stripping quarantine/provenance markers. A local Apple Development-signed arm64 build passed strict recursive signature verification and was installed using the repository deployment script; no notarized release was published.
+
+### Known limitations
+
+- Media input containment/protocol restrictions, destructive optional helper flags, third-party telemetry, and licensing/notice questions remain open in the [security audit](docs/motion-patch-security-audit-2026-10-21.md) and [remediation report](docs/motion-dependency-remediation-2026-10-21.md). These changes do not approve unsafe helper execution or certify the whole motion port.
+- No graphical timeline editor, generic recording button, or Remotion adapter. Project-card live-preview performance is tracked separately in [#16](https://github.com/andremolnar/open-open-design/issues/16), not fixed here.
+
+Usage and scope: [Motion Design](docs/motion-design.md). Release-note sources: [English](docs/CHANGELOG/v1.2.0/en.md) · [简体中文](docs/CHANGELOG/v1.2.0/zh-CN.md).
+This is a prepared source version, not a tag or binary publication.
+
 ## [1.1.0] — Native file browser actions (in preparation)
 
 ### Added

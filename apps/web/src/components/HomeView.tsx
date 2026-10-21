@@ -257,6 +257,7 @@ interface PendingPluginUseHandoff {
   inputs?: Record<string, unknown>;
   chipId?: string;
   projectKind?: ProjectKind;
+  asExample?: boolean;
 }
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
@@ -626,6 +627,12 @@ export function HomeView({
   // removed), so every Home create runs in the default design mode; the
   // per-conversation picker still lives in the project chat composer.
   const sessionMode: ChatSessionMode = 'design';
+  // Automatic task routes do not apply the placeholder plugin. Its legacy
+  // required fields must not block the free-form brief that the route owns.
+  const activeAutomaticStrategyTaskProfile = sessionMode === 'design'
+    && !pinsPluginOverAutomaticRoute(active, active?.chipId ?? null)
+    ? automaticStrategyTaskProfileForRouteId(active?.chipId ?? null)
+    : null;
   const [activeSkill, setActiveSkill] = useState<SkillSummary | null>(null);
   const [activeSkillCatalogScope, setActiveSkillCatalogScope] =
     useState<LocalCatalogScope | null>(null);
@@ -1139,6 +1146,7 @@ export function HomeView({
         ...(promptHandoff.inputs ? { inputs: promptHandoff.inputs } : {}),
         ...(promptHandoff.chipId ? { chipId: promptHandoff.chipId } : {}),
         ...(promptHandoff.projectKind ? { projectKind: promptHandoff.projectKind } : {}),
+        ...(promptHandoff.asExample ? { asExample: true } : {}),
       });
       if (promptHandoff.focus) {
         focusPromptAtEnd();
@@ -1742,7 +1750,7 @@ export function HomeView({
     record: InstalledPluginRecord,
     action: PluginUseAction = 'use',
     inputs?: Record<string, unknown>,
-    homeType?: { chipId?: string; projectKind?: ProjectKind },
+    homeType?: { chipId?: string; projectKind?: ProjectKind; asExample?: boolean },
   ) {
     trackCommunityGalleryClick(analytics.track, {
       page_name: 'home',
@@ -1752,6 +1760,18 @@ export function HomeView({
       plugin_type: record.marketplaceTrust ?? 'official',
       action: action === 'use-with-query' ? 'use_with_query' : 'use',
     });
+    // An example picked elsewhere for its own task type binds as that type's
+    // example card, so it takes the same route as a pick from Home's list —
+    // including the type's own project metadata, which the route is
+    // re-derived from at create time.
+    const examplePick = homeType?.asExample === true;
+    const exampleChip = examplePick && homeType?.chipId ? findChip(homeType.chipId) : undefined;
+    const exampleProjectMetadata = exampleChip?.action.kind === 'apply-scenario'
+      ? exampleChip.action.projectMetadata ?? null
+      : null;
+    const exampleBinding = examplePick
+      ? { examplePick: true, ...(exampleProjectMetadata ? { projectMetadata: exampleProjectMetadata } : {}) }
+      : {};
     if (action === 'use-with-query') {
       // Prompt-loading "Use" seeds the composer with the SAME human-friendly
       // text the Home example-prompt cards use (examplePresetSeedPrompt), NOT the
@@ -1795,6 +1815,7 @@ export function HomeView({
         // when there is no prefix at all.
         queryTemplateAllowsPrefix: hasTemplate,
         explicitPick: true,
+        ...exampleBinding,
       });
       scrollHomeToTop();
       // Plugins with required inputs and no defaults land on the inputs
@@ -1810,6 +1831,7 @@ export function HomeView({
       ...(homeType?.projectKind ? { projectKind: homeType.projectKind } : {}),
       suppressPromptUpdate: true,
       explicitPick: true,
+      ...exampleBinding,
     });
     scrollHomeToTop();
     // Plain Use doesn't seed the composer; with no draft and no staged
@@ -1879,6 +1901,7 @@ export function HomeView({
       {
         chipId: pendingPluginUseHandoff.chipId,
         projectKind: pendingPluginUseHandoff.projectKind,
+        asExample: pendingPluginUseHandoff.asExample === true,
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2810,10 +2833,7 @@ export function HomeView({
     // Prototype task profile already branches on — and carries no chip id of
     // its own, so it has nothing to swap the route its parent chose for.
     const submittedRouteChipId = submittedActive?.chipId ?? null;
-    const automaticStrategyTaskProfile = sessionMode === 'design'
-      && !pinsPluginOverAutomaticRoute(submittedActive, submittedRouteChipId)
-      ? automaticStrategyTaskProfileForRouteId(submittedRouteChipId)
-      : null;
+    const automaticStrategyTaskProfile = activeAutomaticStrategyTaskProfile;
     // The example's identity, sent in place of a plugin pin. Non-null only on
     // the same picks the gate above releases to the automatic route, so it can
     // never accompany a pinned plugin.
@@ -2826,6 +2846,7 @@ export function HomeView({
     // through and report whatever the daemon decides (below).
     if (
       submittedActive &&
+      !automaticStrategyTaskProfile &&
       !submittedActive.inputsValid &&
       requiredInputsAreUserFillable(submittedActive)
     ) {
@@ -3206,7 +3227,8 @@ export function HomeView({
           // Only let missing required inputs disable Send where the user has a
           // surface to fill them; otherwise a seeded 「使用」 brief would sit next
           // to a permanently dead button (see requiredInputsAreUserFillable).
-          Boolean(active && !active.inputsValid && requiredInputsAreUserFillable(active))
+          Boolean(active && !activeAutomaticStrategyTaskProfile
+            && !active.inputsValid && requiredInputsAreUserFillable(active))
         }
         onPickPlugin={(record, nextPrompt) => addPluginContext(record, nextPrompt)}
         onPickExamplePlugin={useExamplePlugin}

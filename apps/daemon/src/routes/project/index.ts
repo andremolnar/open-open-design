@@ -1,3 +1,4 @@
+import { injectMotionSourcePlayer, isMotionVideoComposition, MOTION_PREVIEW_OUTPUT_HEADER } from '@open-design/contracts/runtime/motion-source-player';
 import { createHash, randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -1813,6 +1814,7 @@ function applyUrlPreviewBridgesToHtml(
   transformed: string | Buffer,
   mime: string,
   requestedBridge: unknown,
+  requestedMotionPreview?: unknown,
 ): string | Buffer {
   if (
     !(
@@ -1824,7 +1826,8 @@ function applyUrlPreviewBridgesToHtml(
       wantsUrlPreviewBuildFocusBridge(requestedBridge) ||
       wantsUrlPreviewSandboxGuard(requestedBridge) ||
       wantsUrlPreviewFocusGuard(requestedBridge) ||
-      wantsUrlPreviewRedirectGuard(requestedBridge)
+      wantsUrlPreviewRedirectGuard(requestedBridge) ||
+      requestedMotionPreview === '1'
     ) ||
     !/^text\/html(?:;|$)/i.test(mime)
   ) {
@@ -1835,7 +1838,7 @@ function applyUrlPreviewBridgesToHtml(
   // Sanitize the <title> so Cmd+P -> "Save as PDF" produces a Teams-safe
   // filename. URL-load iframes cannot rely on the host rewriting the document
   // title after load, and powered previews are intentionally cross-origin.
-  html = daemonSanitizeTitleInDoc(html);
+  html = injectMotionSourcePlayer(daemonSanitizeTitleInDoc(html));
   // Guards must run before authored scripts. injectAfterHeadOpen prepends at
   // the start of <head>; apply in reverse runtime order so the final document
   // executes sandbox -> redirect -> observability -> focus.
@@ -4146,6 +4149,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         || req.body?.automaticStrategyTaskProfile === 'ppt'
         || req.body?.automaticStrategyTaskProfile === 'marketing'
         || req.body?.automaticStrategyTaskProfile === 'hyperframes'
+        || req.body?.automaticStrategyTaskProfile === 'motion-design'
           ? req.body.automaticStrategyTaskProfile
           : null;
       if (
@@ -6212,6 +6216,22 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     };
   }
 
+  /** Detect declarations within the preview-sized prefix, never buffer large
+   * self-contained assets just to answer HEAD. Callers must supply metadata
+   * returned by resolveProjectFilePath after project authorization. */
+  async function detectMotionPreviewOutput(meta: { filePath: string; size: number }): Promise<'video' | 'html'> {
+    const scanLimit = Math.min(meta.size, PREVIEW_URL_GUARD_MAX_HTML_BYTES);
+    if (scanLimit <= 0) return 'html';
+    const chunks: Buffer[] = [];
+    for await (const chunk of fs.createReadStream(meta.filePath, {
+      start: 0,
+      end: scanLimit - 1,
+    })) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    }
+    return isMotionVideoComposition(Buffer.concat(chunks).toString('utf8')) ? 'video' : 'html';
+  }
+
   async function sendProjectFile(
     req: any,
     res: Response,
@@ -6286,6 +6306,9 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       }
 
       res.status(statusCode);
+      // HEAD reports the same range/length headers without reading a body that
+      // Node would otherwise discard after piping the entire file.
+      if (req.method === 'HEAD') return res.end();
       const stream = fs.createReadStream(meta.filePath, { start, end });
       stream.on('error', (streamErr: any) => {
         if (!res.headersSent) {
@@ -7025,6 +7048,11 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       );
       const skipHtmlPreviewBridge =
         /^text\/html(?:;|$)/i.test(meta.mime) && meta.size > PREVIEW_URL_GUARD_MAX_HTML_BYTES;
+      // Large HTML keeps its original streamed GET path. Cover HEAD requests
+      // inspect only a bounded prefix for the authored motion declaration.
+      if (skipHtmlPreviewBridge && req.method === 'HEAD') {
+        res.setHeader(MOTION_PREVIEW_OUTPUT_HEADER, await detectMotionPreviewOutput(meta));
+      }
 
       await sendProjectFile(
         req,
@@ -7042,10 +7070,15 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
             projectsRoot: PROJECTS_DIR,
             readProjectFile,
           });
+          if (/^text\/html(?:;|$)/i.test(file.mime)) {
+            const html = Buffer.isBuffer(transformed) ? transformed.toString('utf8') : String(transformed);
+            res.setHeader(MOTION_PREVIEW_OUTPUT_HEADER, isMotionVideoComposition(html) ? 'video' : 'html');
+          }
           const bridged = applyUrlPreviewBridgesToHtml(
             transformed,
             file.mime,
             req.query.odPreviewBridge,
+            req.query.odMotionPreview,
           );
           const workspaceId = typeof req.query.workspaceId === 'string'
             ? req.query.workspaceId
@@ -7143,6 +7176,9 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       );
       const skipPoweredTransform =
         /^text\/html(?:;|$)/i.test(meta.mime) && meta.size > PREVIEW_URL_GUARD_MAX_HTML_BYTES;
+      if (skipPoweredTransform && req.method === 'HEAD') {
+        res.setHeader(MOTION_PREVIEW_OUTPUT_HEADER, await detectMotionPreviewOutput(meta));
+      }
       await sendProjectFile(
         req,
         res,
@@ -7159,7 +7195,11 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
             projectsRoot: PROJECTS_DIR,
             readProjectFile,
           });
-          return applyUrlPreviewBridgesToHtml(transformed, file.mime, req.query.odPreviewBridge);
+          if (/^text\/html(?:;|$)/i.test(file.mime)) {
+            const html = Buffer.isBuffer(transformed) ? transformed.toString('utf8') : String(transformed);
+            res.setHeader(MOTION_PREVIEW_OUTPUT_HEADER, isMotionVideoComposition(html) ? 'video' : 'html');
+          }
+          return applyUrlPreviewBridgesToHtml(transformed, file.mime, req.query.odPreviewBridge, req.query.odMotionPreview);
         },
       );
     } catch (err: any) {

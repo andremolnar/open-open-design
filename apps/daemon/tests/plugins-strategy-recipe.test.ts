@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -100,6 +100,48 @@ afterAll(() => {
 });
 
 describe('OD Next V2 request recipe wiring', () => {
+  it('composes the canonical motion skill without replacing fork V2 orchestration', async () => {
+    const binding = createBundledStrategyBindingV2({ plugin, taskType: 'motion-design' });
+    const motionSnapshot = applyPlugin({
+      plugin, inputs: {}, registry: EMPTY_REGISTRY, internalStrategyBinding: binding,
+    }).result.appliedPlugin;
+    const recipe = await resolveRecipe({ activeSnapshot: { ...motionSnapshot, snapshotId: 'snapshot-motion-recipe' } });
+    if (!recipe) throw new Error('expected motion recipe');
+    const prompt = composeSystemPrompt({ agentId: 'codex', sessionMode: 'design', odNextStrategyRecipe: recipe });
+    const source = await readFile(path.resolve(BUNDLED_ROOT, '../../skills/motion-design/SKILL.md'), 'utf8');
+    expect(prompt).toContain(source);
+    expect(prompt).toContain('OD Next Core Strategy');
+    expect(prompt).toContain('General Orchestration');
+    expect(prompt).not.toContain('# OD Next Task Profile: HyperFrames');
+    expect(prompt).toContain('<open-design-plan-contract>');
+    expect(prompt).toContain('<open-design-runtime-state>');
+    expect(prompt).toContain('Full Plan request and clarification are planning-only');
+    expect(prompt).toContain('bounded video-motion production exception');
+    expect(prompt).toContain('selected scenario or a loaded');
+    expect(prompt).not.toContain('keyed\nproduction-ready marker');
+    expect(prompt).not.toContain('Never emit Plan Contract or Runtime State blocks');
+    expect(prompt).not.toContain('Open Design does not parse or freeze a model-authored plan');
+  });
+
+  it.each(['prototype', 'ppt', 'marketing', 'hyperframes'] as const)(
+    'keeps the %s contract without imposing motion delivery requirements', async (taskType) => {
+      const binding = createBundledStrategyBindingV2({ plugin, taskType });
+      const applied = applyPlugin({ plugin, inputs: {}, registry: EMPTY_REGISTRY, internalStrategyBinding: binding }).result.appliedPlugin;
+      const recipe = await resolveRecipe({ activeSnapshot: { ...applied, snapshotId: `intent-${taskType}` } });
+      if (!recipe) throw new Error('expected real OD Next recipe');
+      const prompt = composeSystemPrompt({ odNextStrategyRecipe: recipe });
+      expect(prompt).toBe(composeContractsSystemPrompt({ odNextStrategyRecipe: recipe }));
+      expect(prompt).toContain('<open-design-plan-contract>');
+      expect(prompt).toContain('<open-design-runtime-state>');
+      expect(prompt).toContain('Full Plan request and clarification are planning-only');
+      expect(prompt).not.toContain('od-motion-audio');
+      // Ordinary profiles may already use the shared media dispatcher. Only
+      // the motion-specific production instructions must stay isolated.
+      expect(prompt).not.toContain('--composition-dir "motion-source/film"');
+      expect(prompt).not.toContain('# Motion Design');
+    },
+  );
+
 
   // Read and register the real bundled resource; no hand-authored atom fixture.
   // This witnesses the prompt contract that reaches a strategy recipe, not an
