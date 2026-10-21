@@ -1,0 +1,199 @@
+{
+  "repository": "https://github.com/nexu-io/motion-anything",
+  "commit": "b016900d9ee92fc2d3e4dc520359cc8999d2ed4e",
+  "license": "Apache-2.0",
+  "recipes": [
+    {
+      "id": "like-burst",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/like-burst",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/like-burst.md",
+      "files": [
+        {
+          "name": "like-burst.css",
+          "upstreamPath": "recipes/web/like-burst/like-burst.css",
+          "sha256": "cc46624d67222f225511f42a203f6f70b50f081bf912bc792ebd28e9f4395e04",
+          "language": "css"
+        },
+        {
+          "name": "like-burst.js",
+          "upstreamPath": "recipes/web/like-burst/like-burst.js",
+          "sha256": "39de6b26a1630ccfe3108191ab7396bbcd5003924ae6e09b1d5f7f4f5983640c",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "fade-in-up",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/fade-in-up",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/fade-in-up.md",
+      "files": [
+        {
+          "name": "fade-in-up.css",
+          "upstreamPath": "recipes/web/fade-in-up/fade-in-up.css",
+          "sha256": "a58d3d25f8ba53fffba801c0ebc78da1c6dcfb5d42fad4e2374cc675c8d9764d",
+          "language": "css"
+        },
+        {
+          "name": "fade-in-up.js",
+          "upstreamPath": "recipes/web/fade-in-up/fade-in-up.js",
+          "sha256": "34b80163bf7bf944c85b64ebfdf70e5882c0aa6cbfebb111e8427543a516baf1",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "card-lift-hover",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/card-lift-hover",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/card-lift-hover.md",
+      "files": [
+        {
+          "name": "card-lift-hover.css",
+          "upstreamPath": "recipes/web/card-lift-hover/card-lift-hover.css",
+          "sha256": "4aa2ef9232a5d7438af65951502df3e3d9f21aa5eedee73c5a45a68cee33a46e",
+          "language": "css"
+        }
+      ]
+    },
+    {
+      "id": "stagger-list",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/stagger-list",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/stagger-list.md",
+      "files": [
+        {
+          "name": "stagger-list.css",
+          "upstreamPath": "recipes/web/stagger-list/stagger-list.css",
+          "sha256": "2ae35e43efb2d3face07115c24eb0e7e9032e65601bf0a5a4297b5b6aeb1e37a",
+          "language": "css"
+        },
+        {
+          "name": "stagger-list.js",
+          "upstreamPath": "recipes/web/stagger-list/stagger-list.js",
+          "sha256": "2b309fb14228c20f26593b115e673ef9e7f607e7949dfc7c4ec7026fcf9ebd0c",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "magnetic-button",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/magnetic-button",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/magnetic-button.md",
+      "files": [
+        {
+          "name": "magnetic-button.css",
+          "upstreamPath": "recipes/web/magnetic-button/magnetic-button.css",
+          "sha256": "c0fab96127c4ac2332487a38cdfe20a56d3b2a1203d769debd19f89af0dc3a5f",
+          "language": "css"
+        },
+        {
+          "name": "magnetic-button.js",
+          "upstreamPath": "recipes/web/magnetic-button/magnetic-button.js",
+          "sha256": "41d29b10aec28137dc3818b38f7a8c87c18ea56bbd0d93bc1c7084a6d053d97e",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "loading-shimmer",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/loading-shimmer",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/loading-shimmer.md",
+      "files": [
+        {
+          "name": "loading-shimmer.css",
+          "upstreamPath": "recipes/web/loading-shimmer/loading-shimmer.css",
+          "sha256": "29158d9c9cb8115bbfa30d15ec8512f9f4783997925b856f8b60deee25286991",
+          "language": "css"
+        }
+      ]
+    },
+    {
+      "id": "attention-pulse",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/attention-pulse",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/attention-pulse.md",
+      "files": [
+        {
+          "name": "attention-pulse.css",
+          "upstreamPath": "recipes/web/attention-pulse/attention-pulse.css",
+          "sha256": "1ccd89a40335ff09d9dc10ed43f5a2c62664bc557dc2df9a8d82cf2ca64c3a5d",
+          "language": "css"
+        }
+      ]
+    },
+    {
+      "id": "scroll-reveal",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/scroll-reveal",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/scroll-reveal.md",
+      "files": [
+        {
+          "name": "scroll-reveal.css",
+          "upstreamPath": "recipes/web/scroll-reveal/scroll-reveal.css",
+          "sha256": "2c67e6642d80c0636ea2b5241e3d93d451a10804e5718991e32421889292fac0",
+          "language": "css"
+        },
+        {
+          "name": "scroll-reveal.js",
+          "upstreamPath": "recipes/web/scroll-reveal/scroll-reveal.js",
+          "sha256": "1ac02dbd6b1da49403d92723af3b1f18debcb6ac7b04a2c79dca2f112ffc7c9f",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "toggle-spring",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/toggle-spring",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/toggle-spring.md",
+      "files": [
+        {
+          "name": "toggle-spring.css",
+          "upstreamPath": "recipes/web/toggle-spring/toggle-spring.css",
+          "sha256": "0804fbda13c42dcc6d72d5e527d41377f0598244c40e64d3ebe53e1a2cfc954b",
+          "language": "css"
+        },
+        {
+          "name": "toggle-spring.js",
+          "upstreamPath": "recipes/web/toggle-spring/toggle-spring.js",
+          "sha256": "fa97dcff56fcc611763ddac398046ace8786c6b4b6605c52d3d9d8bb656b7cd0",
+          "language": "javascript"
+        }
+      ]
+    },
+    {
+      "id": "kinetic-headline",
+      "upstream": "https://github.com/nexu-io/motion-anything/tree/b016900d9ee92fc2d3e4dc520359cc8999d2ed4e/recipes/web/kinetic-headline",
+      "license": "Apache-2.0",
+      "dependencies": [],
+      "reference": "references/kinetic-headline.md",
+      "files": [
+        {
+          "name": "kinetic-headline.css",
+          "upstreamPath": "recipes/web/kinetic-headline/kinetic-headline.css",
+          "sha256": "b679698ed57463ec447cfb50b3e63cf27a5a497388549b41108fe3797df89093",
+          "language": "css"
+        },
+        {
+          "name": "kinetic-headline.js",
+          "upstreamPath": "recipes/web/kinetic-headline/kinetic-headline.js",
+          "sha256": "d787254a7877a0d9bcc42cb25c5291f0b033b8d86a47b5dafa5ded18ba566913",
+          "language": "javascript"
+        }
+      ]
+    }
+  ]
+}

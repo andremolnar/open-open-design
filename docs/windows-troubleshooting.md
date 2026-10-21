@@ -55,7 +55,7 @@ Compare the printed hash against the checksum listed on the release page. They m
 | Tool | Version | How to verify |
 |---|---|---|
 | Node.js | `~24` | `node -v` |
-| pnpm | `10.33.x` | `pnpm -v` |
+| pnpm | `>=10.34.7 <11` (repo selects `10.34.7`) | `pnpm -v` |
 | Git | any recent | `git --version` |
 
 ---
@@ -98,17 +98,15 @@ If running `nvm version` or `node -v` pops up a Windows dialog that asks *"How d
 pnpm : The term 'pnpm' is not recognized as the name of a cmdlet...
 ```
 
-### Fix (npm global — Windows native)
+### Fix (separately approved toolchain setup)
 
-The repo pins `pnpm@10.33.2` in `packageManager`, but `corepack enable` on a
-normal Windows Node installation tries to write shims under
-`C:\Program Files\nodejs` and fails with `EPERM`. Install the pinned pnpm
-version globally instead:
-
-```powershell
-npm install -g pnpm@10.33.2
-pnpm -v   # should print 10.33.2
-```
+The repo selects `pnpm@10.34.7` in `packageManager`, but `corepack enable` on a
+normal Windows Node installation can fail with `EPERM` while writing shims under
+`C:\Program Files\nodejs`. Report that blocker. Do not escalate privileges or
+substitute a global npm installation automatically. Propose an exact-version,
+official-source, integrity-verified setup plan with its destination and side
+effects, and obtain explicit approval before downloads or execution. The
+expected version after approved setup is `10.34.7`.
 
 Use Corepack in macOS, Linux, and WSL2 as documented in the root Quickstart;
 do not treat a Windows-native `corepack enable` permission failure as a broken

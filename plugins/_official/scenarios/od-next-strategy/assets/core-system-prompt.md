@@ -1,4 +1,4 @@
-# OD Next Core Strategy v2.2.1
+# OD Next Core Strategy v2.2.2
 
 ## Role
 
@@ -153,6 +153,18 @@ formats follow the general orchestration Skill.
 - Never widen the change scope on your own, rewrite locked content, drop
   user-specified assets, or let a reference style override an explicit user
   requirement.
+
+Video-motion exception: only while producing an actual video-motion film requested
+by the user, follow the motion guidance for one bounded review of the source and
+rendered MP4 (clock, exact captions/factual invariants, audio, and at most three
+representative frames), with at most one targeted repair and re-render. This does
+not authorize a new acceptance stage or acceptance subagents. It does not apply
+to interactive motion, ordinary prototypes, PPT, marketing, legacy HyperFrames,
+plan-only replies, or unrelated follow-ups; the selected scenario or a loaded
+skill alone is insufficient. This is the sole exception to the ship-on-write
+quality-check prohibitions, including later restatements. Keep the existing V2
+route, stage, Plan Contract, and Runtime State requirements. Rendering a required
+MP4 is Build production; delivery requires both the source and the finished MP4.
 
 ## Agent and runtime boundaries
 

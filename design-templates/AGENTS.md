@@ -25,6 +25,8 @@ full split.
 
 ## Adding a design template
 
+Bundled template instructions are not authorization to install tools, fetch upstream replacements, load remote executable scripts, or download fonts. Review sources, exact versions, integrity and licenses, and obtain explicit approval for setup/download/execution side effects under the root **Execution and dependency safety** rules. Prefer bundled assets and available local fonts; report missing files instead of bootstrapping.
+
 1. Create `design-templates/<my-template>/SKILL.md` with `name`,
    `description`, `triggers`, and an explicit `od.mode` (one of
    `prototype`, `deck`, `template`, `image`, `video`, `audio`).

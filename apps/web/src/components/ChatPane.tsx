@@ -1081,6 +1081,9 @@ export function foldStrategyTaskTurns(messages: ChatMessage[]): ChatMessage[] {
         : headContent,
       events: [...(head.events ?? []), ...stampRunSpan(message)],
       producedFiles: [...(head.producedFiles ?? []), ...(message.producedFiles ?? [])],
+      artifactRefs: [...new Map([
+        ...(head.artifactRefs ?? []), ...(message.artifactRefs ?? []),
+      ].map((ref) => [ref.label, ref])).values()],
       // The turn's status is the latest Run's: the earlier Runs finishing is an
       // internal step, not the turn ending.
       runId: message.runId ?? head.runId,

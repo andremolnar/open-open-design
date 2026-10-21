@@ -39,6 +39,11 @@ Verify its signature with `codesign --verify --deep --strict <path-to-built-app>
 This is a local development build, not a notarized release; public release
 workflows still require their own Apple distribution credentials.
 
+Build and artifact finalization preserve macOS quarantine, provenance and access
+control attributes. Signing is not permission to strip those security markers;
+if macOS refuses an artifact, report the verification failure instead of
+removing attributes or disabling security policy.
+
 ### Local build and install into Applications
 
 ```bash
@@ -197,7 +202,7 @@ Headless mode targets environments without a display (WSL2, headless servers, CI
 
 ### Sandbox / chrome-sandbox
 
-Electron 41 on Linux requires `kernel.unprivileged_userns_clone=1` (default on Arch, Ubuntu 24+, Debian 12+) or AppImage's `--no-sandbox` fallback. Most modern distros need no extra setup.
+Packaged Electron on Linux needs a working Chromium sandbox (for example, supported unprivileged user namespaces). If it is unavailable, stop and report the platform limitation. Do not disable the sandbox or change host kernel/security settings automatically to get a build or smoke test running; platform configuration requires a separately reviewed, user-approved plan.
 
 ### Distro compatibility target
 

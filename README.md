@@ -36,7 +36,7 @@ OpenDesign turns a brief into editable artifacts—web and mobile prototypes, de
 
 The most reliable way to run **this fork** is from source. Upstream downloads and container images are not builds of this repository.
 
-**Requirements:** Node.js `~24`, pnpm `10.33.2` (the version pinned in `package.json`), and macOS, Linux, or WSL2. Windows native is best-effort; see [Windows troubleshooting](docs/windows-troubleshooting.md).
+**Requirements:** Node.js `~24`, pnpm `10.34.7` (the version pinned in `package.json`; minimum `10.34.7`, below `11`), and macOS, Linux, or WSL2. Windows native is best-effort; see [Windows troubleshooting](docs/windows-troubleshooting.md).
 
 ```bash
 git clone https://github.com/andremolnar/open-open-design.git

@@ -1,10 +1,12 @@
 # DeepSeek Harness × OpenDesign 一键安装指引
 
-> 运营发布状态：文案已可评审，安装脚本尚未发布到正式下载地址。正式对外发送前，请确认下方三个 `open-design.ai/install-dsh.*` 地址均可访问，并分别完成一次 macOS、Windows PowerShell 和 Windows CMD 验证。
+> 安全更正：本文是继承的上游安装宣传草稿，不代表本分支已批准这些分发地址或安装行为。禁止直接下载后执行、管道执行远程脚本或动态求值 PowerShell。安装前必须选择不可变版本，从独立可信来源核对安装器本身的校验和／签名，审阅脚本、下载来源、写入目录和生命周期行为，并取得用户明确批准。脚本内校验载荷不等于安装器可信。以下流程不是 Agent 的执行授权。
 
-正式发布不采用开发机手动上传。脚本合并到 `main` 后，由 `dsh-bootstrap-publish` workflow 将脚本和 `SHA256SUMS` 以不可覆盖的版本保存到 `https://releases.open-design.ai/bootstrap/dsh/<version>/`。`open-design.ai/install-dsh.*` 短链接由独立的 marketing site 仓库提供。
+> 继承的运营草稿：本分支不运行上游自动发布 workflow，也不保证原下载域名属于本分支的可信分发。正式使用前必须由维护者重新确认来源、不可变版本及独立验证方式。
 
-版本号由脚本内容决定，不需要人工维护：脚本没变就复用已发布的那一版，脚本改了就自动开下一版（`v1` → `v2` → …）。每个已发布版本都保持逐字节不可覆盖，历史版本永久留存，`https://releases.open-design.ai/bootstrap/dsh/latest.json` 指向当前版本并附带各文件的 sha256 与发布来源。
+上游原方案使用单独的发布 workflow 和 marketing site 短链接；这些是历史背景，不是本分支当前运行的发布流程或安装授权。不要因文档中出现域名就信任其脚本。
+
+安装计划应明确所选版本、脚本摘要／签名、验证信任根、工具链依赖及写入范围。可变的 latest 清单或同一来源提供的摘要不能单独建立可信来源。
 
 ## 对外宣发文案
 
@@ -12,7 +14,7 @@
 
 现在，你可以在 OpenDesign 中使用 DeepSeek Harness 完成设计生成任务。
 
-如果电脑上还没有 Node.js、pnpm 或 `dsh`，无需逐项配置环境：运行对应系统的一行安装命令，即可安装 OpenDesign 当前兼容的 DeepSeek Harness 工具链，并进入 API Key 配置页面。
+如果电脑上还没有 Node.js、pnpm 或 `dsh`，先说明缺少哪些组件，再提出需要单独批准的工具链安装计划。不得自动下载、安装或启动 API Key 配置页面。
 
 安装过程不会修改系统级 Node.js，也不需要 `sudo` 或管理员权限；已有的兼容环境会被自动复用。
 
@@ -20,29 +22,17 @@
 
 ### macOS / Linux
 
-打开“终端”，粘贴下面一行并按回车：
-
-```sh
-curl -fsSL 'https://open-design.ai/install-dsh.sh?version=1' | sh
-```
+先单独获取已批准的不可变版本安装器并保存为文件；核验、审阅并获得执行批准后再单独运行。本文不提供下载即执行命令。
 
 支持 Apple Silicon、Intel Mac，以及主流 x64/arm64 Linux 发行版。Alpine Linux 暂不支持自动安装。
 
 ### Windows PowerShell
 
-打开 PowerShell，粘贴下面一行并按回车：
-
-```powershell
-& ([scriptblock]::Create((irm 'https://open-design.ai/install-dsh.ps1?version=1')))
-```
+将已批准版本的 PowerShell 安装器保存为文件，独立核验签名／校验和并审阅后再请求执行批准。不要动态求值网络响应。
 
 ### Windows CMD
 
-打开“命令提示符”，粘贴下面一行并按回车：
-
-```bat
-curl -fsSL "https://open-design.ai/install-dsh.cmd?version=1" -o "%TEMP%\install-dsh.cmd" && call "%TEMP%\install-dsh.cmd"
-```
+下载、核验、审阅、批准和执行必须分开；不要将 curl 与 call 串成一条命令。
 
 ## 配置 DeepSeek API Key
 
@@ -140,11 +130,7 @@ DeepSeek API Key 在 DeepSeek Harness 自己的页面中配置和保存。OpenDe
 
 ## 适合社群直接转发的短版
 
-DeepSeek Harness 已接入 OpenDesign。没有 Node.js、pnpm 或 dsh 也没关系：复制一行命令即可自动补齐兼容环境。安装完成后，在 Harness Web UI 的“设置 → 模型 → DeepSeek”中保存 API Key，再回到 OpenDesign 重新扫描并选择 DeepSeek Harness，就可以开始生成设计。
-
-- macOS / Linux：`curl -fsSL 'https://open-design.ai/install-dsh.sh?version=1' | sh`
-- Windows PowerShell：`& ([scriptblock]::Create((irm 'https://open-design.ai/install-dsh.ps1?version=1')))`
-- Windows CMD：`curl -fsSL "https://open-design.ai/install-dsh.cmd?version=1" -o "%TEMP%\install-dsh.cmd" && call "%TEMP%\install-dsh.cmd"`
+DeepSeek Harness 可使用用户已安装且兼容的工具链。缺少 Node.js、pnpm 或 dsh 时先停止并说明缺口；安装必须单独核验来源并取得批准，不提供一行远程执行命令。经批准安装后，在 Harness Web UI 配置 API Key，再回到 OpenDesign 重新扫描。
 
 API Key 由 DeepSeek Harness 自己保存，OpenDesign 不保存你的 Key。
 

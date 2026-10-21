@@ -1,0 +1,16 @@
+# Optional lock for CPython 3.14, macOS arm64 (not other platforms/ABIs).
+# Requires macOS 13+ for the selected OpenCV wheel.
+# Official PyPI wheel SHA-256 values, reviewed 2026-10-21.
+# Installation still requires explicit approval; never fall back to source builds.
+--index-url https://pypi.org/simple
+--only-binary=:all:
+--require-hashes
+
+numpy==2.5.4 \
+    --hash=sha256:ffa6ce09a1c6a08e9667dd9c97aa0b14184e8d18f2a14b78b2a2328c9147f076 \
+    --hash=sha256:956555e0603a4d38019ae6925711cb9dc43195c076a928accf7ea5d50bddfe53
+scipy==1.18.1 \
+    --hash=sha256:9554bcc6d715ee87a633a3cc8e7703c6628b100dd29cb8a2efc4c0533c7ff729 \
+    --hash=sha256:011413b7426b75012840e35649e00fe0a2c3bae89fed433876e3a99251572efc
+opencv-python==5.0.0.93 \
+    --hash=sha256:198a75138241810206a17c829dbcc40a7cb1841cda538ca86cbbfc6c7d95f898

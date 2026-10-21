@@ -1,9 +1,17 @@
 import type http from 'node:http';
+import fs from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { PREVIEW_URL_GUARD_MAX_HTML_BYTES } from '@open-design/contracts/runtime/preview-guards';
 
 import { startServer } from '../src/server.js';
+import { readProjectFile } from '../src/projects.js';
+
+vi.mock('../src/projects.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/projects.js')>();
+  return { ...actual, readProjectFile: vi.fn(actual.readProjectFile) };
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/projects/:id/raw/* — cache revalidation behaviour.
@@ -58,6 +66,85 @@ describe('GET /api/projects/:id/raw/* cache revalidation', () => {
   afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
   const rawUrl = (name: string) => `${baseUrl}/api/projects/${projectId}/raw/${name}`;
+
+  describe.each(['raw', 'powered'])('%s HTML motion identity', (route) => {
+    const fileUrl = (name: string) => `${baseUrl}/api/projects/${projectId}/${route}/${name}`;
+
+    it.each(['video', 'interactive', 'ordinary'])('HEAD identifies actual %s HTML without changing the source', async (mode) => {
+      const html = `<!doctype html><html><head>${mode === 'ordinary' ? '' : `<meta name="od-motion-output" content="${mode}">`}</head><body>source</body></html>`;
+      const name = `cover-${route}-${mode}.html`;
+      await writeFile(path.join(projectsRoot, projectId, name), html);
+      const head = await fetch(fileUrl(name), { method: 'HEAD' });
+      expect(head.status).toBe(200);
+      expect(head.headers.get('x-od-motion-output')).toBe(mode === 'video' ? 'video' : 'html');
+      expect(await head.text()).toBe('');
+      const raw = await fetch(fileUrl(name));
+      expect(await raw.text()).toBe(html);
+    });
+
+    it('HEAD preserves range headers without streaming the response body', async () => {
+      const filePath = await fs.promises.realpath(path.join(projectsRoot, projectId, 'clip.mp4'));
+      const reads = vi.spyOn(fs, 'createReadStream');
+      try {
+        const head = await fetch(fileUrl('clip.mp4'), {
+          method: 'HEAD',
+          headers: { Range: 'bytes=10-19' },
+        });
+        expect(head.status).toBe(206);
+        expect(head.headers.get('accept-ranges')).toBe('bytes');
+        expect(head.headers.get('content-range')).toBe('bytes 10-19/512');
+        expect(head.headers.get('content-length')).toBe('10');
+        expect(await head.text()).toBe('');
+        expect(reads.mock.calls.filter(([file]) => file === filePath)).toEqual([]);
+      } finally {
+        reads.mockRestore();
+      }
+    });
+
+    it.each(['video', 'interactive', 'ordinary'])('oversized %s HEAD only reads a bounded prefix and GET streams unchanged', async (mode) => {
+      // Include false declarations in inert content to keep HEAD on the shared
+      // structural detector, not an unbounded read or a prefix regex shortcut.
+      const decoys = '<!-- <meta name="od-motion-output" content="video"> -->'
+        + '<script>const sample = `<meta name="od-motion-output" content="video">`;</script>';
+      const declaration = mode === 'ordinary' ? '' : `<meta content=${mode} name='od-motion-output'>`;
+      const headStart = `<!doctype html><html><head>${decoys}`;
+      // The video declaration ends exactly at the scan boundary, so a chunked
+      // reader must retain structural context and include the final byte.
+      const padding = mode === 'video'
+        ? ' '.repeat(PREVIEW_URL_GUARD_MAX_HTML_BYTES - Buffer.byteLength(headStart + declaration))
+        : '';
+      const html = `${headStart}${padding}${declaration}</head><body>`
+        + 'x'.repeat(PREVIEW_URL_GUARD_MAX_HTML_BYTES) + '</body></html>';
+      const name = `large-${route}-${mode}.html`;
+      const filePath = path.join(projectsRoot, projectId, name);
+      await writeFile(filePath, html);
+      const resolvedPath = await fs.promises.realpath(filePath);
+      const reads = vi.spyOn(fs, 'createReadStream');
+      vi.mocked(readProjectFile).mockClear();
+      try {
+        const head = await fetch(fileUrl(name), { method: 'HEAD' });
+        expect(head.status).toBe(200);
+        expect(head.headers.get('x-od-motion-output')).toBe(mode === 'video' ? 'video' : 'html');
+        expect(head.headers.get('content-length')).toBe(String(Buffer.byteLength(html)));
+        expect(await head.text()).toBe('');
+        expect(vi.mocked(readProjectFile).mock.calls.filter(([, id, file]) => id === projectId && file === name)).toEqual([]);
+        const sourceReads = reads.mock.calls.filter(([file]) => file === resolvedPath);
+        expect(sourceReads).toHaveLength(1);
+        expect(sourceReads[0]?.[1]).toMatchObject({
+          start: 0,
+          end: PREVIEW_URL_GUARD_MAX_HTML_BYTES - 1,
+        });
+        const stream = reads.mock.results[reads.mock.calls.findIndex(([file]) => file === resolvedPath)]?.value as fs.ReadStream;
+        expect(stream.bytesRead).toBe(PREVIEW_URL_GUARD_MAX_HTML_BYTES);
+      } finally {
+        reads.mockRestore();
+      }
+      const raw = await fetch(fileUrl(name));
+      expect(raw.status).toBe(200);
+      expect(raw.headers.get('accept-ranges')).toBe('bytes');
+      expect(await raw.text()).toBe(html);
+    });
+  });
 
   it('emits ETag, Last-Modified and Cache-Control: no-cache for a CSS asset', async () => {
     const res = await fetch(rawUrl('styles.css'));

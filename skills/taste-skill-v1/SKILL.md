@@ -41,7 +41,7 @@ od:
 ## 2. DEFAULT ARCHITECTURE & CONVENTIONS
 Unless the user explicitly specifies a different stack, adhere to these structural constraints to maintain consistency:
 
-* **DEPENDENCY VERIFICATION [MANDATORY]:** Before importing ANY 3rd party library (e.g. `framer-motion`, `lucide-react`, `zustand`), you MUST check `package.json`. If the package is missing, you MUST output the installation command (e.g. `npm install package-name`) before providing the code. **Never** assume a library exists.
+* **DEPENDENCY VERIFICATION [MANDATORY]:** Before importing any third-party library, check the manifest and existing installation. If it is missing, report the blocker and prefer an already available alternative. Do not install automatically or present an unpinned install command as a prerequisite. Any setup requires explicit approval after reviewing exact versions, official sources, integrity, licenses, destinations and lifecycle side effects. Never assume a library exists.
 * **Framework & Interactivity:** React or Next.js. Default to Server Components (`RSC`).
     * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
     * **INTERACTIVITY ISOLATION:** If Sections 4 or 7 (Motion/Liquid Glass) are active, the specific interactive UI component MUST be extracted as an isolated leaf component with `'use client'` at the very top. Server Components must exclusively render static layouts.

@@ -310,7 +310,7 @@ Review in this order. Each priority lists the concrete checks for it.
 
 - Prefer small, cohesive changes with clear names, limited coupling, no unnecessary abstractions.
 - Reject speculative abstractions and broad rewrites without a current product need.
-- For command, package, workspace, or generated-entry changes, confirm `pnpm install` was run when required.
+- For command, package, workspace, or generated-entry changes, review manifest/lockfile deltas, provenance, lifecycle scripts, and stale-output risks. Installation is not an automatic prerequisite: follow the root `AGENTS.md` execution-safety rules, obtain explicit approval before downloads or execution, and record blocked validation honestly.
 
 ## 6. Commenting standards
 
@@ -323,6 +323,8 @@ Review in this order. Each priority lists the concrete checks for it.
 ## 7. Approval bar
 
 Approve only when **all** of the following hold:
+
+These are evidence requirements, not authorization to install dependencies or execute unreviewed code. Audit-only and patch-application requests stop at their requested scope; missing execution approval is a blocker to record, not a reason to bootstrap tooling.
 
 - The change satisfies the requested behavior and respects repository boundaries.
 - `pnpm guard` and `pnpm typecheck` have run.

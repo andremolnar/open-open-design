@@ -161,6 +161,7 @@ describe("createWinPackagedAppCacheKey", () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-win-packaged-app-key-"));
 
     try {
+      await writeFile(join(root, "pnpm-workspace.yaml"), 'overrides:\n  global-agent@^3: 4.1.3\n');
       const config = createConfig(root, "standalone");
       const baseline = await createWinPackagedAppCacheKey(config, "tarballs-a", packedTarballs);
 
@@ -169,6 +170,9 @@ describe("createWinPackagedAppCacheKey", () => {
         "tarballs-a",
         packedTarballs,
       )).resolves.not.toBe(baseline);
+      await writeFile(join(root, "pnpm-workspace.yaml"), 'overrides:\n  global-agent@^3: 4.1.4\n');
+      await expect(createWinPackagedAppCacheKey(config, "tarballs-a", packedTarballs)).resolves.not.toBe(baseline);
+      await writeFile(join(root, "pnpm-workspace.yaml"), 'overrides:\n  global-agent@^3: 4.1.3\n');
       await expect(createWinPackagedAppCacheKey(config, "tarballs-b", packedTarballs)).resolves.not.toBe(baseline);
       await expect(createWinPackagedAppCacheKey(config, "tarballs-a", [
         ...packedTarballs,
@@ -192,6 +196,7 @@ describe("createWinPackagedAppCacheKey", () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-win-packaged-app-key-"));
 
     try {
+      await writeFile(join(root, "pnpm-workspace.yaml"), 'overrides:\n  global-agent@^3: 4.1.3\n');
       const config = createConfig(root, "standalone");
       const baseline = await createWinPackagedAppCacheKey(config, "tarballs-a", packedTarballs);
       await expect(createWinPackagedAppCacheKey(

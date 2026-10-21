@@ -66,7 +66,7 @@ export async function runPnpm(
 }
 
 export async function runNpmInstall(appRoot: string): Promise<void> {
-  await execFileAsync("npm", ["install", "--omit=dev", "--no-package-lock"], {
+  await execFileAsync("npm", ["install", "--omit=dev", "--no-package-lock", "--ignore-scripts", "--no-audit", "--no-fund"], {
     cwd: appRoot,
     env: process.env,
   });

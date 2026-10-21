@@ -7,7 +7,7 @@ Run the full product locally.
 ## Environment requirements
 
 - **Node.js:** `~24` (Node 24.x). The repo enforces this through `package.json#engines`.
-- **pnpm:** `10.33.x`. The repo pins `pnpm@10.33.2` through `packageManager`; use Corepack so the pinned version is selected automatically.
+- **pnpm:** minimum `10.34.7`, below `11`. The repo selects `pnpm@10.34.7` through `packageManager`. Toolchain acquisition/activation requires explicit approval; missing Corepack is not permission to use an automatic npm/global-install fallback.
 - **OS:** macOS, Linux, and WSL2 are the primary paths. If your agent CLIs run inside WSL2, use the [`WSL2 setup guide`](docs/wsl-setup.md). Windows native is supported; see [`docs/windows-troubleshooting.md`](docs/windows-troubleshooting.md) for common PowerShell setup gotchas.
 - **Optional local agent CLI:** OpenDesign supports a registry of local runtimes, including Claude Code, Codex, Devin for Terminal, OpenCode, Cursor Agent, Qwen, Qoder CLI, GitHub Copilot CLI, and others. The current list lives in [`apps/daemon/src/runtimes/registry.ts`](apps/daemon/src/runtimes/registry.ts). If none are installed, use a BYOK runtime configured in Settings.
 
@@ -31,7 +31,7 @@ Then enable Corepack and let the repo select pnpm:
 
 ```bash
 corepack enable
-corepack pnpm --version   # should print 10.33.2
+corepack pnpm --version   # should print 10.34.7
 ```
 
 ## Docker Setup

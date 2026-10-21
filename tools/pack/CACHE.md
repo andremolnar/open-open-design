@@ -135,6 +135,11 @@ Adding a materialization-time parameter without (2) is not permitted.
 
 ## Signing boundary
 
+`win.packaged-app` schema 8 includes the translated runtime npm overrides from
+`pnpm-workspace.yaml`. Changes to the reviewed dependency policy invalidate the
+assembled payload even when a caller supplies the same upstream tarball key.
+The macOS assembled app is rebuilt on each invocation rather than cached.
+
 Signing material never enters cache content. `resolveWinSigningCacheKey`
 (`src/win/sign.ts`) contributes only the certificate SHA-1, digest algorithm,
 timestamp algorithm, and timestamp URL, and appears in the keys of

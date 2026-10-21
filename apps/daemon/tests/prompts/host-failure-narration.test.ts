@@ -177,6 +177,30 @@ interface Entry {
 }
 
 const REGISTRY: readonly Entry[] = [
+  {
+    file: 'design-templates/html-ppt/SKILL.md',
+    match: 'fetch an unpinned upstream replacement. If a bundled file is missing, report it.',
+    chars: [80],
+    verdict: 'user-requested',
+    why: 'A required bundled asset for the requested presentation is missing. '
+      + 'Reporting that requirement avoids silently fetching or executing an unreviewed replacement.',
+  },
+  {
+    file: 'skills/gsap-plugins/SKILL.md',
+    match: 'If it is missing, report the blocker; do not install automatically.',
+    chars: [326],
+    verdict: 'user-requested',
+    why: 'The requested animation needs a local dependency. The user must approve '
+      + 'a reviewed installation instead of the agent automatically acquiring executable code.',
+  },
+  {
+    file: 'skills/motion-design/SKILL.md',
+    match: 'If required audio production fails, report the blocker instead of delivering',
+    chars: [76],
+    verdict: 'self-report',
+    why: 'Reports an incomplete audible film delivery, not host infrastructure '
+      + 'state or diagnostic text. Required sound cannot be presented as completed silence.',
+  },
   // ---- The two prior fixes. These lines FORBID narration. ----
   {
     file: 'apps/daemon/src/prompts/official-system.ts',
@@ -315,6 +339,22 @@ const REGISTRY: readonly Entry[] = [
 
   // ---- The model reporting on its own work. Must survive. ----
   {
+    file: 'skills/animate/SKILL.md',
+    match: '**What to feel-check**',
+    chars: [361],
+    verdict: 'self-report',
+    why: 'Names visual qualities of the generated animation that code inspection '
+      + 'cannot verify, and gives concrete playback checks. No host failure is narrated.',
+  },
+  {
+    file: 'skills/animate/SKILL.md',
+    match: 'When feel genuinely can\'t be settled from code',
+    chars: [216],
+    verdict: 'self-report',
+    why: 'Requires honesty about the model\'s own design judgment instead of '
+      + 'inventing an animation value. This is not a claim about host health.',
+  },
+  {
     file: 'skills/reference-design-contract/SKILL.md',
     match: 'If evidence is missing, say so',
     chars: [74],
@@ -330,6 +370,14 @@ const REGISTRY: readonly Entry[] = [
   },
 
   // ---- Keyword coincidence. ----
+  {
+    file: 'skills/animate/SKILL.md',
+    match: 'If the request fails this gate',
+    chars: [163],
+    verdict: 'unrelated',
+    why: 'The gate is a design decision about interaction frequency and whether '
+      + 'animation is appropriate. It offers a static alternative, not an outage report.',
+  },
   {
     file: 'design-templates/audio-jingle/SKILL.md',
     match: 'Branch by known values and use them verbatim',

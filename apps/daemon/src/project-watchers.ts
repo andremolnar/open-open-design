@@ -1,9 +1,11 @@
 import type { Stats } from 'node:fs';
 import path from 'node:path';
-import chokidar, { type FSWatcher } from 'chokidar';
+import chokidar from 'chokidar';
 
 import { isIgnoredProjectDirName } from './project-ignored-dirs.js';
 import { projectDir, resolveProjectDir } from './projects.js';
+import { createNativeProjectWatcher, type ProjectFilesystemWatcher } from './services/project-native-watcher.js';
+export type { ProjectFilesystemWatcher } from './services/project-native-watcher.js';
 
 /**
  * Refcounted per-project file watcher registry.
@@ -31,7 +33,7 @@ export interface ProjectWatcherOptions {
 }
 interface WatcherEntry {
   dir: string;
-  watcher: FSWatcher;
+  watcher: ProjectFilesystemWatcher;
   ready: Promise<void>;
   subscribers: Set<ProjectWatchCallback>;
   closing: Promise<void> | null;
@@ -42,9 +44,8 @@ export function makeIgnored(rootDir: string): ProjectWatchIgnored {
   return (absPath: string, stats?: Stats): boolean => {
     const rel = path.relative(rootDir, absPath);
     if (!rel || rel === '' || rel.startsWith('..')) return false; // never ignore root itself
-    // chokidar 3's macOS FSEvents backend can traverse directory symlinks even
-    // with followSymlinks disabled. Reject them in the shared predicate too so
-    // a project watcher never observes files outside its selected root.
+    // Reject symlink entries in the shared predicate as well as disabling
+    // traversal in chokidar, so watchers stay within the selected project root.
     if (stats?.isSymbolicLink()) return true;
     return rel.split(/[\\/]/).some((seg) => {
       const normalized = seg.toLowerCase();
@@ -70,7 +71,8 @@ function createWatcher(
   dir: string,
   opts: Required<Pick<ProjectWatcherOptions, 'ignored' | 'awaitWriteFinish'>>,
   usePolling: boolean,
-): FSWatcher {
+): ProjectFilesystemWatcher {
+  if (process.platform === 'darwin' && !usePolling) return createNativeProjectWatcher(dir, opts);
   const watcherOptions = {
     ignored: opts.ignored,
     ignoreInitial: true,
@@ -124,7 +126,7 @@ function makeEntry(dir: string, opts: Required<Pick<ProjectWatcherOptions, 'igno
     }
   };
 
-  const attachWatcher = (watcher: FSWatcher) => {
+  const attachWatcher = (watcher: ProjectFilesystemWatcher) => {
     watcher.once('ready', () => resolveReadyOnce());
     watcher.on('add', broadcast('add'));
     watcher.on('change', broadcast('change'));
@@ -217,8 +219,8 @@ export function _activeWatcherCount(): number {
   return registry.size;
 }
 
-/** Test-only: return the chokidar FSWatcher for a given project's directory. */
-export function _internalWatcherForTests(projectsRoot: string, projectId: string): FSWatcher | undefined {
+/** Test-only: return the active filesystem watcher for a project's directory. */
+export function _internalWatcherForTests(projectsRoot: string, projectId: string): ProjectFilesystemWatcher | undefined {
   const dir = projectDir(projectsRoot, projectId);
   return registry.get(dir)?.watcher;
 }

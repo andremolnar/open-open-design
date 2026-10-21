@@ -364,8 +364,7 @@ type DesktopBrowserStorageType =
   | "indexdb"
   | "localstorage"
   | "serviceworkers"
-  | "shadercache"
-  | "websql";
+  | "shadercache";
 
 export type DesktopClickInput = {
   selector: string;
@@ -2519,7 +2518,6 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
         "indexdb",
         "localstorage",
         "shadercache",
-        "websql",
         "serviceworkers",
       );
     }

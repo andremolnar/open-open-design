@@ -123,7 +123,7 @@ Once you have the design read (Section 0) and dials (Section 1), pick the right 
 | US public-sector / trust-first | `uswds` | Same |
 | Fast local-business / agency MVP | Bootstrap 5.3 | Boring, fast, works |
 | Modern accessible React foundation | `@radix-ui/themes` | Primitives + polished theme |
-| Modern SaaS where you own the components | shadcn/ui (`npx shadcn@latest add ...`) | You own the code, easy to customise; never ship default state |
+| Modern SaaS where you own the components | Existing reviewed shadcn/ui components | You own the code, easy to customise; never ship default state; do not fetch or execute a floating CLI |
 | Tailwind-based modern SaaS / AI marketing | Tailwind v4 utilities + `dark:` variant | Default for indie + small team builds |
 
 **Honesty rule:** if the brief reads as one of the systems above, install and use the **official** package. Do not recreate its CSS by hand. Do not import a system's tokens but then override 90% of them.
@@ -1009,53 +1009,29 @@ If a single checkbox cannot be honestly ticked, the page is not done. Fix it bef
 
 # APPENDICES - Real Source-Backed Reference Material
 
-The sections below are vendored reference content. They give the agent real install commands, real canonical doc links, and real working starter snippets for each design system named in Section 2. Use them to ground decisions in production reality, not training-data fiction.
+The sections below are vendored reference content. Package names, canonical doc
+links and starter snippets ground design decisions; they do not authorize
+installation, remote script loading or execution. Check the existing stack and
+report missing capabilities. Any setup needs explicit approval after reviewing
+exact versions, official sources, integrity, licenses, destinations and lifecycle
+side effects. Do not use floating `latest` CLIs.
 
-## Appendix A - Install Commands per Design System
+## Appendix A - Package identities for a separately reviewed setup plan
 
-```bash
-# Material Web (Material 3)
-npm install @material/web
-
-# Fluent UI React (v9)
-npm install @fluentui/react-components
-
-# Fluent UI Web Components (framework-free)
-npm install @fluentui/web-components @fluentui/tokens
-
-# IBM Carbon
-npm install @carbon/react @carbon/styles
-
-# Radix Themes
-npm install @radix-ui/themes
-
-# shadcn/ui (open code, owned components)
-npx shadcn@latest init
-npx shadcn@latest add button card badge separator input
-
-# Primer CSS (GitHub product/devtool UI)
-npm install --save @primer/css
-
-# Primer Brand (GitHub marketing UI)
-npm install @primer/react-brand
-
-# GOV.UK Frontend
-npm install govuk-frontend
-
-# USWDS (US Web Design System)
-npm install uswds
-
-# Atlassian Design System (Atlaskit)
-yarn add @atlaskit/css-reset @atlaskit/tokens @atlaskit/button @atlaskit/badge @atlaskit/section-message @atlaskit/card
-
-# Bootstrap 5.3
-npm install bootstrap
-
-# Shopify Polaris Web Components (Shopify apps only)
-# Add this to your app HTML head:
-#   <meta name="shopify-api-key" content="%SHOPIFY_API_KEY%" />
-#   <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
-```
+| Design system | Package/reference identities (not install commands) |
+| --- | --- |
+| Material Web | `@material/web` |
+| Fluent UI React | `@fluentui/react-components` |
+| Fluent UI Web Components | `@fluentui/web-components`, `@fluentui/tokens` |
+| IBM Carbon | `@carbon/react`, `@carbon/styles` |
+| Radix Themes | `@radix-ui/themes` |
+| shadcn/ui | Reuse existing reviewed component sources; no automatic CLI setup |
+| Primer | `@primer/css`, `@primer/react-brand` |
+| GOV.UK | `govuk-frontend` |
+| USWDS | `uswds` |
+| Atlassian | `@atlaskit/css-reset`, `@atlaskit/tokens`, `@atlaskit/button`, `@atlaskit/badge`, `@atlaskit/section-message`, `@atlaskit/card` |
+| Bootstrap | `bootstrap` |
+| Shopify Polaris | Shopify-only integration; use its approved host setup, not an automatically injected mutable CDN script |
 
 ## Appendix B - Canonical Sources (read these before reinventing)
 

@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAC_DAEMON_PREBUNDLE_ESM_REQUIRE_BANNER,
-  MAC_PREBUNDLE_COPIED_RUNTIME_DEPENDENCIES,
   MAC_PREBUNDLE_ESBUILD_TARGET,
   MAC_PREBUNDLE_POLICIES,
   MAC_PREBUNDLE_RUNTIME_DEPENDENCIES,
@@ -75,19 +74,23 @@ describe("mac standalone prebundle policy", () => {
     expect(MAC_PREBUNDLE_POLICIES.daemonCli.externals).toEqual([
       "@ffmpeg-installer/ffmpeg",
       "@open-design/sidecar",
+      "@parcel/watcher",
       "better-sqlite3",
       "blake3-wasm",
       "fsevents",
       "hyperframes",
+      "gsap",
       "node-pty",
     ]);
     expect(MAC_PREBUNDLE_POLICIES.daemonSidecar.externals).toEqual([
       "@ffmpeg-installer/ffmpeg",
       "@open-design/sidecar",
+      "@parcel/watcher",
       "better-sqlite3",
       "blake3-wasm",
       "fsevents",
       "hyperframes",
+      "gsap",
       "node-pty",
     ]);
     expect(MAC_PREBUNDLE_POLICIES.webSidecar.externals).toEqual(["@open-design/sidecar"]);
@@ -97,20 +100,21 @@ describe("mac standalone prebundle policy", () => {
     // the daemon dies at boot with ERR_MODULE_NOT_FOUND (issue #4638).
     expect(MAC_PREBUNDLE_RUNTIME_DEPENDENCIES).toEqual({
       "@ffmpeg-installer/ffmpeg": "1.1.0",
-      "better-sqlite3": "12.10.0",
+      "@parcel/watcher": "2.6.0",
+      "better-sqlite3": "13.0.3",
       "blake3-wasm": "2.1.5",
       "hyperframes": "0.8.1",
+      "gsap": "3.14.2",
       "node-pty": "1.1.0",
-      "sharp": "0.35.3",
+      "sharp": "0.35.5",
     });
-    expect(MAC_PREBUNDLE_COPIED_RUNTIME_DEPENDENCIES).toEqual({ "fsevents": "2.3.3" });
     expect(MAC_PREBUNDLED_DAEMON_CLI_RELATIVE_PATH).toBe("app/prebundled/daemon/daemon-cli.mjs");
     expect(MAC_PREBUNDLED_DAEMON_SIDECAR_RELATIVE_PATH).toBe("app/prebundled/daemon/daemon-sidecar.mjs");
     expect(MAC_PREBUNDLED_WEB_SIDECAR_RELATIVE_PATH).toBe("app/prebundled/web-sidecar.mjs");
   });
 
   it.skipIf(process.platform !== "darwin")(
-    "keeps chokidar's native fsevents binding outside daemon bundles",
+    "bundles the watcher without the retired braces or native fsevents dependency",
     async () => {
       const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
       const result = await build({
@@ -133,6 +137,7 @@ describe("mac standalone prebundle policy", () => {
       expect(Object.keys(result.metafile.inputs).some((input) => input.includes("/node_modules/fsevents/"))).toBe(
         false,
       );
+      expect(Object.keys(result.metafile.inputs).some((input) => input.includes("/node_modules/braces/"))).toBe(false);
     },
   );
 

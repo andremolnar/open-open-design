@@ -26,19 +26,13 @@ export const MAC_PREBUNDLE_ENTRYPOINTS_DIR_NAME = "prebundle-entrypoints";
 // that. Keep every entry equal to the daemon's corresponding exact pin.
 export const MAC_PREBUNDLE_RUNTIME_DEPENDENCIES = {
   "@ffmpeg-installer/ffmpeg": "1.1.0",
-  "better-sqlite3": "12.10.0",
+  "@parcel/watcher": "2.6.0",
+  "better-sqlite3": "13.0.3",
   "blake3-wasm": "2.1.5",
   "hyperframes": "0.8.1",
+  "gsap": "3.14.2",
   "node-pty": "1.1.0",
-  "sharp": "0.35.3",
-} as const;
-
-// npm 11 synthesizes a `node-gyp rebuild` install step for fsevents even
-// though its published package already contains a universal prebuilt binding
-// and no binding.gyp. Keep it optional during npm assembly, then copy the
-// pnpm-materialized package into the app after install (mac/app.ts).
-export const MAC_PREBUNDLE_COPIED_RUNTIME_DEPENDENCIES = {
-  "fsevents": "2.3.3",
+  "sharp": "0.35.5",
 } as const;
 
 export const MAC_STANDALONE_PREBUNDLE_EXCLUDED_INTERNAL_PACKAGES = [
@@ -64,15 +58,17 @@ export const MAC_PREBUNDLE_POLICIES = {
     label: "packaged main",
   },
   daemonCli: {
-    externals: ["@ffmpeg-installer/ffmpeg", "@open-design/sidecar", "better-sqlite3", "blake3-wasm", "fsevents", "hyperframes", "node-pty"],
+    externals: ["@ffmpeg-installer/ffmpeg", "@open-design/sidecar", "@parcel/watcher", "better-sqlite3", "blake3-wasm", "fsevents", "hyperframes", "gsap", "node-pty"],
     forbiddenInputs: [
       "/node_modules/@open-design/daemon/",
       "/node_modules/@ffmpeg-installer/ffmpeg/",
+      "/node_modules/@parcel/watcher/",
       "/node_modules/better-sqlite3/",
       "/node_modules/blake3-wasm/",
       "/node_modules/electron/",
       "/node_modules/fsevents/",
       "/node_modules/hyperframes/",
+      "/node_modules/gsap/",
       "/node_modules/next/",
       "/node_modules/node-pty/",
       "/node_modules/openai/",
@@ -82,15 +78,17 @@ export const MAC_PREBUNDLE_POLICIES = {
     label: "daemon cli",
   },
   daemonSidecar: {
-    externals: ["@ffmpeg-installer/ffmpeg", "@open-design/sidecar", "better-sqlite3", "blake3-wasm", "fsevents", "hyperframes", "node-pty"],
+    externals: ["@ffmpeg-installer/ffmpeg", "@open-design/sidecar", "@parcel/watcher", "better-sqlite3", "blake3-wasm", "fsevents", "hyperframes", "gsap", "node-pty"],
     forbiddenInputs: [
       "/node_modules/@open-design/daemon/",
       "/node_modules/@ffmpeg-installer/ffmpeg/",
+      "/node_modules/@parcel/watcher/",
       "/node_modules/better-sqlite3/",
       "/node_modules/blake3-wasm/",
       "/node_modules/electron/",
       "/node_modules/fsevents/",
       "/node_modules/hyperframes/",
+      "/node_modules/gsap/",
       "/node_modules/next/",
       "/node_modules/node-pty/",
       "/node_modules/openai/",
