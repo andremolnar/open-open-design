@@ -14,6 +14,7 @@ import type { RegisterMediaRoutesDeps } from './routes/media.js';
 import type { RegisterMemoryRoutesDeps } from './routes/memory.js';
 import type { RegisterOpenDesignPublicMetadataRoutesDeps } from './routes/open-design-public-metadata.js';
 import type { RegisterProjectChatArtifactRoutesDeps } from './routes/project/chat-artifacts.js';
+import type { RegisterProjectThumbnailRoutesDeps } from './routes/project/thumbnails.js';
 import type { RegisterProjectCodebaseBindingRoutesDeps } from './routes/project/codebase-binding.js';
 import type { RegisterProjectSourceContextRoutesDeps } from './routes/project/source-context.js';
 import type { RegisterProjectArtifactRoutesDeps, RegisterProjectFileRoutesDeps, RegisterProjectRoutesDeps, RegisterProjectUploadRoutesDeps } from './routes/project/index.js';
@@ -42,6 +43,7 @@ type AllRegisteredRouteDeps =
   & RegisterOpenDesignPublicMetadataRoutesDeps
   & RegisterProjectArtifactRoutesDeps
   & RegisterProjectChatArtifactRoutesDeps
+  & RegisterProjectThumbnailRoutesDeps
   & RegisterProjectCodebaseBindingRoutesDeps
   & RegisterProjectContextDiscoveryRoutesDeps
   & RegisterProjectSourceContextRoutesDeps

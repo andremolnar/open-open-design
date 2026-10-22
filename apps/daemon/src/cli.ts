@@ -258,7 +258,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source', 'out', 'app', 'expected-revision', 'query', 'cwd',
+  'source', 'out', 'app', 'expected-revision', 'query', 'cwd', 'live-artifact',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -7088,6 +7088,9 @@ async function runProject(args) {
                                           vscode, finder, terminal, …).
   od project reveal <id> [--path <path>] Reveal the project or a relative file/folder
                                           in the native file browser.
+  od project thumbnail <id> --path <file.html> --out <image.png> [--json]
+                                      Read or refresh a cached browsing screenshot
+                                      Use --live-artifact <id> instead of --path for a live artifact
   od project handoff <id> --conversation <id> --api-key <key> --model <model>
                     [--base-url <url>] [--max-tokens <n>]
                     Synthesize a resume-conversation handoff prompt.
@@ -7589,6 +7592,25 @@ Common options:
         const status = ed.available ? 'available' : 'missing';
         console.log(`${ed.id}\t${ed.label}\t${status}`);
       }
+      return;
+    }
+    case 'thumbnail': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      const fileName = typeof flags.path === 'string' ? flags.path : '';
+      const liveArtifactId = typeof flags['live-artifact'] === 'string' ? flags['live-artifact'] : '';
+      const out = typeof flags.out === 'string' ? flags.out : '';
+      if (!id || (!fileName && !liveArtifactId) || (fileName && liveArtifactId) || !out) {
+        console.error('Usage: od project thumbnail <id> (--path <file.html> | --live-artifact <id>) --out <image.png> [--json]');
+        process.exit(2);
+      }
+      const query = new URLSearchParams(fileName ? { fileName } : { liveArtifactId });
+      const response = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/thumbnail?${query}`, { headers: workspaceHeaders });
+      if (!response.ok) return structuredHttpFailure(response);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      // Explicit destination only. Do not replace existing user files silently.
+      writeFileSync(out, bytes, { flag: 'wx' });
+      if (flags.json) return process.stdout.write(JSON.stringify({ projectId: id, out, byteSize: bytes.length, etag: response.headers.get('etag') }, null, 2) + '\n');
+      console.log(`[project] wrote ${bytes.length} bytes to ${out}`);
       return;
     }
     case 'reveal': {

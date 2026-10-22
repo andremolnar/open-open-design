@@ -20,7 +20,7 @@
 // showed only the tinted glyph for prototypes, decks, documents and clones.)
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 
 import type { WorkspaceCollabContext } from '@open-design/contracts';
 
@@ -31,12 +31,11 @@ import {
   setProjectCoverSnapshot,
 } from '../../lib/project-cover-cache';
 import {
-  getCachedDeckCover,
-  loadDeckCover,
   resolveProjectCover,
 } from '../../lib/project-cover-pipeline';
 import { projectCoverUrl, type ProjectCoverOverride } from '../project-cover';
 import type { Project } from '../../types';
+import { ProjectPreviewCover } from '../ProjectPreviewCover';
 
 /** `undefined` = not resolved yet; `null` = resolved, this project has none. */
 type CoverState = ProjectCoverOverride | null | undefined;
@@ -52,6 +51,7 @@ type CoverState = ProjectCoverOverride | null | undefined;
 const inflightResolves = new Map<string, Promise<void>>();
 
 export interface ProjectHoverCover {
+  workspaceContext?: WorkspaceCollabContext | null;
   /** Resolve the cover once (cache-first); safe to call on every hover. */
   resolveCover: () => Promise<void>;
   coverSrc: string | null;
@@ -146,86 +146,7 @@ export function useProjectHoverCover(
   const showsHtml = Boolean(coverSrc && shown?.kind === 'html');
   const isDeck = showsHtml && project.metadata?.kind === 'deck';
 
-  return { resolveCover, coverSrc, showsImage, showsVideo, showsHtml, isDeck };
-}
-
-const HIDDEN_UNTIL_LOADED = { visibility: 'hidden' } as const;
-
-/**
- * An HTML cover inside the plate, rendered the way the projects grid renders
- * it: a plain page loads straight into a sandboxed frame (already HEAD-probed
- * by the pipeline), a deck collapses to its cover slide (`srcDoc`, scripts
- * stripped — the same document the grid's `DeckCoverThumb` shows).
- *
- * The frame stays hidden — the glyph keeps the plate — until its document
- * has actually loaded, so the first hover shows tint → cover in one step
- * instead of tint → blank frame → cover (per the ticket: 不闪烁). A document
- * that fails to load hands the plate back to the glyph.
- *
- * Deliberately NOT on the thumbnail load gate the grid queues behind: that
- * gate is suspended for the whole project route (`suspendThumbnailLoads` in
- * App.tsx), which is exactly where the switcher shows this card, and a hover
- * mounts one frame at a time on the user's own cue.
- */
-function HoverHtmlCover({
-  src,
-  deck,
-  glyph,
-}: {
-  src: string;
-  deck: boolean;
-  glyph: ReactNode;
-}) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  // The pipeline preloads the deck document before it reports the cover, so a
-  // resolved deck normally paints from the cache on first render; the effect
-  // below covers a plate that mounted before that (e.g. a snapshot the grid
-  // wrote on a page that has since been reloaded).
-  const [srcDoc, setSrcDoc] = useState<string | null>(
-    () => (deck ? getCachedDeckCover(src) ?? null : null),
-  );
-
-  useEffect(() => {
-    setLoaded(false);
-    setFailed(false);
-    setSrcDoc(deck ? getCachedDeckCover(src) ?? null : null);
-  }, [deck, src]);
-
-  useEffect(() => {
-    if (!deck || srcDoc !== null) return;
-    let cancelled = false;
-    loadDeckCover(src)
-      .then((next) => {
-        if (!cancelled) setSrcDoc(next);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [deck, src, srcDoc]);
-
-  if (failed) return <>{glyph}</>;
-  const ready = deck ? srcDoc !== null : true;
-  const holdingGlyph = !ready || !loaded;
-  return (
-    <>
-      {holdingGlyph ? glyph : null}
-      {ready ? (
-        <iframe
-          className={`entry-nav-rail__recent-preview-frame${deck ? ' is-deck' : ''}`}
-          {...(deck ? { srcDoc: srcDoc ?? '', sandbox: '' } : { src, sandbox: 'allow-scripts' })}
-          title=""
-          tabIndex={-1}
-          style={holdingGlyph ? HIDDEN_UNTIL_LOADED : undefined}
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-        />
-      ) : null}
-    </>
-  );
+  return { resolveCover, coverSrc, showsImage, showsVideo, showsHtml, isDeck, workspaceContext };
 }
 
 /**
@@ -243,7 +164,7 @@ export function ProjectHoverPreviewCard({
   testId,
 }: {
   project: Project;
-  cover: Pick<ProjectHoverCover, 'coverSrc' | 'showsImage' | 'showsVideo' | 'showsHtml' | 'isDeck'>;
+  cover: Pick<ProjectHoverCover, 'coverSrc' | 'showsImage' | 'showsVideo' | 'showsHtml' | 'isDeck' | 'workspaceContext'>;
   style: CSSProperties;
   testId?: string;
 }) {
@@ -266,7 +187,7 @@ export function ProjectHoverPreviewCard({
         ) : showsVideo ? (
           <video src={coverSrc ?? ''} muted playsInline preload="metadata" />
         ) : showsHtml && coverSrc ? (
-          <HoverHtmlCover key={coverSrc} src={coverSrc} deck={isDeck} glyph={glyph} />
+          <ProjectPreviewCover key={coverSrc} src={coverSrc} initial={(Array.from(project.name.trim())[0] ?? '?').toUpperCase()} workspaceContext={cover.workspaceContext} activateOnMount />
         ) : (
           glyph
         )}

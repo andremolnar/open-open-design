@@ -20,6 +20,29 @@ All fork-owned work since that boundary, including preview Back navigation,
 is collected below. Fork references link to this repository; pre-fork text,
 version numbers, links, and credits remain in the historical section.
 
+## [1.2.1] — Cached project previews (in preparation)
+
+### Added
+
+- `od project thumbnail <id> --path <file.html> --out <cover.png> --json` (or `--live-artifact <id>`) reads the same authorized cached screenshot as project browsing without overwriting an existing output file.
+
+### Fixed
+
+- Project grids and recent-project/switcher covers show cached screenshots instead of keeping every visited HTML page running. Source and local asset changes refresh visible covers; screenshots survive app restarts. ([#16](https://github.com/andremolnar/open-open-design/issues/16))
+- Live miniature previews wait for a deliberate 350 ms hover/focus, retain a 900 ms re-entry grace period, and unload afterward. Only one browsing preview runs at a time; scrolling away, navigating, or backgrounding releases it. Full project previews remain interactive.
+
+### Security
+
+- Serialize background screenshot generation through a bounded queue, recheck project authorization before serving cached bytes, and capture contained local assets in a sandboxed, muted, time-bounded renderer without remote script/asset requests.
+
+### Known limitations
+
+- New screenshots require the desktop renderer; a bare daemon can reuse cached PNGs but shows the project initial on a miss. Remote-script/asset-dependent documents can have incomplete static covers under the no-network capture policy.
+- The independently observed Next.js route-cache writes inside signed app resources remain a packaging follow-up, not a fix in this version. See the [preview validation report](docs/testing/project-previews.md) for observations and unrun checks.
+
+Release-note sources: [English](docs/CHANGELOG/v1.2.1/en.md) · [简体中文](docs/CHANGELOG/v1.2.1/zh-CN.md).
+This is a prepared source version, not a tag or binary publication.
+
 ## [1.2.0] — Upstream motion capabilities and security hardening (in preparation)
 
 ### Added

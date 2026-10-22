@@ -24,6 +24,7 @@ const harness = vi.hoisted(() => ({
   /** Answer for the page-height probe used by the full-page export path. */
   scrollHeight: 2_400,
   debuggerAttachThrows: false,
+  hangLoad: false,
 }));
 
 vi.mock('electron', () => {
@@ -37,6 +38,7 @@ vi.mock('electron', () => {
     static instances: BrowserWindow[] = [];
 
     destroyed = false;
+    private rejectLoad: ((error: Error) => void) | undefined;
 
     readonly webContents = {
       capturePage: async (rect?: Rect) => {
@@ -89,6 +91,8 @@ vi.mock('electron', () => {
 
     destroy() {
       this.destroyed = true;
+      harness.events.push('destroy');
+      this.rejectLoad?.(new Error('window destroyed'));
     }
 
     getContentSize(): [number, number] {
@@ -101,6 +105,7 @@ vi.mock('electron', () => {
 
     async loadURL() {
       harness.events.push('loadURL');
+      if (harness.hangLoad) await new Promise<void>((_resolve, reject) => { this.rejectLoad = reject; });
     }
 
     setContentSize(width: number, height: number) {
@@ -126,7 +131,7 @@ vi.mock('../../src/main/pdf-export.js', () => ({
   },
 }));
 
-import { exportArtifact, THUMBNAIL_VIEWPORT } from '../../src/main/artifact-export.js';
+import { exportArtifact, THUMBNAIL_RENDER_BUDGET_MS, THUMBNAIL_RESOURCE_BUDGET_MS, THUMBNAIL_VIEWPORT } from '../../src/main/artifact-export.js';
 
 const HTML = '<html><body><h1>cover</h1></body></html>';
 
@@ -158,13 +163,28 @@ beforeEach(() => {
   harness.captureAlphas.length = 0;
   harness.scrollHeight = 2_400;
   harness.debuggerAttachThrows = false;
+  harness.hangLoad = false;
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe('first-viewport thumbnail capture', () => {
+  it('destroys a hung thumbnail document at the overall deadline', async () => {
+    vi.useFakeTimers();
+    harness.hangLoad = true;
+    const capture = exportArtifact(thumbnailInput());
+    const deadline = THUMBNAIL_RENDER_BUDGET_MS + THUMBNAIL_RESOURCE_BUDGET_MS;
+    await vi.advanceTimersByTimeAsync(deadline - 1);
+    expect(harness.events).not.toContain('destroy');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(harness.events).toContain('destroy');
+    expect(await capture).toMatchObject({ ok: false, error: 'window destroyed' });
+    expect(harness.captureRects).toHaveLength(0);
+  });
+
   it('[P0] never measures the page height and never grows the window', async () => {
     // This is the whole difference from the long-image export. Measuring
     // scrollHeight and calling setContentSize with it is what makes cost scale

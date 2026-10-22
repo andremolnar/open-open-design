@@ -1014,3 +1014,10 @@ export interface DeployPreflightResponse {
   totalBytes: number;
   warnings: DeployPreflightWarning[];
 }
+
+/** A static browsing cover, never a replacement for the full interactive page.
+ * GET /api/projects/:id/thumbnail returns image/png with an opaque ETag and
+ * private revalidation. Exactly one source selector is required. */
+export type ProjectThumbnailRequest =
+  | { fileName: string; liveArtifactId?: never }
+  | { liveArtifactId: string; fileName?: never };

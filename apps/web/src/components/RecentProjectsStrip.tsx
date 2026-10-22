@@ -63,7 +63,6 @@ import {
   THUMBNAIL_OVERSCAN_MARGIN,
   resumeThumbnailLoads,
   suspendThumbnailLoads,
-  useThumbnailLoadSlot,
 } from '../lib/thumbnail-load-gate';
 import {
   getProjectCoverSnapshot,
@@ -72,16 +71,13 @@ import {
   setProjectCoverSnapshot,
 } from '../lib/project-cover-cache';
 import {
-  DECK_PREVIEW_HEIGHT,
-  DECK_PREVIEW_WIDTH,
-  getCachedDeckCover,
-  loadDeckCover,
   resolveProjectCover,
 } from '../lib/project-cover-pipeline';
 // The deck cover parser moved to the pipeline with the rest of the cover
 // decision; re-exported so its existing importers keep resolving.
 export { deckPreviewSrcDoc } from '../lib/project-cover-pipeline';
 import { useInView } from './plugins-home/useInView';
+import { ProjectPreviewCover } from './ProjectPreviewCover';
 import { workspaceAccountScopedCacheKey, workspaceIdentityCacheKey } from '../collab/workspace-identity';
 import { useAnalytics } from '../analytics/provider';
 import {
@@ -2145,16 +2141,11 @@ export function RecentProjectsStrip({
   );
 }
 
-// Card thumbnails for HTML projects render the real artifact, not a
-// placeholder: a plain prototype page loads straight into a lazy sandboxed
-// iframe, while a deck collapses to its first slide (`DeckCoverThumb`) so the
-// card shows a cover instead of whichever slide the deck script last left on
-// screen.
+// Browsing thumbnails are cached screenshots; the shared cover owns the
+// deliberately activated live preview rather than mounting every page.
 function RecentProjectHtmlThumb({
   src,
   initial,
-  diagnostic,
-  deckCoverOnly,
   workspaceContext,
 }: {
   src: string;
@@ -2163,68 +2154,7 @@ function RecentProjectHtmlThumb({
   deckCoverOnly: boolean;
   workspaceContext?: WorkspaceCollabContext | null;
 }) {
-  // Plain HTML goes through the shared cover frame (#5762): it HEAD-probes the
-  // cover URL in the parent cover queue first and falls back to the initial
-  // glyph when the entry file has gone missing. Keeping verification in that
-  // queue is what prevents an All Projects grid from launching one HEAD per
-  // card at once.
-  if (!deckCoverOnly) {
-    return (
-      <VerifiedHtmlCoverFrame
-        src={src}
-        initial={initial}
-        diagnostic={diagnostic}
-      />
-    );
-  }
-
-  return <DeckCoverThumb src={src} workspaceContext={workspaceContext} />;
-}
-
-function VerifiedHtmlCoverFrame({
-  src,
-  initial,
-  diagnostic,
-}: {
-  src: string;
-  initial: string;
-  diagnostic: string;
-}) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  // The iframe document load is deferred until the card is near the viewport
-  // and one of the shared thumbnail load slots is free, so a large grid
-  // cannot flood the daemon with background document loads (Batch A §4.2).
-  const { ref: inViewRef, inView } = useInView<HTMLSpanElement>({
-    rootMargin: THUMBNAIL_OVERSCAN_MARGIN,
-  });
-  const { canLoad, settle } = useThumbnailLoadSlot(inView && !failed);
-  if (failed) {
-    return <span className="recent-projects__card-glyph">{initial}</span>;
-  }
-  if (!canLoad) {
-    return (
-      <span ref={inViewRef} className="recent-projects__card-glyph">
-        {initial}
-      </span>
-    );
-  }
-  return (
-    <iframe
-      className="recent-projects__thumb-iframe"
-      src={src}
-      title=""
-      loading="lazy"
-      sandbox="allow-scripts"
-      tabIndex={-1}
-      onLoad={settle}
-      onError={() => {
-        settle();
-        console.warn('[project-cover] failed to load HTML cover:', diagnostic);
-        setFailed(true);
-      }}
-    />
-  );
+  return <ProjectPreviewCover src={src} initial={initial} workspaceContext={workspaceContext} />;
 }
 
 // Zero-interaction marker that tells the strip when a card's thumbnail area
@@ -2253,92 +2183,6 @@ function CoverVisibilitySentinel({
       aria-hidden
       style={{ position: 'absolute', inset: 0, pointerEvents: 'none', visibility: 'hidden' }}
     />
-  );
-}
-
-function DeckCoverThumb({
-  src,
-  workspaceContext,
-}: {
-  src: string;
-  workspaceContext?: WorkspaceCollabContext | null;
-}) {
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const { ref: inViewRef, inView } = useInView<HTMLDivElement>({
-    rootMargin: THUMBNAIL_OVERSCAN_MARGIN,
-  });
-  const setFrameRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      frameRef.current = node;
-      inViewRef.current = node;
-    },
-    [inViewRef],
-  );
-  const [srcDoc, setSrcDoc] = useState<string | null>(() => getCachedDeckCover(src) ?? null);
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    let cancelled = false;
-    const cached = getCachedDeckCover(src);
-    if (cached) {
-      setSrcDoc(cached);
-      return;
-    }
-    setSrcDoc(null);
-    // Deck covers fetch the full document text; defer that until the card is
-    // actually near the viewport (Batch A §4.2).
-    if (!inView) return;
-    loadDeckCover(src, undefined, workspaceContext)
-      .then((next) => {
-        if (!cancelled) setSrcDoc(next);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSrcDoc(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [src, inView, workspaceContext]);
-
-  useEffect(() => {
-    const node = frameRef.current;
-    if (!node) return;
-    const update = () => {
-      const rect = node.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-      setScale(Math.min(rect.width / DECK_PREVIEW_WIDTH, rect.height / DECK_PREVIEW_HEIGHT));
-    };
-    update();
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', update);
-      return () => window.removeEventListener('resize', update);
-    }
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={setFrameRef}
-      className="recent-projects__deck-frame"
-      style={{ '--recent-deck-scale': scale } as CSSProperties}
-      aria-hidden
-    >
-      {srcDoc ? (
-        <iframe
-          className="recent-projects__deck-iframe"
-          srcDoc={srcDoc}
-          title=""
-          loading="lazy"
-          sandbox=""
-          tabIndex={-1}
-        />
-      ) : (
-        <span className="recent-projects__deck-cover-loading" aria-hidden />
-      )}
-    </div>
   );
 }
 
