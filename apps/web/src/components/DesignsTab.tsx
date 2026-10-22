@@ -37,12 +37,12 @@ import {
 import { LiveArtifactBadges } from "./LiveArtifactBadges";
 import { Toast } from "./Toast";
 import {
-	HtmlProjectCoverFrame,
 	coverFromProjectFile,
 	projectCoverUrl,
 	selectProjectFileCover,
 	type ProjectCoverOverride,
 } from "./project-cover";
+import { ProjectPreviewCover } from './ProjectPreviewCover';
 
 type SubTab = "recent" | "yours";
 type ViewMode = "grid" | "kanban";
@@ -849,18 +849,15 @@ export function DesignsTab({
 										className="design-card-thumb live-artifact-thumb"
 										aria-hidden
 									>
-										<iframe
-											className="thumb-iframe"
+										<ProjectPreviewCover
+											initial={Array.from(title)[0] ?? '?'}
+											workspaceContext={workspaceContext}
 											src={liveArtifactPreviewUrl(
 												p.id,
 												artifact.id,
 												"rendered",
 												workspaceContext,
 											)}
-											title=""
-											loading="lazy"
-											sandbox="allow-scripts"
-											tabIndex={-1}
 										/>
 									</div>
 									<div className="design-card-meta-block">
@@ -1053,12 +1050,10 @@ export function DesignsTab({
 									) : cover.kind === "video" && cover.src ? (
 										<video className="thumb-media" src={cover.src} muted preload="metadata" playsInline />
 									) : cover.kind === "html" ? (
-										<HtmlProjectCoverFrame
+										<ProjectPreviewCover
 											src={cover.src}
 											initial={cover.initial}
-											iframeClassName="thumb-iframe"
-											glyphClassName="project-thumb-glyph"
-											diagnostic={`${p.id}:${cover.name ?? "unknown"}`}
+											workspaceContext={workspaceContext}
 										/>
 									) : (
 										<span className="project-thumb-glyph">{cover.initial}</span>

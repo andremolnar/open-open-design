@@ -85,8 +85,15 @@ export async function exportArtifact(
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     width,
   });
+  // Browsing captures are background work: include navigation/loading in the
+  // ceiling and destroy the real window, rather than only racing a promise
+  // while a hung document continues consuming a renderer slot.
+  const thumbnailDeadline = thumbnail ? setTimeout(() => {
+    if (!window.isDestroyed()) window.destroy();
+  }, THUMBNAIL_RENDER_BUDGET_MS + THUMBNAIL_RESOURCE_BUDGET_MS) : undefined;
 
   try {
+    if (thumbnail) window.webContents.setAudioMuted?.(true);
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", (event) => event.preventDefault());
     await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildDocument(input))}`);
@@ -99,6 +106,7 @@ export async function exportArtifact(
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), ok: false };
   } finally {
+    clearTimeout(thumbnailDeadline);
     if (!window.isDestroyed()) window.destroy();
   }
 }

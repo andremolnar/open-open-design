@@ -917,6 +917,7 @@ import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/de
 import { registerMediaRoutes } from './routes/media.js';
 import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes, createEnforceWorkspaceProjectMutation } from './routes/project/index.js';
 import { registerProjectChatArtifactRoutes } from './routes/project/chat-artifacts.js';
+import { registerProjectThumbnailRoutes } from './routes/project/thumbnails.js';
 import { registerProjectCodebaseBindingRoutes } from './routes/project/codebase-binding.js';
 import { registerProjectSourceContextRoutes } from './routes/project/source-context.js';
 import { registerProjectContextDiscoveryRoutes } from './routes/project/context-discovery.js';
@@ -9342,6 +9343,25 @@ export async function startServer({
     paths: pathDeps,
     projectStore: projectStoreDeps,
     authorizeProjectRequest,
+  });
+  registerProjectThumbnailRoutes(app, {
+    db,
+    http: httpDeps,
+    paths: pathDeps,
+    projectStore: projectStoreDeps,
+    liveArtifacts: liveArtifactDeps,
+    authorizeProjectRequest,
+    renderProjectThumbnail: desktopArtifactExporter ? async (html) => {
+      const result = await desktopArtifactExporter({ html, format: 'image', imageFormat: 'png', deck: false, title: 'Project preview', captureMode: 'first_viewport_thumbnail' });
+      if (!result.ok || !result.path) throw new Error('thumbnail renderer unavailable');
+      try { return await fs.promises.readFile(result.path); }
+      finally {
+        await fs.promises.rm(result.path, { force: true });
+        // The exporter allocates one temporary directory per capture. Remove
+        // only the now-empty parent, never recursively delete a returned path.
+        await fs.promises.rmdir(path.dirname(result.path)).catch(() => {});
+      }
+    } : null,
   });
 
   registerMediaRoutes(app, {

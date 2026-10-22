@@ -1,21 +1,23 @@
 // @vitest-environment jsdom
 //
-// Red spec for OPEND-2766: the recent-project hover preview (the rail's rows and
-// the chat project switcher share it) showed only the tinted glyph for every
-// project whose cover is an HTML document — prototypes, decks, documents, web
-// clones — because `useProjectHoverCover` treated `html` covers as
-// "not a picture". The contract under test: an HTML cover renders the same way
-// the projects grid renders it (a sandboxed frame; a deck collapses to its cover
-// slide), the glyph stays up until that frame has loaded, and image / video
-// covers keep painting as they did.
+// Cover selection for the rail and project switcher. HTML/deck covers now
+// select cached screenshots; image/video selections retain their behavior.
+// The shared component's separate suite owns delayed live-frame activation.
 
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Project, ProjectFile } from '../../src/types';
 
 const filesByProject = new Map<string, ProjectFile[]>();
+
+// This suite owns cover selection; dwell/unload behavior uses the real shared
+// component in ProjectPreviewCover.test.tsx.
+vi.mock('../../src/components/ProjectPreviewCover', async () => {
+  const { projectThumbnailUrl } = await import('../../src/runtime/project-thumbnail-url');
+  return { ProjectPreviewCover: ({ src }: { src: string }) => <img src={projectThumbnailUrl(src) ?? ''} alt="" /> };
+});
 
 vi.mock('../../src/providers/registry', () => ({
   fetchProjectFiles: vi.fn(async (projectId: string) => filesByProject.get(projectId) ?? []),
@@ -110,7 +112,7 @@ describe('ProjectHoverPreview — HTML and deck covers (OPEND-2766)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders a prototype\'s index.html in a sandboxed frame, keeping the glyph until it loads', async () => {
+  it('routes a prototype to a cached screenshot instead of an immediate iframe', async () => {
     filesByProject.set('proto', [file('index.html', 'html'), file('notes.md', 'text' as ProjectFile['kind'])]);
     const { container } = render(<Preview project={project('proto')} />);
 
@@ -120,30 +122,17 @@ describe('ProjectHoverPreview — HTML and deck covers (OPEND-2766)', () => {
 
     await flush();
 
-    const frame = plate(container).querySelector('iframe');
-    expect(frame).not.toBeNull();
-    expect(frame?.getAttribute('src')).toContain('/api/projects/proto/files/index.html');
-    expect(frame?.getAttribute('sandbox')).toBe('allow-scripts');
-    // The document has not painted yet: the glyph is still the face of the card.
-    expect(plate(container).querySelector('.entry-nav-rail__recent-preview-glyph')).not.toBeNull();
-
-    fireEvent.load(frame!);
-    expect(plate(container).querySelector('.entry-nav-rail__recent-preview-glyph')).toBeNull();
-    expect(plate(container).querySelector('iframe')).toBe(frame);
+    expect(plate(container).querySelector('iframe')).toBeNull();
+    expect(plate(container).querySelector('img')?.getAttribute('src')).toContain('/api/projects/proto/thumbnail?fileName=index.html');
   });
 
-  it('collapses a deck to its cover slide, the way the projects grid does', async () => {
+  it('routes decks through the same static screenshot contract', async () => {
     filesByProject.set('deck', [file('deck.html', 'html')]);
     const { container } = render(<Preview project={project('deck', { kind: 'deck' })} />);
     await flush();
 
-    const frame = plate(container).querySelector('iframe');
-    expect(frame).not.toBeNull();
-    const srcDoc = frame?.getAttribute('srcdoc') ?? '';
-    expect(srcDoc).toContain('data-od-cover-slide');
-    expect(srcDoc).toContain('Cover slide');
-    expect(srcDoc).not.toContain('window.deck');
-    expect(frame?.getAttribute('src')).toBeNull();
+    expect(plate(container).querySelector('iframe')).toBeNull();
+    expect(plate(container).querySelector('img')?.getAttribute('src')).toContain('/api/projects/deck/thumbnail?fileName=deck.html');
   });
 
   it('keeps painting image and video covers as before', async () => {

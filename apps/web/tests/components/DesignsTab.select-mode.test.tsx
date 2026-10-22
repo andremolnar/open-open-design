@@ -7,6 +7,13 @@ import { DesignsTab } from '../../src/components/DesignsTab';
 import { fetchProjectFiles } from '../../src/providers/registry';
 import type { Project } from '../../src/types';
 
+// Selection/source wiring is this suite's boundary; screenshot fetching and
+// hover lifecycle are exercised with the real component in ProjectPreviewCover.
+vi.mock('../../src/components/ProjectPreviewCover', async () => {
+  const { projectThumbnailUrl } = await import('../../src/runtime/project-thumbnail-url');
+  return { ProjectPreviewCover: ({ src }: { src: string }) => <img src={projectThumbnailUrl(src) ?? ''} alt="" /> };
+});
+
 vi.mock('../../src/providers/registry', () => ({
   deleteLiveArtifact: vi.fn(),
   fetchLiveArtifacts: vi.fn(async () => []),
@@ -112,9 +119,10 @@ describe('DesignsTab select mode', () => {
     const thumb = container.querySelector('.project-thumb-html');
     expect(thumb).toBeTruthy();
     await waitFor(() => {
-      expect(thumb?.querySelector('iframe')?.getAttribute('src')).toBe(
-        '/api/projects/project-html/files/index.html?v=700',
+      expect(thumb?.querySelector('img')?.getAttribute('src')).toBe(
+        '/api/projects/project-html/thumbnail?fileName=index.html&v=700',
       );
+      expect(thumb?.querySelector('iframe')).toBeNull();
       expect(thumb?.querySelector('.project-thumb-glyph')).toBeNull();
     });
   });
@@ -146,9 +154,10 @@ describe('DesignsTab select mode', () => {
     rerender(<DesignsTab {...props} isActive />);
 
     await waitFor(() => {
-      const frame = container.querySelector<HTMLIFrameElement>('.project-thumb-html iframe');
+      const frame = container.querySelector<HTMLImageElement>('.project-thumb-html img');
       expect(frame).toBeTruthy();
-      expect(frame?.getAttribute('src')).toBe('/api/projects/project-html-scan/files/index.html?v=300');
+      expect(frame?.getAttribute('src')).toBe('/api/projects/project-html-scan/thumbnail?fileName=index.html&v=300');
+      expect(container.querySelector('iframe')).toBeNull();
       expect(container.querySelector('.project-thumb-html .project-thumb-glyph')).toBeNull();
     });
   });

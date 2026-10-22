@@ -17,6 +17,12 @@ import {
 } from '../../src/providers/registry';
 import type { Project } from '../../src/types';
 
+// Cover-source wiring only; the real static/hover lifecycle has its own suite.
+vi.mock('../../src/components/ProjectPreviewCover', async () => {
+  const { projectThumbnailUrl } = await import('../../src/runtime/project-thumbnail-url');
+  return { ProjectPreviewCover: ({ src }: { src: string }) => <img src={projectThumbnailUrl(src) ?? ''} alt="" /> };
+});
+
 const recentWorkspaceState = vi.hoisted(() => ({
   context: {
     workspaceId: 'ws-1',
@@ -333,7 +339,7 @@ describe('RecentProjectsStrip', () => {
       expect(fetchProjectFiles).toHaveBeenCalledTimes(1);
       expect(container.querySelector('.recent-projects__card-thumb-html')).not.toBeNull();
       expect(
-        (container.querySelector('iframe') as HTMLIFrameElement | null)?.getAttribute('src'),
+        container.querySelector('img')?.getAttribute('src'),
       ).toContain('workspaceId=ws-1');
     });
     expect(fetchProjectFiles).toHaveBeenCalledWith(
@@ -421,7 +427,7 @@ describe('RecentProjectsStrip', () => {
 
     await waitFor(() => expect(container.querySelector('.recent-projects__card-thumb-html')).not.toBeNull());
     expect(
-      (container.querySelector('iframe') as HTMLIFrameElement | null)?.getAttribute('src'),
+      container.querySelector('img')?.getAttribute('src'),
     ).toContain('workspaceId=ws-1');
     const readyProjectCalls = vi.mocked(fetchProjectFiles).mock.calls.filter(
       ([id]) => id === 'project-ready',
@@ -1029,10 +1035,10 @@ describe('RecentProjectsStrip', () => {
       expect(designSystemCard?.querySelector('img')?.getAttribute('src')).toBe(
         '/api/projects/project-ds/files/imagery/cover-0.png?workspaceId=ws-1&workspaceMemberId=wm-1&v=3',
       );
-      const htmlFrame = container.querySelector<HTMLIFrameElement>('.recent-projects__card-thumb-html iframe');
+      const htmlFrame = container.querySelector<HTMLImageElement>('.recent-projects__card-thumb-html img');
       expect(htmlFrame).toBeTruthy();
       expect(htmlFrame?.getAttribute('src')).toBe(
-        '/api/projects/project-html/files/index.html?workspaceId=ws-1&workspaceMemberId=wm-1&v=200',
+        '/api/projects/project-html/thumbnail?fileName=index.html&workspaceId=ws-1&workspaceMemberId=wm-1&v=200',
       );
       expect(container.querySelector('.recent-projects__card-thumb-html .recent-projects__card-glyph')).toBeNull();
     });
@@ -1094,14 +1100,12 @@ describe('RecentProjectsStrip', () => {
     const htmlCard = container.querySelector('[data-project-id="project-html"]');
 
     await waitFor(() => {
-      // #5517 collapses a deck card to its first slide, so its frame is built
-      // from the fetched document (srcDoc) rather than pointed at the live URL
-      // — a running deck would otherwise show whichever slide it drifted to.
-      // The URL is still the versioned one, which is what this spec guards.
-      expect(deckCard?.querySelector('.recent-projects__deck-iframe')?.getAttribute('srcdoc'))
-        .toContain('slide');
-      expect(htmlCard?.querySelector('iframe')?.getAttribute('src')).toBe(
-        '/api/projects/project-html/files/index.html?workspaceId=ws-1&workspaceMemberId=wm-1&v=200',
+      // Decks and ordinary HTML select static screenshots while preserving
+      // their versioned source identity; neither mounts an idle document.
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(deckCard?.querySelector('img')?.getAttribute('src')).toContain('/api/projects/project-deck/thumbnail?fileName=index.html');
+      expect(htmlCard?.querySelector('img')?.getAttribute('src')).toBe(
+        '/api/projects/project-html/thumbnail?fileName=index.html&workspaceId=ws-1&workspaceMemberId=wm-1&v=200',
       );
       expect(deckCard?.querySelector('.recent-projects__card-glyph')).toBeNull();
       expect(htmlCard?.querySelector('.recent-projects__card-glyph')).toBeNull();

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve as pathResolve } from 'node:path';
@@ -52,6 +52,12 @@ async function startProjectStubServer(options: { codebaseConflict?: boolean } = 
       requests.push(captured);
 
       res.setHeader('content-type', 'application/json');
+      if (captured.method === 'GET' && captured.url.startsWith('/api/projects/project-1/thumbnail?')) {
+        res.setHeader('content-type', 'image/png');
+        res.setHeader('etag', '"thumbnail-revision"');
+        res.end(Buffer.from('thumbnail fixture'));
+        return;
+      }
       if (captured.method === 'POST' && captured.url === '/api/projects/project-1/reveal') {
         const body = JSON.parse(raw);
         if (body.path === 'missing.txt') {
@@ -268,6 +274,32 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe('od project CLI', () => {
+  it.each([
+    ['--path', 'nested/index.html', 'fileName=nested%2Findex.html'],
+    ['--live-artifact', 'artifact-1', 'liveArtifactId=artifact-1'],
+  ])('exports the cached thumbnail via the shared endpoint: %s', async (selector, value, query) => {
+    stub = await startProjectStubServer();
+    tempRoot = mkdtempSync(join(tmpdir(), 'od-thumbnail-cli-'));
+    const out = join(tempRoot, 'cover.png');
+    const result = await runCli(['project', 'thumbnail', 'project-1', selector, value, '--out', out, '--json', '--daemon-url', stub.baseUrl, '--workspace', 'ws-1', '--workspace-member', 'wm-1']);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ projectId: 'project-1', out, etag: '"thumbnail-revision"' });
+    expect(readFileSync(out, 'utf8')).toBe('thumbnail fixture');
+    const request = stub.requests.find(request => request.url.includes('/thumbnail?'))!;
+    expect(request.url).toBe(`/api/projects/project-1/thumbnail?${query}`);
+    expect(request.headers['x-od-workspace-id']).toBe('ws-1');
+    expect(request.headers['x-od-workspace-member-id']).toBe('wm-1');
+  });
+
+  it('does not overwrite an existing thumbnail destination', async () => {
+    stub = await startProjectStubServer();
+    tempRoot = mkdtempSync(join(tmpdir(), 'od-thumbnail-cli-'));
+    const out = join(tempRoot, 'cover.png');
+    writeFileSync(out, 'existing user file');
+    const result = await runCli(['project', 'thumbnail', 'project-1', '--path', 'index.html', '--out', out, '--json', '--daemon-url', stub.baseUrl]);
+    expect(result.code).not.toBe(0);
+    expect(readFileSync(out, 'utf8')).toBe('existing user file');
+  });
   it.each([undefined, 'nested folder/image & notes.png'])('reveals project locations through the same API: %s', async (relativePath) => {
     stub = await startProjectStubServer();
     const result = await runCli(['project', 'reveal', 'project-1', '--json', '--daemon-url', stub.baseUrl,
