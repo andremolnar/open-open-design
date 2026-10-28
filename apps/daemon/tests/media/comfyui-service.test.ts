@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { comfyWorkflowModelId } from '@open-design/contracts';
 import { generateMedia } from '../../src/media/index.js';
-import { renderComfyWorkflow, checkComfyWorkflow, validateComfyPng, resolveComfyServer } from '../../src/media/comfyui/service.js';
+import { checkComfyConnection, renderComfyWorkflow, checkComfyWorkflow, validateComfyPng, resolveComfyServer } from '../../src/media/comfyui/service.js';
 import { addComfyConnection, addComfyWorkflowDraft, getComfyExecution, migrateComfyWorkflows,
   setComfyWorkflowEnabled, claimComfyRequest } from '../../src/media/comfyui/store.js';
 import { releaseComfyOccupancy, listComfyWorkflows, discoverComfy } from '../../src/media/comfyui/store.js';
@@ -37,7 +37,11 @@ async function setup() {
   const draft = { name: 'Solid', connectionId: connection.id, graph, promptTargets: [{ nodeId: '1', input: 'prompt' }], output: { nodeId: '9', index: 0 } };
   const workflow = addComfyWorkflowDraft(db, draft);
   const json = vi.fn(async (path: string, _body?: unknown): Promise<unknown> => {
-    if (path === '/object_info') return schemas;
+    if (path.startsWith('/object_info/')) {
+      const nodeClass = decodeURIComponent(path.slice('/object_info/'.length));
+      const schema = (schemas as Record<string, unknown>)[nodeClass];
+      return schema ? { [nodeClass]: schema } : {};
+    }
     if (path === '/prompt') return { prompt_id: 'owned-prompt', node_errors: {} };
     return { 'owned-prompt': { status: { status_str: 'success', completed: true }, outputs: {
       '1': { images: [{ filename: 'wrong-preview.png', subfolder: '', type: 'temp' }] },
@@ -51,6 +55,38 @@ async function setup() {
 }
 
 describe('ComfyUI handoff and returned assets', () => {
+  it('checks server health without fetching schemas or submitting a workflow', async () => {
+    const client = { json: vi.fn(async () => ({ system: { os: 'fixture' }, devices: [] })), image: vi.fn() };
+    await expect(checkComfyConnection(client)).resolves.toEqual({ connected: true, checkedAt: expect.any(Number) });
+    expect(client.json.mock.calls).toEqual([['/system_stats']]);
+    expect(client.image).not.toHaveBeenCalled();
+  });
+
+  it.each([null, [], {}, { system: {}, devices: 'not-a-list' }, { error: 'upstream private error' }])
+    ('does not mistake unrelated JSON for a successful ComfyUI health check: %j', async (response) => {
+      await expect(checkComfyConnection({ json: async () => response, image: vi.fn() }))
+        .rejects.toMatchObject({ code: 'COMFY_INVALID_RESPONSE' });
+    });
+
+  it('validates and submits with only workflow-specific schemas, never the full catalogue', async () => {
+    const { db, client, model } = await setup();
+    const originalJson = client.json.getMockImplementation()!;
+    client.json.mockClear();
+    client.json.mockImplementation(async (path, body) => {
+      if (path === '/object_info') throw new Error('full catalogue exceeds the response limit');
+      if (path === '/object_info/SolidImage') return { SolidImage: schemas.SolidImage };
+      if (path === '/object_info/SaveImage') return { SaveImage: schemas.SaveImage };
+      return originalJson(path, body);
+    });
+    const selected = listComfyWorkflows(db)[0]!;
+    await checkComfyWorkflow(db, selected.id, selected.version, client);
+    await renderComfyWorkflow(db, { taskId: 'targeted', projectId: 'A', model, prompt: 'cup' }, { client });
+    expect(client.json.mock.calls.filter(([path]) => path.startsWith('/object_info/')).map(([path]) => path))
+      .toEqual(['/object_info/SaveImage', '/object_info/SolidImage', '/object_info/SaveImage', '/object_info/SolidImage']);
+    expect(client.json.mock.calls.some(([path]) => path === '/object_info')).toBe(false);
+    expect(client.json.mock.calls.filter(([path]) => path === '/prompt')).toHaveLength(1);
+  });
+
   it('requires an explicit choice when no preference exists and multiple servers are configured', async () => {
     const { db, connection } = await setup();
     expect(resolveComfyServer(db, {}).id).toBe(connection.id);
@@ -70,7 +106,7 @@ describe('ComfyUI handoff and returned assets', () => {
     const discovered = discoverComfy(db).workflows.find(({ name }) => name === 'Krea fixture')!;
     expect(discovered.inputs).toEqual([{ name: 'width', type: 'number', required: true }, { name: 'height', type: 'number', required: true }]);
     const originalJson = client.json.getMockImplementation()!;
-    client.json.mockImplementation((path, body) => path === '/object_info' ? Promise.resolve({ ...schemas,
+    client.json.mockImplementation((path, body) => path.startsWith('/object_info/') ? Promise.resolve({ ...schemas,
       SolidImage: { ...schemas.SolidImage, input: { required: { prompt: ['STRING', {}], width: ['INT', { min: 64, max: 2048 }], height: ['INT', { min: 64, max: 2048 }] } } },
     }) : originalJson(path, body));
     await renderComfyWorkflow(db, { taskId: 'ratio', projectId: 'A', model: discovered.model, prompt: 'cup',
@@ -100,7 +136,7 @@ describe('ComfyUI handoff and returned assets', () => {
   it('records explicit submission rejection as failed rather than manufacturing an unknown GPU job', async () => {
     const { db, client, model } = await setup();
     client.json.mockImplementation(async (path) => {
-      if (path === '/object_info') return schemas;
+      if (path.startsWith('/object_info/')) return schemas;
       throw new ComfyError('ComfyUI rejected the graph', 'COMFY_PROMPT_REJECTED', 400);
     });
     await expect(renderComfyWorkflow(db, { taskId: 'rejected', projectId: 'A', model, prompt: 'test' }, { client }))
@@ -130,7 +166,7 @@ describe('ComfyUI handoff and returned assets', () => {
   it('does not resubmit when submission loses its response and keeps server occupancy', async () => {
     const { db, client, model } = await setup();
     client.json.mockImplementation(async (path) => {
-      if (path === '/object_info') return schemas;
+      if (path.startsWith('/object_info/')) return schemas;
       throw new Error('token=private upstream response');
     });
     await expect(renderComfyWorkflow(db, { taskId: 'lost-response', projectId: 'A', model, prompt: 'test' }, { client }))
@@ -156,7 +192,7 @@ describe('ComfyUI handoff and returned assets', () => {
 
   it('polls only matching history and never treats another prompt output as success', async () => {
     const { db, client, model } = await setup();
-    client.json.mockImplementation(async (path) => path === '/object_info' ? schemas
+    client.json.mockImplementation(async (path) => path.startsWith('/object_info/') ? schemas
       : path === '/prompt' ? { prompt_id: 'owned-prompt' }
         : { 'other-prompt': { status: { completed: true, status_str: 'success' }, outputs: {} } });
     await expect(renderComfyWorkflow(db, { taskId: 'pending', projectId: 'A', model, prompt: 'test' },
@@ -215,7 +251,7 @@ describe('ComfyUI handoff and returned assets', () => {
     });
     const model = comfyWorkflowModelId(workflow.id, 1);
     const originalJson = client.json.getMockImplementation()!;
-    client.json.mockImplementation((path, body) => path === '/object_info' ? Promise.resolve(info) : originalJson(path, body));
+    client.json.mockImplementation((path, body) => path.startsWith('/object_info/') ? Promise.resolve(info) : originalJson(path, body));
     await checkComfyWorkflow(db, workflow.id, 1, client); setComfyWorkflowEnabled(db, workflow.id, 1, true);
     await expect(renderComfyWorkflow(db, { taskId: 'bad-enum', projectId: 'A', model, prompt: 'cup', workflowInputs: { preset: 'missing', width: 512 } }, { client }))
       .rejects.toThrow('Unavailable model or enum');

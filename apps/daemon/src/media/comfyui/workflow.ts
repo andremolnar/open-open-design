@@ -18,7 +18,7 @@ function targetKey(target: ComfyInputTarget): string {
 
 /**
  * Parse an API export without guessing how canvas widget positions map to inputs.
- * This is structural validation only: /object_info must validate classes, types,
+ * This is structural validation only: per-node schemas must validate classes, types,
  * connected inputs and output capability on the selected server before a run.
  */
 export function parseComfyApiGraph(raw: unknown): ComfyApiGraph {

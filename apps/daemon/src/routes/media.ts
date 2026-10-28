@@ -10,7 +10,7 @@ import {
   getComfyWorkflowDraft,
 } from '../media/comfyui/store.js';
 import { bindComfyInputs } from '../media/comfyui/workflow.js';
-import { checkComfyWorkflow, comfyClient, renderComfyWorkflow, resolveComfyServer } from '../media/comfyui/service.js';
+import { checkComfyConnection, checkComfyWorkflow, comfyClient, renderComfyWorkflow, resolveComfyServer } from '../media/comfyui/service.js';
 import { discoverComfy, unresolvedComfyExecutions } from '../media/comfyui/store.js';
 import { object } from '../media/comfyui/schema.js';
 import { ComfyError } from '../media/comfyui/errors.js';
@@ -804,9 +804,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
   });
   app.post('/api/media/comfyui/connections/:connectionId/check', async (req, res) => {
     try {
-      const schemas = await comfyClient(db, req.params.connectionId).json('/object_info');
-      if (!object(schemas) || !Object.keys(schemas).length) throw new ComfyError('Server did not return ComfyUI node schemas');
-      res.json({ connected: true, checkedAt: Date.now() });
+      res.json(await checkComfyConnection(comfyClient(db, req.params.connectionId)));
     } catch (error) { comfyRouteError(res, error); }
   });
   app.post('/api/media/comfyui/workflows', (req, res) => {

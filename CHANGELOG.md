@@ -20,6 +20,16 @@ All fork-owned work since that boundary, including preview Back navigation,
 is collected below. Fork references link to this repository; pre-fork text,
 version numbers, links, and credits remain in the historical section.
 
+## [1.2.2] — Targeted ComfyUI connection checks (in preparation)
+
+### Fixed
+
+- ComfyUI connection tests use the small server-health response instead of downloading every installed node/model schema, avoiding catalogue-size failures on otherwise reachable servers.
+- Workflow validation and generation fetch only the selected workflow's distinct node classes, while retaining model/enum, parameter-range and link validation. No fallback downloads the full catalogue; health and schema responses remain bounded.
+
+Release-note sources: [English](docs/CHANGELOG/v1.2.2/en.md) · [简体中文](docs/CHANGELOG/v1.2.2/zh-CN.md).
+This is a prepared source version, not a tag or public binary publication. See [ComfyUI](docs/comfyui.md) for endpoint requirements and limits.
+
 ## [1.2.1] — Cached project previews (in preparation)
 
 ### Added
