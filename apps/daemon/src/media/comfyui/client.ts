@@ -27,8 +27,25 @@ export interface ComfyClient {
   image(descriptor: { filename: string; subfolder: string; type: string }): Promise<Buffer>;
 }
 
+export const COMFY_JSON_LIMIT_BYTES = 8 * 1024 * 1024;
+const HEALTH_LIMIT_BYTES = 64 * 1024;
+
+/** Encode exactly one node-class segment, never a route or query supplied by a graph. */
+export function comfyNodeSchemaPath(nodeClass: string): string {
+  if (typeof nodeClass !== 'string' || !nodeClass.trim() || nodeClass.length > 1024
+    || nodeClass === '.' || nodeClass === '..' || /[\x00-\x1f\x7f]/.test(nodeClass)) {
+    throw new ComfyError('Invalid ComfyUI node class');
+  }
+  try { return `/object_info/${encodeURIComponent(nodeClass)}`; }
+  catch { throw new ComfyError('Invalid ComfyUI node class'); }
+}
+
 function allowedPath(path: string, post: boolean): boolean {
-  return post ? path === '/prompt' : path === '/object_info' || /^\/history\/[a-zA-Z0-9-]{1,100}$/.test(path);
+  if (post) return path === '/prompt';
+  if (path === '/system_stats' || /^\/history\/[a-zA-Z0-9-]{1,100}$/.test(path)) return true;
+  if (!path.startsWith('/object_info/')) return false;
+  try { return comfyNodeSchemaPath(decodeURIComponent(path.slice('/object_info/'.length))) === path; }
+  catch { return false; }
 }
 
 /** Same-origin, direct, DNS-pinned transport: the user's saved server is the only destination. */
@@ -98,7 +115,7 @@ export class ComfyHttpClient implements ComfyClient {
 
   async json(path: string, body?: unknown): Promise<unknown> {
     if (!allowedPath(path, body !== undefined)) throw new ComfyError('Unsupported ComfyUI route');
-    const bytes = await this.request(path, body, 8 * 1024 * 1024);
+    const bytes = await this.request(path, body, path === '/system_stats' ? HEALTH_LIMIT_BYTES : COMFY_JSON_LIMIT_BYTES);
     try { return JSON.parse(bytes.toString('utf8')); }
     catch { throw new ComfyError('ComfyUI did not return API JSON. Check the server origin and proxy.', 'COMFY_INVALID_RESPONSE', 502); }
   }

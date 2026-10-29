@@ -5,8 +5,9 @@ manages reusable, named API-format workflows independently of its saved servers.
 Each workflow may prefer a server, and a generation may select another server.
 This slice imports one PNG into the project that requested the generation.
 
-It uses the classic ComfyUI `/object_info`, `/prompt`, `/history/{prompt_id}` and
-`/view` routes. A server address is **not** a per-workflow HTTP endpoint. Hosted
+It uses the classic ComfyUI `/system_stats`, `/object_info/{node_class}`, `/prompt`,
+`/history/{prompt_id}` and `/view` routes, never the full `/object_info` catalogue.
+A server address is **not** a per-workflow HTTP endpoint. Hosted
 services that expose a different API are not supported by this transport.
 
 No configured server, credentials, workflow graph, model filenames or custom-node
@@ -28,7 +29,9 @@ screenshots use synthetic fixtures, not a user's configuration.
    For an operator-owned loopback/LAN server, explicitly approve the trusted
    network checkbox. HTTP is unencrypted; use HTTPS for untrusted networks.
    A proxy bearer token is optional and write-only. Save, then **Test connection**.
-   This read-only operation does not submit a workflow or test the GPU.
+   This read-only operation checks the small `/system_stats` response, not the
+   installed-node/model catalogue. It does not submit a workflow, test GPU
+   generation, or prove that a particular workflow is compatible.
 4. In ComfyUI, export a working workflow using **API format**, not the visual
    editor/canvas document. Its checkpoint and custom nodes must already exist on
    that server. Import the JSON under Workflow or paste it and click **Build
@@ -69,12 +72,23 @@ screenshots use synthetic fixtures, not a user's configuration.
    choices. An assistant can discover a named workflow and its required inputs
    without asking you to copy an opaque ID. The requesting project owns the
    imported image; there is no Settings destination-project selector.
-8. The selected server's live schemas and substituted graph are checked before
+8. Only the selected workflow's distinct node classes are fetched from the server
+   via `/object_info/{node_class}`; unrelated nodes are never enumerated. Each
+   class is fetched once per validation/submission, without cross-run caching,
+   so changed models, ranges and node types are still checked. These live schemas
+   and the substituted graph are checked before
    submission. Missing nodes, models/enums, invalid inputs, authentication and
    connection failures are reported; OpenDesign does not try other servers or
    providers automatically. The operator is responsible for installed models,
    custom nodes and GPU capacity. Protocol-fixture tests do not establish real
    model/server compatibility.
+
+Health responses are capped at 64 KiB. Node schemas retain an 8 MiB per-response
+and aggregate workflow budget; history and image-download limits are unchanged.
+Per-node metadata may still include that node's model/enum choices, because those
+are needed to validate the workflow's fixed and overridden values. Servers or
+proxies must expose `/system_stats` and per-node `/object_info/{node_class}`;
+OpenDesign does not fall back to downloading the full catalogue if either fails.
 
 Existing saved workflow versions retain their original server as a preference.
 Their graph bytes, mappings, enabled state and in-flight job identity survive

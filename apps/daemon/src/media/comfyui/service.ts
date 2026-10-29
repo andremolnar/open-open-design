@@ -5,7 +5,7 @@ import { parseComfyWorkflowModelId } from '@open-design/contracts';
 import type { ComfyWorkflowValidation, ComfyWorkflowDraft, ComfyConnectionSummary } from '@open-design/contracts';
 import { ComfyHttpClient, type ComfyClient } from './client.js';
 import { ComfyError } from './errors.js';
-import { object, validateComfySchema } from './schema.js';
+import { fetchComfyWorkflowSchemas, object, validateComfySchema } from './schema.js';
 import {
   beginComfyExecution, getComfyConnection, getComfyConnectionToken, listComfyConnections,
   getComfyWorkflowDraft, getComfyWorkflowSummary, setComfyWorkflowValidation, updateComfyExecution,
@@ -17,6 +17,15 @@ export function comfyClient(db: Database.Database, connectionId: string): ComfyH
   const connection = getComfyConnection(db, connectionId);
   if (!connection) throw new ComfyError('Saved ComfyUI server not found');
   return new ComfyHttpClient(connection, getComfyConnectionToken(db, connectionId));
+}
+
+/** Reachability/authentication only; compatibility is checked for a selected workflow. */
+export async function checkComfyConnection(client: ComfyClient): Promise<{ connected: true; checkedAt: number }> {
+  const stats = await client.json('/system_stats');
+  if (!object(stats) || !object(stats.system) || !Array.isArray(stats.devices)) {
+    throw new ComfyError('Server did not return ComfyUI system statistics', 'COMFY_INVALID_RESPONSE', 502);
+  }
+  return { connected: true, checkedAt: Date.now() };
 }
 
 /** Select once, without probing other servers or changing the user's preference. */
@@ -44,7 +53,8 @@ export async function checkComfyWorkflow(
   if (!draft) throw new ComfyError('Workflow version not found');
   try {
     const server = resolveComfyServer(db, draft, serverId);
-    const checked = validateComfySchema(draft, await (client ?? comfyClient(db, server.id)).json('/object_info'));
+    const schemas = await fetchComfyWorkflowSchemas(client ?? comfyClient(db, server.id), draft.graph);
+    const checked = validateComfySchema(draft, schemas);
     setComfyWorkflowValidation(db, id, version, checked.schemaFingerprint);
     return checked;
   } catch (error) {
@@ -111,7 +121,7 @@ export async function renderComfyWorkflow(
   try {
     if (!input.resume) {
       input.onProgress?.(`Validating ${summary.name} on ${server.name}`);
-      const schemas = await client.json('/object_info');
+      const schemas = await fetchComfyWorkflowSchemas(client, patched!);
       // Request values must satisfy the same live enum/range/link contract as fixed values.
       validateComfySchema({ ...draft, graph: patched! }, schemas);
       updateComfyExecution(db, input.taskId, 'submitting');

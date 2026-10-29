@@ -15,13 +15,17 @@ export async function startComfyFixture(options: { holdHistory?: boolean } = {})
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://fixture.test');
     response.setHeader('Content-Type', 'application/json');
-    if (url.pathname === '/object_info') {
-      response.end(JSON.stringify({
+    if (url.pathname === '/system_stats') {
+      response.end(JSON.stringify({ system: { os: 'fixture' }, devices: [] }));
+    } else if (url.pathname.startsWith('/object_info/')) {
+      const schemas: Record<string, unknown> = {
         FixtureImage: { input: { required: { prompt: ['STRING', {}], width: ['INT'], height: ['INT'], seed: ['INT', { min: 0 }] } }, output: ['IMAGE'] },
         FixtureDimensions: { input: { required: { width: ['INT', { min: 1 }], height: ['INT', { min: 1 }], preset: [['standard', 'large']] } }, output: ['INT', 'INT'] },
         PreviewImage: { input: { required: { images: ['IMAGE'] } }, output: [], output_node: true },
         SaveImage: { input: { required: { images: ['IMAGE'], filename_prefix: ['STRING', {}] } }, output: [], output_node: true },
-      }));
+      };
+      const nodeClass = decodeURIComponent(url.pathname.slice('/object_info/'.length));
+      response.end(JSON.stringify(Object.hasOwn(schemas, nodeClass) ? { [nodeClass]: schemas[nodeClass] } : {}));
     } else if (url.pathname === '/prompt' && request.method === 'POST') {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));

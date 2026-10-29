@@ -1,9 +1,30 @@
 import { createHash } from 'node:crypto';
-import type { ComfyWorkflowDraft, ComfyWorkflowValidation } from '@open-design/contracts';
+import type { ComfyApiGraph, ComfyWorkflowDraft, ComfyWorkflowValidation } from '@open-design/contracts';
 import { ComfyError } from './errors.js';
+import { COMFY_JSON_LIMIT_BYTES, comfyNodeSchemaPath, type ComfyClient } from './client.js';
 
 export function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Fetch each required class once, with sequential reads and the original
+ * aggregate JSON budget. Never discover unrelated installed nodes or fall back
+ * to the full catalogue, even when a required class is missing. */
+export async function fetchComfyWorkflowSchemas(client: ComfyClient, graph: ComfyApiGraph): Promise<Record<string, unknown>> {
+  const schemas: Record<string, unknown> = Object.create(null);
+  let bytes = 0;
+  const classes = [...new Set(Object.values(graph).map(node => node.class_type))].sort();
+  for (const nodeClass of classes) {
+    const response = await client.json(comfyNodeSchemaPath(nodeClass));
+    if (!object(response) || !Object.hasOwn(response, nodeClass) || !object(response[nodeClass])) {
+      throw new ComfyError(`Required node class is unavailable: ${nodeClass}`);
+    }
+    const schema = response[nodeClass];
+    bytes += Buffer.byteLength(JSON.stringify(schema));
+    if (bytes > COMFY_JSON_LIMIT_BYTES) throw new ComfyError('Required ComfyUI node schemas exceed the 8 MiB workflow limit');
+    schemas[nodeClass] = schema;
+  }
+  return schemas;
 }
 
 /** Check advertised types/enums, not GPU availability or arbitrary custom-node code. */
